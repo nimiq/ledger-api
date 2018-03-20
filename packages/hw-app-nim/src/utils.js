@@ -45,7 +45,7 @@ export function foreach<T, A>(
     if (index >= array.length) {
       return result;
     } else {
-      return callback(array[index], index).then(function (res) {
+      return callback(array[index], index).then(function(res) {
         result.push(res);
         return iterate(index + 1, array, result);
       });
@@ -97,7 +97,7 @@ export function checkNimiqBip32Path(path: string): void {
       " Example: 44'/242'/0'"
     );
   }
-  path.split("/").forEach(function (element) {
+  path.split("/").forEach(function(element) {
     if (!element.toString().endsWith("'")) {
       throw new Error(
         "Detected a non-hardened path element in requested BIP32 path." +

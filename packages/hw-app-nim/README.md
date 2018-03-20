@@ -25,6 +25,20 @@ const getNimPublicKey = async () => {
   return result.publicKey;
 };
 getNimPublicKey().then(pk => console.log(pk));
+
+const signNimTransaction = async () => {
+  const transaction = ...;
+  const transport = await Transport.create();
+  const nim = new Nim(transport);
+  const result = await nim.signTransaction("44'/242'/0'", transaction.signatureBase());
+
+  // add signature to transaction
+  // FIXME
+  transaction.signatures.push(decorated);
+
+  return transaction;
+}
+signNimTransaction().then(s => console.log(s.toString('hex')));
 ```
 
 
