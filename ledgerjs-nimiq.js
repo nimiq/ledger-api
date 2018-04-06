@@ -1,4 +1,4 @@
-(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.LedgerjsNimiq = f()}})(function(){var define,module,exports;return (function(){function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s}return e})()({1:[function(require,module,exports){
+(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.LedgerjsNimiq = f()}})(function(){var define,module,exports;return (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
 (function (Buffer){
 "use strict";
 
@@ -36,7 +36,17 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
  ********************************************************************************/
 var CLA = 0xe0;
 var INS_GET_PK = 0x02;
+var INS_SIGN_TX = 0x04;
 var INS_GET_CONF = 0x06;
+
+var APDU_MAX_SIZE = 150;
+var P1_FIRST_APDU = 0x00;
+var P1_MORE_APDU = 0x80;
+var P2_LAST_APDU = 0x00;
+var P2_MORE_APDU = 0x80;
+
+var SW_OK = 0x9000;
+var SW_CANCEL = 0x6985;
 
 /**
  * Nimiq API
@@ -66,13 +76,52 @@ var Nim = function () {
     }
 
     /**
+     * get Nimiq address for a given BIP 32 path.
+     * @param path a path in BIP 32 format
+     * @option boolValidate optionally enable key pair validation
+     * @option boolDisplay optionally display the address on the ledger
+     * @return an object with the address
+     * @example
+     * nim.getAddress("44'/242'/0'/0'").then(o => o.address)
+     */
+
+  }, {
+    key: "getAddress",
+    value: function getAddress(path, boolValidate, boolDisplay) {
+      var pathElts = (0, _utils.splitPath)(path);
+      var buffer = new Buffer(1 + pathElts.length * 4);
+      buffer[0] = pathElts.length;
+      pathElts.forEach(function (element, index) {
+        buffer.writeUInt32BE(element, 1 + 4 * index);
+      });
+      var verifyMsg = Buffer.from("p=np?", "ascii");
+      buffer = Buffer.concat([buffer, verifyMsg]);
+      return this.transport.send(CLA, INS_GET_PK, boolValidate ? 0x01 : 0x00, boolDisplay ? 0x01 : 0x00, buffer).then(function (response) {
+        // response = Buffer.from(response, 'hex');
+        var offset = 0;
+        var rawPublicKey = response.slice(offset, offset + 32);
+        offset += 32;
+        var address = (0, _utils.encodeEd25519PublicKey)(rawPublicKey);
+        if (boolValidate) {
+          var _signature = response.slice(offset, offset + 64);
+          if (!(0, _utils.verifyEd25519Signature)(verifyMsg, _signature, rawPublicKey)) {
+            throw new Error("Bad signature. Keypair is invalid. Please report this.");
+          }
+        }
+        return {
+          address: address
+        };
+      });
+    }
+
+    /**
      * get Nimiq public key for a given BIP 32 path.
      * @param path a path in BIP 32 format
      * @option boolValidate optionally enable key pair validation
-     * @option boolDisplay optionally enable or not the display
+     * @option boolDisplay optionally display the corresponding address on the ledger
      * @return an object with the publicKey
      * @example
-     * nim.getPublicKey("44'/242'/0'").then(o => o.publicKey)
+     * nim.getPublicKey("44'/242'/0'/0'").then(o => o.publicKey)
      */
 
   }, {
@@ -89,18 +138,81 @@ var Nim = function () {
       return this.transport.send(CLA, INS_GET_PK, boolValidate ? 0x01 : 0x00, boolDisplay ? 0x01 : 0x00, buffer).then(function (response) {
         // response = Buffer.from(response, 'hex');
         var offset = 0;
-        var rawPublicKey = response.slice(offset, offset + 32);
+        var publicKey = response.slice(offset, offset + 32);
         offset += 32;
-        var publicKey = (0, _utils.encodeEd25519PublicKey)(rawPublicKey);
         if (boolValidate) {
-          var signature = response.slice(offset, offset + 64);
-          if (!(0, _utils.verifyEd25519Signature)(verifyMsg, signature, rawPublicKey)) {
+          var _signature2 = response.slice(offset, offset + 64);
+          if (!(0, _utils.verifyEd25519Signature)(verifyMsg, _signature2, publicKey)) {
             throw new Error("Bad signature. Keypair is invalid. Please report this.");
           }
         }
         return {
           publicKey: publicKey
         };
+      });
+    }
+
+    /**
+     * sign a Nimiq transaction.
+     * @param path a path in BIP 32 format
+     * @param txContent transaction content in serialized form
+     * @return an object with the signature and the status
+     * @example
+     * nim.signTransaction("44'/242'/0'/0'", signatureBase).then(o => o.signature)
+     */
+
+  }, {
+    key: "signTransaction",
+    value: function signTransaction(path, txContent) {
+      var _this = this;
+
+      (0, _utils.checkNimiqBip32Path)(path);
+
+      var apdus = [];
+      var response = void 0;
+
+      var pathElts = (0, _utils.splitPath)(path);
+      var bufferSize = 1 + pathElts.length * 4;
+      var buffer = Buffer.alloc(bufferSize);
+      buffer[0] = pathElts.length;
+      pathElts.forEach(function (element, index) {
+        buffer.writeUInt32BE(element, 1 + 4 * index);
+      });
+      var transaction = Buffer.from(txContent);
+      var chunkSize = APDU_MAX_SIZE - bufferSize;
+      if (transaction.length <= chunkSize) {
+        // it fits in a single apdu
+        apdus.push(Buffer.concat([buffer, transaction]));
+      } else {
+        // we need to send multiple apdus to transmit the entire transaction
+        var chunk = Buffer.alloc(chunkSize);
+        var offset = 0;
+        transaction.copy(chunk, 0, offset, chunkSize);
+        apdus.push(Buffer.concat([buffer, chunk]));
+        offset += chunkSize;
+        while (offset < transaction.length) {
+          var remaining = transaction.length - offset;
+          chunkSize = remaining < APDU_MAX_SIZE ? remaining : APDU_MAX_SIZE;
+          chunk = Buffer.alloc(chunkSize);
+          transaction.copy(chunk, 0, offset, offset + chunkSize);
+          offset += chunkSize;
+          apdus.push(chunk);
+        }
+      }
+      return (0, _utils.foreach)(apdus, function (data, i) {
+        return _this.transport.send(CLA, INS_SIGN_TX, i === 0 ? P1_FIRST_APDU : P1_MORE_APDU, i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU, data, [SW_OK, SW_CANCEL]).then(function (apduResponse) {
+          response = apduResponse;
+        });
+      }).then(function () {
+        var status = Buffer.from(response.slice(response.length - 2)).readUInt16BE(0);
+        if (status === SW_OK) {
+          var _signature3 = Buffer.from(response.slice(0, response.length - 2));
+          return {
+            signature: _signature3
+          };
+        } else {
+          throw new Error("Transaction approval request was rejected");
+        }
       });
     }
   }]);
@@ -215,11 +327,11 @@ function verifyEd25519Signature(data, signature, publicKey) {
 
 function checkNimiqBip32Path(path) {
   if (!path.startsWith("44'/242'")) {
-    throw new Error("Not a Nimiq BIP32 path. Path: " + path + "." + " The Nimiq app is authorized only for paths starting with 44'/242'." + " Example: 44'/242'/0'");
+    throw new Error("Not a Nimiq BIP32 path. Path: " + path + "." + " The Nimiq app is authorized only for paths starting with 44'/242'." + " Example: 44'/242'/0'/0'");
   }
   path.split("/").forEach(function (element) {
     if (!element.toString().endsWith("'")) {
-      throw new Error("Detected a non-hardened path element in requested BIP32 path." + " Non-hardended paths are not supported at this time. Please use an all-hardened path." + " Example: 44'/242'/0'");
+      throw new Error("Detected a non-hardened path element in requested BIP32 path." + " Non-hardended paths are not supported at this time. Please use an all-hardened path." + " Example: 44'/242'/0'/0'");
     }
   });
 }
@@ -2615,6 +2727,10 @@ var _promise = require("babel-runtime/core-js/promise");
 
 var _promise2 = _interopRequireDefault(_promise);
 
+var _typeof2 = require("babel-runtime/helpers/typeof");
+
+var _typeof3 = _interopRequireDefault(_typeof2);
+
 var _getPrototypeOf = require("babel-runtime/core-js/object/get-prototype-of");
 
 var _getPrototypeOf2 = _interopRequireDefault(_getPrototypeOf);
@@ -2622,10 +2738,6 @@ var _getPrototypeOf2 = _interopRequireDefault(_getPrototypeOf);
 var _regenerator = require("babel-runtime/regenerator");
 
 var _regenerator2 = _interopRequireDefault(_regenerator);
-
-var _typeof2 = require("babel-runtime/helpers/typeof");
-
-var _typeof3 = _interopRequireDefault(_typeof2);
 
 var _asyncToGenerator2 = require("babel-runtime/helpers/asyncToGenerator");
 
@@ -2740,54 +2852,20 @@ var TransportU2F = function (_Transport) {
      */
     value: function () {
       var _ref = (0, _asyncToGenerator3.default)( /*#__PURE__*/_regenerator2.default.mark(function _callee(_) {
-        var openTimeout = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 5000;
-        var isU2FError;
+        var _openTimeout = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 5000;
+
         return _regenerator2.default.wrap(function _callee$(_context) {
           while (1) {
             switch (_context.prev = _context.next) {
               case 0:
-                _context.prev = 0;
-                _context.next = 3;
-                return attemptExchange(Buffer.alloc(0), openTimeout, false, Buffer.alloc(1));
-
-              case 3:
-                _context.next = 17;
-                break;
-
-              case 5:
-                _context.prev = 5;
-                _context.t0 = _context["catch"](0);
-                isU2FError = (0, _typeof3.default)(_context.t0.metaData) === "object";
-
-                if (!isU2FError) {
-                  _context.next = 16;
-                  break;
-                }
-
-                if (!isTimeoutU2FError(_context.t0)) {
-                  _context.next = 14;
-                  break;
-                }
-
-                emitDisconnect();
-                throw wrapU2FTransportError(_context.t0, "Ledger device unreachable.\n" + "Make sure the device is plugged, unlocked and with the correct application opened." + (location && location.protocol !== "https:" ? "\nYou are not running on HTTPS. U2F is likely to not work in unsecure protocol." : ""), "Timeout");
-
-              case 14:
-                _context.next = 17;
-                break;
-
-              case 16:
-                throw _context.t0;
-
-              case 17:
                 return _context.abrupt("return", new TransportU2F());
 
-              case 18:
+              case 1:
               case "end":
                 return _context.stop();
             }
           }
-        }, _callee, this, [[0, 5]]);
+        }, _callee, this);
       }));
 
       function open(_x) {
@@ -6545,7 +6623,7 @@ module.exports = function (it) {
 };
 
 },{}],51:[function(require,module,exports){
-var core = module.exports = { version: '2.5.3' };
+var core = module.exports = { version: '2.5.4' };
 if (typeof __e == 'number') __e = core; // eslint-disable-line no-undef
 
 },{}],52:[function(require,module,exports){
@@ -6630,6 +6708,7 @@ var global = require('./_global');
 var core = require('./_core');
 var ctx = require('./_ctx');
 var hide = require('./_hide');
+var has = require('./_has');
 var PROTOTYPE = 'prototype';
 
 var $export = function (type, name, source) {
@@ -6647,7 +6726,7 @@ var $export = function (type, name, source) {
   for (key in source) {
     // contains in native
     own = !IS_FORCED && target && target[key] !== undefined;
-    if (own && key in exports) continue;
+    if (own && has(exports, key)) continue;
     // export native or passed
     out = own ? target[key] : source[key];
     // prevent global pollution for namespaces
@@ -6688,7 +6767,7 @@ $export.U = 64;  // safe
 $export.R = 128; // real proto method for `library`
 module.exports = $export;
 
-},{"./_core":51,"./_ctx":53,"./_global":62,"./_hide":64}],60:[function(require,module,exports){
+},{"./_core":51,"./_ctx":53,"./_global":62,"./_has":63,"./_hide":64}],60:[function(require,module,exports){
 module.exports = function (exec) {
   try {
     return !!exec();
@@ -6840,7 +6919,6 @@ var LIBRARY = require('./_library');
 var $export = require('./_export');
 var redefine = require('./_redefine');
 var hide = require('./_hide');
-var has = require('./_has');
 var Iterators = require('./_iterators');
 var $iterCreate = require('./_iter-create');
 var setToStringTag = require('./_set-to-string-tag');
@@ -6867,7 +6945,7 @@ module.exports = function (Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE
   var VALUES_BUG = false;
   var proto = Base.prototype;
   var $native = proto[ITERATOR] || proto[FF_ITERATOR] || DEFAULT && proto[DEFAULT];
-  var $default = (!BUGGY && $native) || getMethod(DEFAULT);
+  var $default = $native || getMethod(DEFAULT);
   var $entries = DEFAULT ? !DEF_VALUES ? $default : getMethod('entries') : undefined;
   var $anyNative = NAME == 'Array' ? proto.entries || $native : $native;
   var methods, key, IteratorPrototype;
@@ -6878,7 +6956,7 @@ module.exports = function (Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE
       // Set @@toStringTag to native iterators
       setToStringTag(IteratorPrototype, TAG, true);
       // fix for some old engines
-      if (!LIBRARY && !has(IteratorPrototype, ITERATOR)) hide(IteratorPrototype, ITERATOR, returnThis);
+      if (!LIBRARY && typeof IteratorPrototype[ITERATOR] != 'function') hide(IteratorPrototype, ITERATOR, returnThis);
     }
   }
   // fix Array#{values, @@iterator}.name in V8 / FF
@@ -6906,7 +6984,7 @@ module.exports = function (Base, NAME, Constructor, next, DEFAULT, IS_SET, FORCE
   return methods;
 };
 
-},{"./_export":59,"./_has":63,"./_hide":64,"./_iter-create":73,"./_iterators":77,"./_library":78,"./_object-gpo":90,"./_redefine":99,"./_set-to-string-tag":102,"./_wks":117}],75:[function(require,module,exports){
+},{"./_export":59,"./_hide":64,"./_iter-create":73,"./_iterators":77,"./_library":78,"./_object-gpo":90,"./_redefine":99,"./_set-to-string-tag":102,"./_wks":117}],75:[function(require,module,exports){
 var ITERATOR = require('./_wks')('iterator');
 var SAFE_CLOSING = false;
 
@@ -7818,7 +7896,7 @@ var notify = function (promise, isReject) {
       var resolve = reaction.resolve;
       var reject = reaction.reject;
       var domain = reaction.domain;
-      var result, then;
+      var result, then, exited;
       try {
         if (handler) {
           if (!ok) {
@@ -7828,8 +7906,11 @@ var notify = function (promise, isReject) {
           if (handler === true) result = value;
           else {
             if (domain) domain.enter();
-            result = handler(value);
-            if (domain) domain.exit();
+            result = handler(value); // may throw
+            if (domain) {
+              domain.exit();
+              exited = true;
+            }
           }
           if (result === reaction.promise) {
             reject(TypeError('Promise-chain cycle'));
@@ -7838,6 +7919,7 @@ var notify = function (promise, isReject) {
           } else resolve(result);
         } else reject(value);
       } catch (e) {
+        if (domain && !exited) domain.exit();
         reject(e);
       }
     };
@@ -8662,7 +8744,7 @@ function isUndefined(arg) {
 },{}],138:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
-  var eLen = nBytes * 8 - mLen - 1
+  var eLen = (nBytes * 8) - mLen - 1
   var eMax = (1 << eLen) - 1
   var eBias = eMax >> 1
   var nBits = -7
@@ -8675,12 +8757,12 @@ exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   e = s & ((1 << (-nBits)) - 1)
   s >>= (-nBits)
   nBits += eLen
-  for (; nBits > 0; e = e * 256 + buffer[offset + i], i += d, nBits -= 8) {}
+  for (; nBits > 0; e = (e * 256) + buffer[offset + i], i += d, nBits -= 8) {}
 
   m = e & ((1 << (-nBits)) - 1)
   e >>= (-nBits)
   nBits += mLen
-  for (; nBits > 0; m = m * 256 + buffer[offset + i], i += d, nBits -= 8) {}
+  for (; nBits > 0; m = (m * 256) + buffer[offset + i], i += d, nBits -= 8) {}
 
   if (e === 0) {
     e = 1 - eBias
@@ -8695,7 +8777,7 @@ exports.read = function (buffer, offset, isLE, mLen, nBytes) {
 
 exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   var e, m, c
-  var eLen = nBytes * 8 - mLen - 1
+  var eLen = (nBytes * 8) - mLen - 1
   var eMax = (1 << eLen) - 1
   var eBias = eMax >> 1
   var rt = (mLen === 23 ? Math.pow(2, -24) - Math.pow(2, -77) : 0)
@@ -8728,7 +8810,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
       m = 0
       e = eMax
     } else if (e + eBias >= 1) {
-      m = (value * c - 1) * Math.pow(2, mLen)
+      m = ((value * c) - 1) * Math.pow(2, mLen)
       e = e + eBias
     } else {
       m = value * Math.pow(2, eBias - 1) * Math.pow(2, mLen)
