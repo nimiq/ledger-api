@@ -132,7 +132,7 @@ export default class Nim {
     path: string,
     boolValidate?: boolean,
     boolDisplay?: boolean
-  ): Promise<{ publicKey: Buffer }> {
+  ): Promise<{ publicKey: Uint8Array }> {
     let pathElts = splitPath(path);
     let buffer = new Buffer(1 + pathElts.length * 4);
     buffer[0] = pathElts.length;
@@ -163,7 +163,7 @@ export default class Nim {
           }
         }
         return {
-          publicKey: publicKey
+          publicKey: Uint8Array.from(publicKey)
         };
       });
   }
@@ -179,7 +179,7 @@ export default class Nim {
   signTransaction(
     path: string,
     txContent: Uint8Array
-  ): Promise<{ signature: Buffer }> {
+  ): Promise<{ signature: Uint8Array }> {
     checkNimiqBip32Path(path);
 
     let apdus = [];
@@ -233,7 +233,7 @@ export default class Nim {
       if (status === SW_OK) {
         let signature = Buffer.from(response.slice(0, response.length - 2));
         return {
-          signature: signature
+          signature: Uint8Array.from(signature)
         };
       } else {
         throw new Error("Transaction approval request was rejected");
