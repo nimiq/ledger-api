@@ -73,7 +73,7 @@ export default class Nim {
    * get Nimiq public key for a given BIP 32 path.
    * @param path a path in BIP 32 format
    * @option boolValidate optionally enable key pair validation
-   * @option boolDisplay optionally display the public key on the ledger
+   * @option boolDisplay optionally display the corresponding address on the ledger
    * @return an object with the publicKey
    * @example
    * nim.getPublicKey("44'/242'/0'/0'").then(o => o.publicKey)
@@ -82,7 +82,7 @@ export default class Nim {
     path: string,
     boolValidate?: boolean,
     boolDisplay?: boolean
-  ): Promise<{ publicKey: string }> {
+  ): Promise<{ publicKey: Buffer }> {
     let pathElts = splitPath(path);
     let buffer = new Buffer(1 + pathElts.length * 4);
     buffer[0] = pathElts.length;
@@ -102,12 +102,11 @@ export default class Nim {
       .then(response => {
         // response = Buffer.from(response, 'hex');
         let offset = 0;
-        let rawPublicKey = response.slice(offset, offset + 32);
+        let publicKey = response.slice(offset, offset + 32);
         offset += 32;
-        let publicKey = encodeEd25519PublicKey(rawPublicKey);
         if (boolValidate) {
           let signature = response.slice(offset, offset + 64);
-          if (!verifyEd25519Signature(verifyMsg, signature, rawPublicKey)) {
+          if (!verifyEd25519Signature(verifyMsg, signature, publicKey)) {
             throw new Error(
               "Bad signature. Keypair is invalid. Please report this."
             );
