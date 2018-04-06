@@ -147,7 +147,7 @@ var Nim = function () {
           }
         }
         return {
-          publicKey: publicKey
+          publicKey: Uint8Array.from(publicKey)
         };
       });
     }
@@ -208,7 +208,7 @@ var Nim = function () {
         if (status === SW_OK) {
           var _signature3 = Buffer.from(response.slice(0, response.length - 2));
           return {
-            signature: _signature3
+            signature: Uint8Array.from(_signature3)
           };
         } else {
           throw new Error("Transaction approval request was rejected");
