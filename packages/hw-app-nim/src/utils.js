@@ -94,7 +94,7 @@ export function checkNimiqBip32Path(path: string): void {
       path +
       "." +
       " The Nimiq app is authorized only for paths starting with 44'/242'." +
-      " Example: 44'/242'/0'"
+      " Example: 44'/242'/0'/0'"
     );
   }
   path.split("/").forEach(function(element) {
@@ -102,7 +102,7 @@ export function checkNimiqBip32Path(path: string): void {
       throw new Error(
         "Detected a non-hardened path element in requested BIP32 path." +
         " Non-hardended paths are not supported at this time. Please use an all-hardened path." +
-        " Example: 44'/242'/0'"
+        " Example: 44'/242'/0'/0'"
       );
     }
   });

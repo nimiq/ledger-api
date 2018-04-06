@@ -76,7 +76,7 @@ export default class Nim {
    * @option boolDisplay optionally display the public key on the ledger
    * @return an object with the publicKey
    * @example
-   * nim.getPublicKey("44'/242'/0'").then(o => o.publicKey)
+   * nim.getPublicKey("44'/242'/0'/0'").then(o => o.publicKey)
    */
   getPublicKey(
     path: string,
@@ -125,7 +125,7 @@ export default class Nim {
    * @param txContent transaction content in serialized form
    * @return an object with the signature and the status
    * @example
-   * nim.signTransaction("44'/242'/0'", signatureBase).then(o => o.signature)
+   * nim.signTransaction("44'/242'/0'/0'", signatureBase).then(o => o.signature)
    */
   signTransaction(
     path: string,
