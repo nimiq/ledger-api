@@ -70,6 +70,56 @@ export default class Nim {
   }
 
   /**
+   * get Nimiq address for a given BIP 32 path.
+   * @param path a path in BIP 32 format
+   * @option boolValidate optionally enable key pair validation
+   * @option boolDisplay optionally display the address on the ledger
+   * @return an object with the address
+   * @example
+   * nim.getAddress("44'/242'/0'/0'").then(o => o.address)
+   */
+  getAddress(
+    path: string,
+    boolValidate?: boolean,
+    boolDisplay?: boolean
+  ): Promise<{ address: string }> {
+    let pathElts = splitPath(path);
+    let buffer = new Buffer(1 + pathElts.length * 4);
+    buffer[0] = pathElts.length;
+    pathElts.forEach((element, index) => {
+      buffer.writeUInt32BE(element, 1 + 4 * index);
+    });
+    let verifyMsg = Buffer.from("p=np?", "ascii");
+    buffer = Buffer.concat([buffer, verifyMsg]);
+    return this.transport
+      .send(
+        CLA,
+        INS_GET_PK,
+        boolValidate ? 0x01 : 0x00,
+        boolDisplay ? 0x01 : 0x00,
+        buffer
+      )
+      .then(response => {
+        // response = Buffer.from(response, 'hex');
+        let offset = 0;
+        let rawPublicKey = response.slice(offset, offset + 32);
+        offset += 32;
+        let address = encodeEd25519PublicKey(rawPublicKey);
+        if (boolValidate) {
+          let signature = response.slice(offset, offset + 64);
+          if (!verifyEd25519Signature(verifyMsg, signature, rawPublicKey)) {
+            throw new Error(
+              "Bad signature. Keypair is invalid. Please report this."
+            );
+          }
+        }
+        return {
+          address: address
+        };
+      });
+  }
+
+  /**
    * get Nimiq public key for a given BIP 32 path.
    * @param path a path in BIP 32 format
    * @option boolValidate optionally enable key pair validation
