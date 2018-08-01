@@ -29,6 +29,7 @@ const CLA = 0xe0;
 const INS_GET_PK = 0x02;
 const INS_SIGN_TX = 0x04;
 const INS_GET_CONF = 0x06;
+const INS_KEEP_ALIVE = 0x08;
 
 const APDU_MAX_SIZE = 150;
 const P1_FIRST_APDU = 0x00;
@@ -38,6 +39,8 @@ const P2_MORE_APDU = 0x80;
 
 const SW_OK = 0x9000;
 const SW_CANCEL = 0x6985;
+const SW_KEEP_ALIVE = 0x6e02;
+
 
 /**
  * Nimiq API
@@ -83,6 +86,11 @@ export default class Nim {
     boolValidate?: boolean,
     boolDisplay?: boolean
   ): Promise<{ address: string }> {
+    checkNimiqBip32Path(path)
+
+    let apdus = [];
+    let response;
+
     let pathElts = splitPath(path);
     let buffer = new Buffer(1 + pathElts.length * 4);
     buffer[0] = pathElts.length;
@@ -90,16 +98,29 @@ export default class Nim {
       buffer.writeUInt32BE(element, 1 + 4 * index);
     });
     let verifyMsg = Buffer.from("p=np?", "ascii");
-    buffer = Buffer.concat([buffer, verifyMsg]);
-    return this.transport
-      .send(
-        CLA,
-        INS_GET_PK,
-        boolValidate ? 0x01 : 0x00,
-        boolDisplay ? 0x01 : 0x00,
-        buffer
-      )
-      .then(response => {
+    apdus.push(Buffer.concat([buffer, verifyMsg]));
+    let keepAlive = false;
+    return foreach(apdus, data =>
+      this.transport
+        .send(
+          CLA,
+          keepAlive ? INS_KEEP_ALIVE : INS_GET_PK,
+          boolValidate ? 0x01 : 0x00,
+          boolDisplay ? 0x01 : 0x00,
+          data,
+          [SW_OK, SW_KEEP_ALIVE]
+        )
+        .then(apduResponse => {
+          let status = Buffer.from(
+            apduResponse.slice(apduResponse.length - 2)
+          ).readUInt16BE(0);
+          if (status === SW_KEEP_ALIVE) {
+            keepAlive = true;
+            apdus.push(Buffer.alloc(0));
+          }
+          response = apduResponse;
+        })
+    ).then(() => {
         // response = Buffer.from(response, 'hex');
         let offset = 0;
         let rawPublicKey = response.slice(offset, offset + 32);
@@ -133,6 +154,11 @@ export default class Nim {
     boolValidate?: boolean,
     boolDisplay?: boolean
   ): Promise<{ publicKey: Uint8Array }> {
+    checkNimiqBip32Path(path)
+
+    let apdus = [];
+    let response;
+
     let pathElts = splitPath(path);
     let buffer = new Buffer(1 + pathElts.length * 4);
     buffer[0] = pathElts.length;
@@ -140,32 +166,45 @@ export default class Nim {
       buffer.writeUInt32BE(element, 1 + 4 * index);
     });
     let verifyMsg = Buffer.from("p=np?", "ascii");
-    buffer = Buffer.concat([buffer, verifyMsg]);
-    return this.transport
-      .send(
-        CLA,
-        INS_GET_PK,
-        boolValidate ? 0x01 : 0x00,
-        boolDisplay ? 0x01 : 0x00,
-        buffer
-      )
-      .then(response => {
-        // response = Buffer.from(response, 'hex');
-        let offset = 0;
-        let publicKey = response.slice(offset, offset + 32);
-        offset += 32;
-        if (boolValidate) {
-          let signature = response.slice(offset, offset + 64);
-          if (!verifyEd25519Signature(verifyMsg, signature, publicKey)) {
-            throw new Error(
-              "Bad signature. Keypair is invalid. Please report this."
-            );
+    apdus.push(Buffer.concat([buffer, verifyMsg]));
+    let keepAlive = false;
+    return foreach(apdus, data =>
+      this.transport
+        .send(
+          CLA,
+          keepAlive ? INS_KEEP_ALIVE : INS_GET_PK,
+          boolValidate ? 0x01 : 0x00,
+          boolDisplay ? 0x01 : 0x00,
+          data,
+          [SW_OK, SW_KEEP_ALIVE]
+        )
+        .then(apduResponse => {
+          let status = Buffer.from(
+            apduResponse.slice(apduResponse.length - 2)
+          ).readUInt16BE(0);
+          if (status === SW_KEEP_ALIVE) {
+            keepAlive = true;
+            apdus.push(Buffer.alloc(0));
           }
+          response = apduResponse;
+        })
+    ).then(() => {
+      // response = Buffer.from(response, 'hex');
+      let offset = 0;
+      let publicKey = response.slice(offset, offset + 32);
+      offset += 32;
+      if (boolValidate) {
+        let signature = response.slice(offset, offset + 64);
+        if (!verifyEd25519Signature(verifyMsg, signature, publicKey)) {
+          throw new Error(
+            "Bad signature. Keypair is invalid. Please report this."
+          );
         }
-        return {
-          publicKey: Uint8Array.from(publicKey)
-        };
-      });
+      }
+      return {
+        publicKey: Uint8Array.from(publicKey)
+      };
+    });
   }
 
   /**
@@ -213,17 +252,25 @@ export default class Nim {
         apdus.push(chunk);
       }
     }
+    let keepAlive = false;
     return foreach(apdus, (data, i) =>
       this.transport
         .send(
           CLA,
-          INS_SIGN_TX,
+          keepAlive ? INS_KEEP_ALIVE : INS_SIGN_TX,
           i === 0 ? P1_FIRST_APDU : P1_MORE_APDU,
           i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
           data,
-          [SW_OK, SW_CANCEL]
+          [SW_OK, SW_CANCEL, SW_KEEP_ALIVE]
         )
         .then(apduResponse => {
+          let status = Buffer.from(
+            apduResponse.slice(apduResponse.length - 2)
+          ).readUInt16BE(0);
+          if (status === SW_KEEP_ALIVE) {
+            keepAlive = true;
+            apdus.push(Buffer.alloc(0));
+          }
           response = apduResponse;
         })
     ).then(() => {
