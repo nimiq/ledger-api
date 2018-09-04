@@ -56,7 +56,7 @@ export default class Nim {
     this.transport = transport;
     transport.decorateAppAPIMethods(
       this,
-      ["getAppConfiguration", "getPublicKey", "signTransaction"],
+      ["getAppConfiguration", "getPublicKey", "getAddress", "signTransaction"],
       "w0w"
     );
   }
