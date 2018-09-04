@@ -38,6 +38,7 @@ var CLA = 0xe0;
 var INS_GET_PK = 0x02;
 var INS_SIGN_TX = 0x04;
 var INS_GET_CONF = 0x06;
+var INS_KEEP_ALIVE = 0x08;
 
 var APDU_MAX_SIZE = 150;
 var P1_FIRST_APDU = 0x00;
@@ -47,6 +48,7 @@ var P2_MORE_APDU = 0x80;
 
 var SW_OK = 0x9000;
 var SW_CANCEL = 0x6985;
+var SW_KEEP_ALIVE = 0x6e02;
 
 /**
  * Nimiq API
@@ -61,7 +63,7 @@ var Nim = function () {
     (0, _classCallCheck3.default)(this, Nim);
 
     this.transport = transport;
-    transport.decorateAppAPIMethods(this, ["getAppConfiguration", "getPublicKey", "signTransaction"], "w0w");
+    transport.decorateAppAPIMethods(this, ["getAppConfiguration", "getPublicKey", "getAddress", "signTransaction"], "w0w");
   }
 
   (0, _createClass3.default)(Nim, [{
@@ -88,6 +90,13 @@ var Nim = function () {
   }, {
     key: "getAddress",
     value: function getAddress(path, boolValidate, boolDisplay) {
+      var _this = this;
+
+      (0, _utils.checkNimiqBip32Path)(path);
+
+      var apdus = [];
+      var response = void 0;
+
       var pathElts = (0, _utils.splitPath)(path);
       var buffer = new Buffer(1 + pathElts.length * 4);
       buffer[0] = pathElts.length;
@@ -95,8 +104,18 @@ var Nim = function () {
         buffer.writeUInt32BE(element, 1 + 4 * index);
       });
       var verifyMsg = Buffer.from("p=np?", "ascii");
-      buffer = Buffer.concat([buffer, verifyMsg]);
-      return this.transport.send(CLA, INS_GET_PK, boolValidate ? 0x01 : 0x00, boolDisplay ? 0x01 : 0x00, buffer).then(function (response) {
+      apdus.push(Buffer.concat([buffer, verifyMsg]));
+      var keepAlive = false;
+      return (0, _utils.foreach)(apdus, function (data) {
+        return _this.transport.send(CLA, keepAlive ? INS_KEEP_ALIVE : INS_GET_PK, boolValidate ? 0x01 : 0x00, boolDisplay ? 0x01 : 0x00, data, [SW_OK, SW_KEEP_ALIVE]).then(function (apduResponse) {
+          var status = Buffer.from(apduResponse.slice(apduResponse.length - 2)).readUInt16BE(0);
+          if (status === SW_KEEP_ALIVE) {
+            keepAlive = true;
+            apdus.push(Buffer.alloc(0));
+          }
+          response = apduResponse;
+        });
+      }).then(function () {
         // response = Buffer.from(response, 'hex');
         var offset = 0;
         var rawPublicKey = response.slice(offset, offset + 32);
@@ -127,6 +146,13 @@ var Nim = function () {
   }, {
     key: "getPublicKey",
     value: function getPublicKey(path, boolValidate, boolDisplay) {
+      var _this2 = this;
+
+      (0, _utils.checkNimiqBip32Path)(path);
+
+      var apdus = [];
+      var response = void 0;
+
       var pathElts = (0, _utils.splitPath)(path);
       var buffer = new Buffer(1 + pathElts.length * 4);
       buffer[0] = pathElts.length;
@@ -134,8 +160,18 @@ var Nim = function () {
         buffer.writeUInt32BE(element, 1 + 4 * index);
       });
       var verifyMsg = Buffer.from("p=np?", "ascii");
-      buffer = Buffer.concat([buffer, verifyMsg]);
-      return this.transport.send(CLA, INS_GET_PK, boolValidate ? 0x01 : 0x00, boolDisplay ? 0x01 : 0x00, buffer).then(function (response) {
+      apdus.push(Buffer.concat([buffer, verifyMsg]));
+      var keepAlive = false;
+      return (0, _utils.foreach)(apdus, function (data) {
+        return _this2.transport.send(CLA, keepAlive ? INS_KEEP_ALIVE : INS_GET_PK, boolValidate ? 0x01 : 0x00, boolDisplay ? 0x01 : 0x00, data, [SW_OK, SW_KEEP_ALIVE]).then(function (apduResponse) {
+          var status = Buffer.from(apduResponse.slice(apduResponse.length - 2)).readUInt16BE(0);
+          if (status === SW_KEEP_ALIVE) {
+            keepAlive = true;
+            apdus.push(Buffer.alloc(0));
+          }
+          response = apduResponse;
+        });
+      }).then(function () {
         // response = Buffer.from(response, 'hex');
         var offset = 0;
         var publicKey = response.slice(offset, offset + 32);
@@ -164,7 +200,7 @@ var Nim = function () {
   }, {
     key: "signTransaction",
     value: function signTransaction(path, txContent) {
-      var _this = this;
+      var _this3 = this;
 
       (0, _utils.checkNimiqBip32Path)(path);
 
@@ -199,8 +235,14 @@ var Nim = function () {
           apdus.push(chunk);
         }
       }
+      var keepAlive = false;
       return (0, _utils.foreach)(apdus, function (data, i) {
-        return _this.transport.send(CLA, INS_SIGN_TX, i === 0 ? P1_FIRST_APDU : P1_MORE_APDU, i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU, data, [SW_OK, SW_CANCEL]).then(function (apduResponse) {
+        return _this3.transport.send(CLA, keepAlive ? INS_KEEP_ALIVE : INS_SIGN_TX, i === 0 ? P1_FIRST_APDU : P1_MORE_APDU, i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU, data, [SW_OK, SW_CANCEL, SW_KEEP_ALIVE]).then(function (apduResponse) {
+          var status = Buffer.from(apduResponse.slice(apduResponse.length - 2)).readUInt16BE(0);
+          if (status === SW_KEEP_ALIVE) {
+            keepAlive = true;
+            apdus.push(Buffer.alloc(0));
+          }
           response = apduResponse;
         });
       }).then(function () {
