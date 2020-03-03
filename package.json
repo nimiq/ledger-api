@@ -1,0 +1,25 @@
+{
+  "name": "ledger-api",
+  "version": "0.1.0",
+  "description": "Api for communicating with Ledger Hardware Wallets",
+  "main": "dist/LedgerApi.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nimiq/ledger-api.git"
+  },
+  "keywords": [
+    "nimiq",
+    "ledger",
+    "hardware-wallet",
+    "api"
+  ],
+  "author": "Nimiq (https://www.nimiq.com)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/nimiq/ledger-api/issues"
+  },
+  "homepage": "https://github.com/nimiq/ledger-api#readme"
+}
