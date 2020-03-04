@@ -1,22 +1,4 @@
-/********************************************************************************
- *   Ledger Node JS API
- *   (c) 2017-2018 Ledger
- *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- ********************************************************************************/
-//@flow
-
-import type Transport from "@ledgerhq/hw-transport";
+type Transport = import("@ledgerhq/hw-transport").default;
 import {
   splitPath,
   foreach,
@@ -45,14 +27,20 @@ const SW_KEEP_ALIVE = 0x6e02;
 /**
  * Nimiq API
  *
+ * Low level api for communication with the Ledger wallet Nimiq app. This lib is compatible with all @ledgerhq/transport
+ * libraries and does not require inclusion of Nimiq core classes but does on the other hand not include optimizations
+ * for specific transport types and return raw bytes.
+ *
+ * This library is in nature similar to other hw-app packages in @ledgerhq/ledgerjs and partially based on their code,
+ * licenced under the Apache 2.0 licence.
+ *
  * @example
- * import Nim from "@ledgerhq/hw-app-nim";
- * const nim = new Nim(transport)
+ * const nim = new LowLevelApi(transport)
  */
-export default class Nim {
-  transport: Transport<*>;
+export default class LowLevelApi {
+  transport: Transport;
 
-  constructor(transport: Transport<*>) {
+  constructor(transport: Transport) {
     this.transport = transport;
     transport.decorateAppAPIMethods(
       this,
@@ -89,7 +77,7 @@ export default class Nim {
     checkNimiqBip32Path(path)
 
     let apdus = [];
-    let response;
+    let response: Buffer;
 
     let pathElts = splitPath(path);
     let buffer = new Buffer(1 + pathElts.length * 4);
@@ -121,7 +109,7 @@ export default class Nim {
           response = apduResponse;
         })
     ).then(() => {
-        // response = Buffer.from(response, 'hex');
+        // response = Buffer.from(response, "hex");
         let offset = 0;
         let rawPublicKey = response.slice(offset, offset + 32);
         offset += 32;
@@ -157,7 +145,7 @@ export default class Nim {
     checkNimiqBip32Path(path)
 
     let apdus = [];
-    let response;
+    let response: Buffer;
 
     let pathElts = splitPath(path);
     let buffer = new Buffer(1 + pathElts.length * 4);
@@ -189,7 +177,7 @@ export default class Nim {
           response = apduResponse;
         })
     ).then(() => {
-      // response = Buffer.from(response, 'hex');
+      // response = Buffer.from(response, "hex");
       let offset = 0;
       let publicKey = response.slice(offset, offset + 32);
       offset += 32;
@@ -222,7 +210,7 @@ export default class Nim {
     checkNimiqBip32Path(path);
 
     let apdus = [];
-    let response;
+    let response: Buffer;
 
     let pathElts = splitPath(path);
     let bufferSize = 1 + pathElts.length * 4;

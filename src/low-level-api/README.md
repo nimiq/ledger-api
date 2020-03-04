@@ -8,11 +8,11 @@
 ```js
 import Transport from "@ledgerhq/hw-transport-node-hid";
 // import Transport from "@ledgerhq/hw-transport-u2f"; // for browser
-import Nim from "@ledgerhq/hw-app-nim";
+import LowLevelApi from "@ledgerhq/hw-app-nim";
 
 const getNimAppVersion = async () => {
     const transport = await Transport.create();
-    const nim = new Nim(transport);
+    const nim = new LowLevelApi(transport);
     const result = await nim.getAppConfiguration();
     return result.version;
 }
@@ -20,7 +20,7 @@ getNimAppVersion().then(v => console.log(v));
 
 const getNimPublicKey = async () => {
   const transport = await Transport.create();
-  const nim = new Nim(transport);
+  const nim = new LowLevelApi(transport);
   const result = await nim.getPublicKey("44'/242'/0'");
   return result.publicKey;
 };
@@ -29,7 +29,7 @@ getNimPublicKey().then(pk => console.log(pk));
 const signNimTransaction = async () => {
   const transaction = ...;
   const transport = await Transport.create();
-  const nim = new Nim(transport);
+  const nim = new LowLevelApi(transport);
   const result = await nim.signTransaction("44'/242'/0'", transaction.signatureBase());
 
   // add signature to transaction

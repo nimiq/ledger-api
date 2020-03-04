@@ -23,9 +23,11 @@
   },
   "homepage": "https://github.com/nimiq/ledger-api#readme",
   "devDependencies": {
+    "@ledgerhq/hw-transport": "^5.9.0",
+    "@types/ledgerhq__hw-transport": "^4.21.2",
     "base32.js": "^0.1.0",
     "blakejs": "^1.1.0",
     "tweetnacl": "^1.0.3",
-    "@ledgerhq/hw-transport": "^5.9.0"
+    "typescript": "^3.8.3"
   }
 }

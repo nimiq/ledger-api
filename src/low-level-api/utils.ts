@@ -1,28 +1,12 @@
-/********************************************************************************
- *   Ledger Node JS API
- *   (c) 2017-2018 Ledger
- *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
- ********************************************************************************/
-//@flow
+// Note: this code is partially taken from @ledgerhq/hw-app-str licenced under Apache 2.0
 
-import base32 from "base32.js";
 import nacl from "tweetnacl";
-const blake = require("blakejs");
+import { encode as base32Encode } from "base32.js/base32.js";
+import { blake2b } from "blakejs/blake2b.js";
 
 // TODO use bip32-path library
 export function splitPath(path: string): number[] {
-  let result = [];
+  let result: number[] = [];
   let components = path.split("/");
   components.forEach(element => {
     let number = parseInt(element, 10);
@@ -39,11 +23,11 @@ export function splitPath(path: string): number[] {
 
 export function foreach<T, A>(
   arr: T[],
-  callback: (T, number) => Promise<A>
+  callback: (entry: T, index: number) => Promise<A>
 ): Promise<A[]> {
-  function iterate(index, array, result) {
+  function iterate(index: number, array: T[], result: A[]): Promise<A[]> {
     if (index >= array.length) {
-      return result;
+      return Promise.resolve(result);
     } else {
       return callback(array[index], index).then(function(res) {
         result.push(res);
@@ -51,7 +35,7 @@ export function foreach<T, A>(
       });
     }
   }
-  return Promise.resolve().then(() => iterate(0, arr, []));
+  return iterate(0, arr, []);
 }
 
 export function encodeEd25519PublicKey(rawPublicKey: Buffer): string {
@@ -67,8 +51,8 @@ export function encodeEd25519PublicKey(rawPublicKey: Buffer): string {
     }
     return parseInt(tmp);
   }
-  const hash: Uint8Array = blake.blake2b(rawPublicKey, undefined, 32).subarray(0, 20);
-  const base32enconded: string = base32.encode(hash, { type: "crockford", alphabet: "0123456789ABCDEFGHJKLMNPQRSTUVXY" });
+  const hash: Uint8Array = blake2b(rawPublicKey, undefined, 32).subarray(0, 20);
+  const base32enconded: string = base32Encode(hash, { type: "crockford", alphabet: "0123456789ABCDEFGHJKLMNPQRSTUVXY" });
   const check: string = ("00" + (98 - _ibanCheck(base32enconded + "NQ" + "00"))).slice(-2);
   let res: string = "NQ" + check + base32enconded;
   res = res.replace(/.{4}/g, "$& ").trim();
