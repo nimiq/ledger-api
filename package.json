@@ -21,5 +21,11 @@
   "bugs": {
     "url": "https://github.com/nimiq/ledger-api/issues"
   },
-  "homepage": "https://github.com/nimiq/ledger-api#readme"
+  "homepage": "https://github.com/nimiq/ledger-api#readme",
+  "devDependencies": {
+    "base32.js": "^0.1.0",
+    "blakejs": "^1.1.0",
+    "tweetnacl": "^1.0.3",
+    "@ledgerhq/hw-transport": "^5.9.0"
+  }
 }
