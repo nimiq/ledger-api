@@ -4,7 +4,8 @@
   "description": "Api for communicating with Ledger Hardware Wallets",
   "main": "dist/LedgerApi.js",
   "scripts": {
-    "build": "rollup --config"
+    "build": "rollup --config",
+    "serve": "rollup --config --watch --configServe"
   },
   "repository": {
     "type": "git",
@@ -31,6 +32,9 @@
     "base32.js": "^0.1.0",
     "blakejs": "^1.1.0",
     "rollup": "^2.0.2",
+    "rollup-plugin-copy": "^3.3.0",
+    "rollup-plugin-livereload": "^1.0.4",
+    "rollup-plugin-serve": "^1.0.1",
     "tslib": "^1.11.1",
     "tweetnacl": "^1.0.3",
     "typescript": "^3.8.3"
