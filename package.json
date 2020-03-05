@@ -4,7 +4,7 @@
   "description": "Api for communicating with Ledger Hardware Wallets",
   "main": "dist/LedgerApi.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "rollup --config"
   },
   "repository": {
     "type": "git",
@@ -24,9 +24,14 @@
   "homepage": "https://github.com/nimiq/ledger-api#readme",
   "devDependencies": {
     "@ledgerhq/hw-transport": "^5.9.0",
+    "@rollup/plugin-commonjs": "^11.0.2",
+    "@rollup/plugin-node-resolve": "^7.1.1",
+    "@rollup/plugin-typescript": "^4.0.0",
     "@types/ledgerhq__hw-transport": "^4.21.2",
     "base32.js": "^0.1.0",
     "blakejs": "^1.1.0",
+    "rollup": "^2.0.2",
+    "tslib": "^1.11.1",
     "tweetnacl": "^1.0.3",
     "typescript": "^3.8.3"
   }
