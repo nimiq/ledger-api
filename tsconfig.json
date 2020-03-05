@@ -8,7 +8,10 @@
     "esModuleInterop": true,
     "noImplicitAny": true,
     "noImplicitReturns": true,
-    "noImplicitThis": true
+    "noImplicitThis": true,
+    "declaration": true,
+    "declarationDir": "dist",
+    "rootDir": "src"
   }
 }
 

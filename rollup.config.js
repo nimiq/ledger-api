@@ -6,13 +6,15 @@ export default {
     input: 'src/low-level-api/low-level-api.ts',
     output: [
         {
-            dir: 'dist/module',
+            dir: 'dist', // not dist/low-level-api as ts plugin creates sub folder structure in dist as in rootDir
             format: "es",
+            entryFileNames: 'low-level-api/[name].[format].js',
             sourcemap: true
         },
         {
-            dir: 'dist/commonjs',
+            dir: 'dist',
             format: 'cjs',
+            entryFileNames: 'low-level-api/[name].[format].js',
             sourcemap: true
         }
     ],
