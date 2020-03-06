@@ -1,3 +1,5 @@
+import fs from 'fs';
+
 import typescript from '@rollup/plugin-typescript';
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
@@ -63,11 +65,26 @@ export default (commandLineArgs) => {
     };
 
     if (isServing) {
+        // Taken from https://github.com/webpack/webpack-dev-server/commit/e97741c84ca69913283ae5d48cc3f4e0cf8334e3
+        // Note that webpack-dev-server in the mean time switched to generating a separate certificate per project but
+        // we don't need that here.
+        const sslCertificate = fs.readFileSync('ssl/server.pem');
+        const httpsOptions = {
+            key: sslCertificate,
+            cert: sslCertificate,
+        };
+
         demoConfig.plugins = [
             ...demoConfig.plugins,
-            serve(['dist', 'dist/demo']), // list dist/demo to make index.html available at server root
+            serve({
+                // list dist/demo to make index.html available at server root
+                contentBase: ['dist', 'dist/demo'],
+                // ledger transport apis require https.
+                https: httpsOptions,
+            }),
             livereload({
                 watch: 'dist',
+                https: httpsOptions,
             }),
         ]
     }
