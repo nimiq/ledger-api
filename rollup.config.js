@@ -5,6 +5,7 @@ import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 
 // demo page specific imports
+import alias from '@rollup/plugin-alias';
 import copy from 'rollup-plugin-copy';
 import serve from 'rollup-plugin-serve';
 import livereload from 'rollup-plugin-livereload';
@@ -54,6 +55,12 @@ export default (commandLineArgs) => {
             typescript({
                 include: ['src/demo/**', 'src/lib/**'],
                 noEmitOnError: !isServing,
+            }),
+            // typescript needs 'low-level-api' to find the .d.ts file but for bundling we need to point to .es.js file
+            alias({
+                entries: {
+                    '../../dist/low-level-api/low-level-api': '../../dist/low-level-api/low-level-api.es.js',
+                },
             }),
             resolve(),
             commonjs({ namedExports: { 'u2f-api': ['sign', 'isSupported'] } }),

@@ -27,6 +27,7 @@
     "@ledgerhq/hw-transport": "^5.9.0",
     "@ledgerhq/hw-transport-u2f": "^5.9.0",
     "@nimiq/core-web": "^1.5.4",
+    "@rollup/plugin-alias": "^3.0.1",
     "@rollup/plugin-commonjs": "^11.0.2",
     "@rollup/plugin-node-resolve": "^7.1.1",
     "@rollup/plugin-typescript": "^4.0.0",

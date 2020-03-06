@@ -1,6 +1,5 @@
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
-// @ts-ignore TODO import dist types
-import LowLevelApi from '../../dist/low-level-api/low-level-api.es.js';
+import LowLevelApi from '../../dist/low-level-api/low-level-api';
 import { loadNimiqCore } from '../lib/load-nimiq';
 
 window.addEventListener('load', () => {
