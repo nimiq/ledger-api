@@ -5,7 +5,7 @@ import {
   encodeEd25519PublicKey,
   verifyEd25519Signature,
   checkNimiqBip32Path,
-} from "./utils";
+} from "./low-level-api-utils";
 
 const CLA = 0xe0;
 const INS_GET_PK = 0x02;
