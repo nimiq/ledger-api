@@ -30,7 +30,7 @@ export default (commandLineArgs) => {
         ],
         plugins: [
             typescript({
-                include: ['src/low-level-api/**', 'src/type-shims.d.ts'],
+                include: ['src/low-level-api/**'],
                 declaration: true,
                 declarationDir: 'dist',
                 rootDir: 'src', // temporary, see https://github.com/rollup/plugins/issues/61#issuecomment-596270901
@@ -52,11 +52,11 @@ export default (commandLineArgs) => {
         },
         plugins: [
             typescript({
-                include: ['src/demo/**'],
+                include: ['src/demo/**', 'src/lib/**'],
                 noEmitOnError: !isServing,
             }),
             resolve(),
-            commonjs(),
+            commonjs({ namedExports: { 'u2f-api': ['sign', 'isSupported'] } }),
             copy({ targets: [{ src: 'src/demo/template.html', dest: 'dist/demo', rename: 'index.html' }] }),
         ],
         watch: {
