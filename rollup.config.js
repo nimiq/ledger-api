@@ -123,6 +123,9 @@ export default (commandLineArgs) => {
     };
 
     if (isServing) {
+        // only build es build when serving
+        lowLevelApiConfig.output = lowLevelApiConfig.output.filter((output) => output.format === 'es');
+
         // Taken from https://github.com/webpack/webpack-dev-server/commit/e97741c84ca69913283ae5d48cc3f4e0cf8334e3
         // Note that webpack-dev-server in the mean time switched to generating a separate certificate per project but
         // we don't need that here.
