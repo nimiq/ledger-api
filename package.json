@@ -4,7 +4,7 @@
   "description": "Api for communicating with Ledger Hardware Wallets",
   "main": "dist/LedgerApi.js",
   "scripts": {
-    "build": "rollup --config",
+    "build": "rollup --config && sed -i 's/low-level-api.es.js/low-level-api.cjs.js/' dist/low-level-api/low-level-api.cjs.js.map",
     "serve": "rollup --config --watch --configServe"
   },
   "repository": {
