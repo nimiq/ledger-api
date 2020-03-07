@@ -4,6 +4,7 @@ import path from 'path';
 import typescript from '@rollup/plugin-typescript';
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
+import sourcemaps from 'rollup-plugin-sourcemaps';
 
 // demo page specific imports
 import alias from '@rollup/plugin-alias';
@@ -81,6 +82,7 @@ export default (commandLineArgs) => {
                 noEmitOnError: !isServing,
             }),
             resolve({ browser: true }), // use browser versions of packages if defined in their package.json
+            sourcemaps(),
             commonjs(),
         ],
         watch: {
@@ -111,6 +113,7 @@ export default (commandLineArgs) => {
                 },
             }),
             resolve(),
+            sourcemaps(),
             commonjs({ namedExports: { 'u2f-api': ['sign', 'isSupported'] } }),
             copy({ targets: [{ src: 'src/demo/template.html', dest: 'dist/demo', rename: 'index.html' }] }),
         ],
