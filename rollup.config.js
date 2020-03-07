@@ -92,6 +92,7 @@ export default (commandLineArgs) => {
 
     const demoConfig = {
         input: 'src/demo/index.ts',
+        external: ['../low-level-api/low-level-api.es.js'],
         output: {
             dir: 'dist/demo',
             format: 'es',
@@ -106,10 +107,10 @@ export default (commandLineArgs) => {
                 include: ['src/demo/**', 'src/lib/**'],
                 noEmitOnError: !isServing,
             }),
-            // typescript needs 'low-level-api' to find the .d.ts file but for bundling we need to point to .es.js file
+            // typescript needs 'low-level-api' to find the .d.ts file but for external import we need .es.js file
             alias({
                 entries: {
-                    '../../dist/low-level-api/low-level-api': '../../dist/low-level-api/low-level-api.es.js',
+                    '../../dist/low-level-api/low-level-api': '../low-level-api/low-level-api.es.js',
                 },
             }),
             resolve(),
