@@ -23,6 +23,14 @@ const SW_OK = 0x9000;
 const SW_CANCEL = 0x6985;
 const SW_KEEP_ALIVE = 0x6e02;
 
+// The @ledgerhq libraries use Node Buffers which need to be polyfilled in the browser. To avoid the need to bundle such
+// polyfills that an app likely already has bundled in the @ledgerhq libraries, this library expects a global polyfill
+// declared on window.
+declare global {
+  interface Window {
+    Buffer?: typeof Buffer;
+  }
+}
 
 /**
  * Nimiq API

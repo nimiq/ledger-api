@@ -2,6 +2,8 @@ import TransportU2F from '@ledgerhq/hw-transport-u2f';
 import LowLevelApi from '../../dist/low-level-api/low-level-api';
 import { loadNimiqCore } from '../lib/load-nimiq';
 
+window.Buffer = Buffer;
+
 window.addEventListener('load', () => {
     document.body.innerHTML = `
         <h1 class="nq-h1">Nimiq Ledger Api Demos</h1>
