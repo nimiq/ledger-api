@@ -8,6 +8,7 @@ import sourcemaps from 'rollup-plugin-sourcemaps';
 
 // demo page specific imports
 import alias from '@rollup/plugin-alias';
+import nodePolyfills from 'rollup-plugin-node-polyfills';
 import copy from 'rollup-plugin-copy';
 import serve from 'rollup-plugin-serve';
 import livereload from 'rollup-plugin-livereload';
@@ -113,10 +114,28 @@ export default (commandLineArgs) => {
                     '../../dist/low-level-api/low-level-api': '../low-level-api/low-level-api.es.js',
                 },
             }),
-            resolve(),
+            resolve({
+                preferBuiltins: true, // don't touch imports of node builtins as these will be handled by nodePolyfills
+            }),
             sourcemaps(),
-            commonjs({ namedExports: { 'u2f-api': ['sign', 'isSupported'] } }),
-            copy({ targets: [{ src: 'src/demo/template.html', dest: 'dist/demo', rename: 'index.html' }] }),
+            commonjs({
+                namedExports: {
+                    'u2f-api': ['sign', 'isSupported']
+                },
+            }),
+            nodePolyfills({
+                include: [
+                    'src/**/*',
+                    'node_modules/**/*.js',
+                ],
+            }),
+            copy({
+                targets: [{
+                    src: 'src/demo/template.html',
+                    dest: 'dist/demo',
+                    rename: 'index.html'
+                }],
+            }),
         ],
         watch: {
             clearScreen: false,
