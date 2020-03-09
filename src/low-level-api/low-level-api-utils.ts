@@ -4,14 +4,13 @@ import nacl from 'tweetnacl';
 import { encode as base32Encode } from 'base32.js/base32.js';
 import { blake2b } from 'blakejs/blake2b.js';
 
-// TODO use bip32-path library
 export function splitPath(path: string): number[] {
     const result: number[] = [];
     const components = path.split('/');
     components.forEach((element) => {
         let number = parseInt(element, 10);
         if (Number.isNaN(number)) {
-            return; // FIXME shouldn't it throws instead?
+            throw new Error(`Invalid path: ${path}`);
         }
         if (element.length > 1 && element[element.length - 1] === '\'') {
             number += 0x80000000;
@@ -21,7 +20,7 @@ export function splitPath(path: string): number[] {
     return result;
 }
 
-export function foreach<T, A>(
+export async function foreach<T, A>(
     arr: T[],
     callback: (entry: T, index: number) => Promise<A>,
 ): Promise<A[]> {
@@ -38,20 +37,20 @@ export function foreach<T, A>(
     return iterate(0, arr, []);
 }
 
-export function encodeEd25519PublicKey(rawPublicKey: Buffer): string {
-    function _ibanCheck(str: string): number {
-        const num: string = str.split('').map((c: string) => {
-            const code: number = c.toUpperCase().charCodeAt(0);
-            return code >= 48 && code <= 57 ? c : (code - 55).toString();
-        }).join('');
-        let tmp: string = '';
+function _ibanCheck(str: string): number {
+    const num: string = str.split('').map((c: string) => {
+        const code: number = c.toUpperCase().charCodeAt(0);
+        return code >= 48 && code <= 57 ? c : (code - 55).toString();
+    }).join('');
+    let tmp: string = '';
 
-        for (let i = 0; i < Math.ceil(num.length / 6); i++) {
-            tmp = (Number.parseInt(tmp + num.substr(i * 6, 6), 10) % 97).toString();
-        }
-        return Number.parseInt(tmp, 10);
+    for (let i = 0; i < Math.ceil(num.length / 6); i++) {
+        tmp = (Number.parseInt(tmp + num.substr(i * 6, 6), 10) % 97).toString();
     }
+    return Number.parseInt(tmp, 10);
+}
 
+export function encodeEd25519PublicKey(rawPublicKey: Buffer): string {
     const hash: Uint8Array = blake2b(rawPublicKey, undefined, 32).subarray(0, 20);
     const base32enconded: string = base32Encode(hash, {
         type: 'crockford',

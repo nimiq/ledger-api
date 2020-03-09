@@ -17,8 +17,12 @@ const INS_KEEP_ALIVE = 0x08;
 const APDU_MAX_SIZE = 150;
 const P1_FIRST_APDU = 0x00;
 const P1_MORE_APDU = 0x80;
+const P1_NO_VALIDATE = 0x00;
+const P1_VALIDATE = 0x01;
 const P2_LAST_APDU = 0x00;
 const P2_MORE_APDU = 0x80;
+const P2_NO_CONFIRM = 0x00;
+const P2_CONFIRM = 0x01;
 
 const SW_OK = 0x9000;
 const SW_CANCEL = 0x6985;
@@ -47,7 +51,7 @@ declare global {
  * const nim = new LowLevelApi(transport)
  */
 export default class LowLevelApi {
-    transport: Transport;
+    private transport: Transport;
 
     constructor(transport: Transport) {
         this.transport = transport;
@@ -58,155 +62,145 @@ export default class LowLevelApi {
         );
     }
 
-    getAppConfiguration(): Promise<{ version: string }> {
-        return this.transport.send(CLA, INS_GET_CONF, 0x00, 0x00).then((response) => {
-            const version = `${response[1]}.${response[2]}.${response[3]}`;
-            return { version };
-        });
+    public async getAppConfiguration(): Promise<{ version: string }> {
+        const [, major, minor, patch] = await this.transport.send(CLA, INS_GET_CONF, 0x00, 0x00);
+        const version = `${major}.${minor}.${patch}`;
+        return { version };
     }
 
     /**
      * get Nimiq address for a given BIP 32 path.
      * @param path a path in BIP 32 format
-     * @option boolValidate optionally enable key pair validation
-     * @option boolDisplay optionally display the address on the ledger
+     * @param boolValidate optionally enable key pair validation
+     * @param boolDisplay optionally display the address on the ledger
      * @return an object with the address
      * @example
      * nim.getAddress("44'/242'/0'/0'").then(o => o.address)
      */
-    getAddress(
+    public async getAddress(
         path: string,
-        boolValidate?: boolean,
-        boolDisplay?: boolean,
+        boolValidate: boolean = true,
+        boolDisplay: boolean = false,
     ): Promise<{ address: string }> {
         checkNimiqBip32Path(path);
 
         const apdus = [];
-        let response: Buffer;
 
         const pathElts = splitPath(path);
-        const buffer = Buffer.alloc(1 + pathElts.length * 4);
-        buffer[0] = pathElts.length;
+        const pathBuffer = Buffer.alloc(1 + pathElts.length * 4);
+        pathBuffer[0] = pathElts.length;
         pathElts.forEach((element, index) => {
-            buffer.writeUInt32BE(element, 1 + 4 * index);
+            pathBuffer.writeUInt32BE(element, 1 + 4 * index);
         });
         const verifyMsg = Buffer.from('p=np?', 'ascii');
-        apdus.push(Buffer.concat([buffer, verifyMsg]));
+        apdus.push(Buffer.concat([pathBuffer, verifyMsg]));
+
         let keepAlive = false;
-        return foreach(apdus, (data) =>
-            this.transport
-                .send(
-                    CLA,
-                    keepAlive ? INS_KEEP_ALIVE : INS_GET_PK,
-                    boolValidate ? 0x01 : 0x00,
-                    boolDisplay ? 0x01 : 0x00,
-                    data,
-                    [SW_OK, SW_KEEP_ALIVE],
-                )
-                .then((apduResponse) => {
-                    const status = Buffer.from(
-                        apduResponse.slice(apduResponse.length - 2),
-                    ).readUInt16BE(0);
-                    if (status === SW_KEEP_ALIVE) {
-                        keepAlive = true;
-                        apdus.push(Buffer.alloc(0));
-                    }
-                    response = apduResponse;
-                }),
-        ).then(() => {
-            // response = Buffer.from(response, "hex");
-            let offset = 0;
-            const rawPublicKey = response.slice(offset, offset + 32);
-            offset += 32;
-            const address = encodeEd25519PublicKey(rawPublicKey);
-            if (boolValidate) {
-                const signature = response.slice(offset, offset + 64);
-                if (!verifyEd25519Signature(verifyMsg, signature, rawPublicKey)) {
-                    throw new Error(
-                        'Bad signature. Keypair is invalid. Please report this.',
-                    );
-                }
+        let response: Buffer;
+        await foreach(apdus, async (data) => {
+            const apduResponse = await this.transport.send(
+                CLA,
+                keepAlive ? INS_KEEP_ALIVE : INS_GET_PK,
+                boolValidate ? P1_VALIDATE : P1_NO_VALIDATE,
+                boolDisplay ? P2_CONFIRM : P2_NO_CONFIRM,
+                data,
+                [SW_OK, SW_KEEP_ALIVE],
+            );
+            const status = Buffer.from(
+                apduResponse.slice(apduResponse.length - 2),
+            ).readUInt16BE(0);
+            if (status === SW_KEEP_ALIVE) {
+                keepAlive = true;
+                apdus.push(Buffer.alloc(0));
             }
-            return { address };
+            response = apduResponse;
         });
+        let offset = 0;
+        const rawPublicKey = response!.slice(offset, offset + 32);
+        offset += 32;
+        if (boolValidate) {
+            const signature = response!.slice(offset, offset + 64);
+            if (!verifyEd25519Signature(verifyMsg, signature, rawPublicKey)) {
+                throw new Error(
+                    'Bad signature. Keypair is invalid. Please report this.',
+                );
+            }
+        }
+        const address = encodeEd25519PublicKey(rawPublicKey);
+        return { address };
     }
 
     /**
      * get Nimiq public key for a given BIP 32 path.
      * @param path a path in BIP 32 format
-     * @option boolValidate optionally enable key pair validation
-     * @option boolDisplay optionally display the corresponding address on the ledger
+     * @param boolValidate optionally enable key pair validation
+     * @param boolDisplay optionally display the corresponding address on the ledger
      * @return an object with the publicKey
      * @example
      * nim.getPublicKey("44'/242'/0'/0'").then(o => o.publicKey)
      */
-    getPublicKey(
+    public async getPublicKey(
         path: string,
-        boolValidate?: boolean,
-        boolDisplay?: boolean,
+        boolValidate = true,
+        boolDisplay = false,
     ): Promise<{ publicKey: Uint8Array }> {
         checkNimiqBip32Path(path);
 
         const apdus = [];
-        let response: Buffer;
 
         const pathElts = splitPath(path);
-        const buffer = Buffer.alloc(1 + pathElts.length * 4);
-        buffer[0] = pathElts.length;
+        const pathBuffer = Buffer.alloc(1 + pathElts.length * 4);
+        pathBuffer[0] = pathElts.length;
         pathElts.forEach((element, index) => {
-            buffer.writeUInt32BE(element, 1 + 4 * index);
+            pathBuffer.writeUInt32BE(element, 1 + 4 * index);
         });
         const verifyMsg = Buffer.from('p=np?', 'ascii');
-        apdus.push(Buffer.concat([buffer, verifyMsg]));
+        apdus.push(Buffer.concat([pathBuffer, verifyMsg]));
         let keepAlive = false;
-        return foreach(apdus, (data) =>
-            this.transport
-                .send(
-                    CLA,
-                    keepAlive ? INS_KEEP_ALIVE : INS_GET_PK,
-                    boolValidate ? 0x01 : 0x00,
-                    boolDisplay ? 0x01 : 0x00,
-                    data,
-                    [SW_OK, SW_KEEP_ALIVE],
-                )
-                .then((apduResponse) => {
-                    const status = Buffer.from(
-                        apduResponse.slice(apduResponse.length - 2),
-                    ).readUInt16BE(0);
-                    if (status === SW_KEEP_ALIVE) {
-                        keepAlive = true;
-                        apdus.push(Buffer.alloc(0));
-                    }
-                    response = apduResponse;
-                }),
-        ).then(() => {
-            // response = Buffer.from(response, "hex");
-            let offset = 0;
-            const publicKey = response.slice(offset, offset + 32);
-            offset += 32;
-            if (boolValidate) {
-                const signature = response.slice(offset, offset + 64);
-                if (!verifyEd25519Signature(verifyMsg, signature, publicKey)) {
-                    throw new Error(
-                        'Bad signature. Keypair is invalid. Please report this.',
-                    );
-                }
+        let response: Buffer;
+        await foreach(apdus, async (data) => {
+            const apduResponse = await this.transport.send(
+                CLA,
+                keepAlive ? INS_KEEP_ALIVE : INS_GET_PK,
+                boolValidate ? P1_VALIDATE : P1_NO_VALIDATE,
+                boolDisplay ? P2_CONFIRM : P2_NO_CONFIRM,
+                data,
+                [SW_OK, SW_KEEP_ALIVE],
+            );
+            const status = Buffer.from(
+                apduResponse.slice(apduResponse.length - 2),
+            ).readUInt16BE(0);
+            if (status === SW_KEEP_ALIVE) {
+                keepAlive = true;
+                apdus.push(Buffer.alloc(0));
             }
-            return {
-                publicKey: Uint8Array.from(publicKey),
-            };
+            response = apduResponse;
         });
+        let offset = 0;
+        const publicKey = response!.slice(offset, offset + 32);
+        offset += 32;
+        if (boolValidate) {
+            const signature = response!.slice(offset, offset + 64);
+            if (!verifyEd25519Signature(verifyMsg, signature, publicKey)) {
+                throw new Error(
+                    'Bad signature. Keypair is invalid. Please report this.',
+                );
+            }
+        }
+        return {
+            publicKey: Uint8Array.from(publicKey),
+        };
     }
 
     /**
      * sign a Nimiq transaction.
      * @param path a path in BIP 32 format
      * @param txContent transaction content in serialized form
-     * @return an object with the signature and the status
+     * @return an object with the signature
      * @example
      * nim.signTransaction("44'/242'/0'/0'", signatureBase).then(o => o.signature)
      */
-    signTransaction(
+    public async signTransaction(
         path: string,
         txContent: Uint8Array,
     ): Promise<{ signature: Uint8Array }> {
@@ -216,23 +210,23 @@ export default class LowLevelApi {
         let response: Buffer;
 
         const pathElts = splitPath(path);
-        const bufferSize = 1 + pathElts.length * 4;
-        const buffer = Buffer.alloc(bufferSize);
-        buffer[0] = pathElts.length;
+        const pathBufferSize = 1 + pathElts.length * 4;
+        const pathBuffer = Buffer.alloc(pathBufferSize);
+        pathBuffer[0] = pathElts.length;
         pathElts.forEach((element, index) => {
-            buffer.writeUInt32BE(element, 1 + 4 * index);
+            pathBuffer.writeUInt32BE(element, 1 + 4 * index);
         });
         const transaction = Buffer.from(txContent);
-        let chunkSize = APDU_MAX_SIZE - bufferSize;
+        let chunkSize = APDU_MAX_SIZE - pathBufferSize;
         if (transaction.length <= chunkSize) {
             // it fits in a single apdu
-            apdus.push(Buffer.concat([buffer, transaction]));
+            apdus.push(Buffer.concat([pathBuffer, transaction]));
         } else {
             // we need to send multiple apdus to transmit the entire transaction
             let chunk = Buffer.alloc(chunkSize);
             let offset = 0;
             transaction.copy(chunk, 0, offset, chunkSize);
-            apdus.push(Buffer.concat([buffer, chunk]));
+            apdus.push(Buffer.concat([pathBuffer, chunk]));
             offset += chunkSize;
             while (offset < transaction.length) {
                 const remaining = transaction.length - offset;
@@ -244,37 +238,33 @@ export default class LowLevelApi {
             }
         }
         let keepAlive = false;
-        return foreach(apdus, (data, i) =>
-            this.transport
-                .send(
-                    CLA,
-                    keepAlive ? INS_KEEP_ALIVE : INS_SIGN_TX,
-                    i === 0 ? P1_FIRST_APDU : P1_MORE_APDU,
-                    i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                    data,
-                    [SW_OK, SW_CANCEL, SW_KEEP_ALIVE],
-                )
-                .then((apduResponse) => {
-                    const status = Buffer.from(
-                        apduResponse.slice(apduResponse.length - 2),
-                    ).readUInt16BE(0);
-                    if (status === SW_KEEP_ALIVE) {
-                        keepAlive = true;
-                        apdus.push(Buffer.alloc(0));
-                    }
-                    response = apduResponse;
-                }),
-        ).then(() => {
+        await foreach(apdus, async (data, i) => {
+            const apduResponse = await this.transport.send(
+                CLA,
+                keepAlive ? INS_KEEP_ALIVE : INS_SIGN_TX,
+                i === 0 ? P1_FIRST_APDU : P1_MORE_APDU,
+                i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
+                data,
+                [SW_OK, SW_CANCEL, SW_KEEP_ALIVE],
+            );
             const status = Buffer.from(
-                response.slice(response.length - 2),
+                apduResponse.slice(apduResponse.length - 2),
             ).readUInt16BE(0);
-            if (status === SW_OK) {
-                const signature = Buffer.from(response.slice(0, response.length - 2));
-                return {
-                    signature: Uint8Array.from(signature),
-                };
+            if (status === SW_KEEP_ALIVE) {
+                keepAlive = true;
+                apdus.push(Buffer.alloc(0));
             }
-            throw new Error('Transaction approval request was rejected');
+            response = apduResponse;
         });
+        const status = Buffer.from(
+            response!.slice(response!.length - 2),
+        ).readUInt16BE(0);
+        if (status === SW_OK) {
+            const signature = Buffer.from(response!.slice(0, response!.length - 2));
+            return {
+                signature: Uint8Array.from(signature),
+            };
+        }
+        throw new Error('Transaction approval request was rejected');
     }
 }
