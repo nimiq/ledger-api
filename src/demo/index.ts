@@ -5,6 +5,8 @@ import { loadNimiqCore } from '../lib/load-nimiq';
 window.Buffer = Buffer;
 
 window.addEventListener('load', () => {
+    const txHash = '0000573dbdf6a7d83925ecf0ba0022a9a86c9be3c081008626c5378734e05d71cb4034eb97741909764e6e'
+        + '0000000000000f4240000000000000000a00000e790200';
     document.body.innerHTML = `
         <h1 class="nq-h1">Nimiq Ledger Api Demos</h1>
 
@@ -42,7 +44,7 @@ window.addEventListener('load', () => {
             <h2 class="nq-card-header nq-h2">Sign Transaction</h2>
             <div class="nq-card-body">
                 <div class="nq-text">Fill the input with a hex transaction that belongs to your address.</div>
-                <input class="nq-input" id="tx-hex-input" value="0000573dbdf6a7d83925ecf0ba0022a9a86c9be3c081008626c5378734e05d71cb4034eb97741909764e6e0000000000000f4240000000000000000a00000e790200">
+                <input class="nq-input" id="tx-hex-input" value="${txHash}">
                 <button class="nq-button-s" id="sign-tx-button">Sign</button>
                 <br>
                 <div class="nq-text">Signature: <span id="signature" class="mono"></span></div>
@@ -92,20 +94,35 @@ window.addEventListener('load', () => {
 
     let _api: LowLevelApi | null = null;
 
-    init();
-
-    function init() {
-        $connectButton.addEventListener('click', connect);
-        $getPublicKeyButton.addEventListener('click', () => getPublicKey(false));
-        $confirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
-        $getAddressButton.addEventListener('click', () => getAddress(false));
-        $confirmAddressButton.addEventListener('click', () => getAddress(true));
-        $signTxButton.addEventListener('click', signTransaction);
-    }
-
     function displayStatus(msg: string) {
         console.log(msg);
         $status.textContent = msg;
+    }
+
+    async function createApi() {
+        try {
+            displayStatus('Creating Api');
+            const transport = await TransportU2F.create();
+            _api = new LowLevelApi(transport);
+            // transport.setDebugMode(true); // TODO logging with newer log api
+            displayStatus('Opened');
+            return _api;
+        } catch (error) {
+            displayStatus(`Error creating api: ${error}`);
+            throw error;
+        }
+    }
+
+    async function connect() {
+        try {
+            const api = _api || await createApi();
+            const { version } = await api.getAppConfiguration();
+            displayStatus(`Connected (app version ${version})`);
+            return api;
+        } catch (error) {
+            _api = null;
+            throw error;
+        }
     }
 
     async function getPublicKey(confirm: boolean) {
@@ -115,13 +132,13 @@ window.addEventListener('load', () => {
             const api = await connect();
             const msg = confirm ? 'Confirm public key...' : 'Getting public key...';
             displayStatus(msg);
-            const {publicKey} = await api.getPublicKey(bip32Path, false, confirm);
+            const { publicKey } = await api.getPublicKey(bip32Path, false, confirm);
             const Nimiq = await loadNimiqPromise;
             $publicKey.textContent = Nimiq.BufferUtils.toHex(publicKey);
             displayStatus('Received public key');
             return publicKey;
         } catch (error) {
-            displayStatus('Failed to get public key: ' + error);
+            displayStatus(`Failed to get public key: ${error}`);
             throw error;
         }
     }
@@ -137,7 +154,7 @@ window.addEventListener('load', () => {
             displayStatus('Received address');
             return address;
         } catch (error) {
-            displayStatus('Failed to get address: ' + error);
+            displayStatus(`Failed to get address: ${error}`);
             throw error;
         }
     }
@@ -149,8 +166,8 @@ window.addEventListener('load', () => {
                 connect(),
                 loadNimiqCore(),
             ]);
-            let buffer = Nimiq.BufferUtils.fromHex(tx);
-            let bip32Path = $bip32PathAddressInput.value;
+            const buffer = Nimiq.BufferUtils.fromHex(tx);
+            const bip32Path = $bip32PathAddressInput.value;
             displayStatus('Signing transaction...');
             const { signature } = await api.signTransaction(bip32Path, buffer);
             $signature.textContent = Nimiq.BufferUtils.toHex(signature);
@@ -159,29 +176,14 @@ window.addEventListener('load', () => {
         }
     }
 
-    async function createApi() {
-        try {
-            displayStatus('Creating Api');
-            const transport = await TransportU2F.create();
-            _api = new LowLevelApi(transport);
-            // transport.setDebugMode(true); // TODO logging with newer log api
-            displayStatus('Opened');
-            return _api;
-        } catch (error) {
-            displayStatus('Error creating api: ' + error);
-            throw error;
-        }
+    function init() {
+        $connectButton.addEventListener('click', connect);
+        $getPublicKeyButton.addEventListener('click', () => getPublicKey(false));
+        $confirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
+        $getAddressButton.addEventListener('click', () => getAddress(false));
+        $confirmAddressButton.addEventListener('click', () => getAddress(true));
+        $signTxButton.addEventListener('click', signTransaction);
     }
 
-    async function connect() {
-        try {
-            const api = _api || await createApi();
-            const { version } = await api.getAppConfiguration();
-            displayStatus('Connected (app version ' + version + ')');
-            return api;
-        } catch (error) {
-            _api = null;
-            throw error;
-        }
-    }
+    init();
 });

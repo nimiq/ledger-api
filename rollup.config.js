@@ -5,6 +5,7 @@ import typescript from '@rollup/plugin-typescript';
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import sourcemaps from 'rollup-plugin-sourcemaps';
+import { eslint } from 'rollup-plugin-eslint';
 
 // demo page specific imports
 import alias from '@rollup/plugin-alias';
@@ -27,7 +28,7 @@ function fixSourcemaps() {
         name: 'fix-sourcemaps',
         generateBundle: (options, bundle) => {
             for (const assetOrChunkInfo of Object.values(bundle)) {
-                const map = assetOrChunkInfo.map;
+                const { map } = assetOrChunkInfo;
                 if (!map) return; // has no sourcemap
                 map.file = path.basename(assetOrChunkInfo.fileName);
                 map.sourcesContent = map.sourcesContent || [];
@@ -47,8 +48,30 @@ function fixSourcemaps() {
     };
 }
 
+// Fixed eslint plugin that runs on original typescript files instead of transpiled js files, see
+// https://github.com/TrySound/rollup-plugin-eslint/issues/42
+function fixedEslint(options) {
+    const original = eslint(options);
+    const originalLint = original.transform.bind(original);
+    return {
+        name: original.name,
+        load(id) {
+            if (id.endsWith('.ts')) {
+                const code = fs.readFileSync(id, 'utf8');
+                originalLint(code, id);
+            }
+            return null;
+        },
+        transform(code, id) {
+            if (id.endsWith('.ts')) return null;
+            return originalLint(code, id);
+        },
+    };
+}
+
 export default (commandLineArgs) => {
-    const isServing = commandLineArgs.configServe; // called with --configServe?
+    const isProduction = commandLineArgs.configProduction; // called with --configProduction?
+    const isServing = commandLineArgs.configServe;
 
     const lowLevelApiConfig = {
         input: 'src/low-level-api/low-level-api.ts',
@@ -61,7 +84,7 @@ export default (commandLineArgs) => {
                 sourcemapPathTransform,
                 plugins: [
                     fixSourcemaps(),
-                ]
+                ],
             },
             {
                 dir: 'dist',
@@ -75,12 +98,15 @@ export default (commandLineArgs) => {
             },
         ],
         plugins: [
+            fixedEslint({
+                throwOnError: isProduction,
+            }),
             typescript({
                 include: ['src/low-level-api/**'],
                 declaration: true,
                 declarationDir: 'dist',
                 rootDir: 'src', // temporary, see https://github.com/rollup/plugins/issues/61#issuecomment-596270901
-                noEmitOnError: !isServing,
+                noEmitOnError: isProduction,
             }),
             resolve({ browser: true }), // use browser versions of packages if defined in their package.json
             sourcemaps(),
@@ -104,9 +130,12 @@ export default (commandLineArgs) => {
             ],
         },
         plugins: [
+            fixedEslint({
+                throwOnError: isProduction,
+            }),
             typescript({
                 include: ['src/demo/**', 'src/lib/**'],
-                noEmitOnError: !isServing,
+                noEmitOnError: isProduction,
             }),
             // typescript needs 'low-level-api' to find the .d.ts file but for external import we need .es.js file
             alias({
@@ -120,7 +149,7 @@ export default (commandLineArgs) => {
             sourcemaps(),
             commonjs({
                 namedExports: {
-                    'u2f-api': ['sign', 'isSupported']
+                    'u2f-api': ['sign', 'isSupported'],
                 },
             }),
             nodePolyfills({
@@ -133,7 +162,7 @@ export default (commandLineArgs) => {
                 targets: [{
                     src: 'src/demo/template.html',
                     dest: 'dist/demo',
-                    rename: 'index.html'
+                    rename: 'index.html',
                 }],
             }),
         ],
@@ -167,8 +196,8 @@ export default (commandLineArgs) => {
                 watch: 'dist',
                 https: httpsOptions,
             }),
-        ]
+        ];
     }
 
     return [lowLevelApiConfig, demoConfig];
-}
+};

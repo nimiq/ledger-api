@@ -4,7 +4,7 @@
   "description": "Api for communicating with Ledger Hardware Wallets",
   "main": "dist/LedgerApi.js",
   "scripts": {
-    "build": "rollup --config",
+    "build": "rollup --config --configProduction",
     "serve": "rollup --config --watch --configServe"
   },
   "repository": {
@@ -24,25 +24,32 @@
   },
   "homepage": "https://github.com/nimiq/ledger-api#readme",
   "devDependencies": {
-    "@ledgerhq/hw-transport": "^5.9.0",
-    "@ledgerhq/hw-transport-u2f": "^5.9.0",
-    "@nimiq/core-web": "^1.5.4",
     "@rollup/plugin-alias": "^3.0.1",
     "@rollup/plugin-commonjs": "^11.0.2",
     "@rollup/plugin-node-resolve": "^7.1.1",
     "@rollup/plugin-typescript": "^4.0.0",
-    "@types/ledgerhq__hw-transport": "^4.21.2",
-    "@types/ledgerhq__hw-transport-u2f": "^4.21.1",
-    "base32.js": "^0.1.0",
-    "blakejs": "^1.1.0",
+    "@typescript-eslint/eslint-plugin": "^2.19.0",
+    "@typescript-eslint/parser": "^2.23.0",
+    "eslint-config-airbnb-typescript": "^7.0.0",
+    "eslint-plugin-import": "^2.18.2",
     "rollup": "^2.0.2",
     "rollup-plugin-copy": "^3.3.0",
+    "rollup-plugin-eslint": "^7.0.0",
     "rollup-plugin-livereload": "^1.0.4",
     "rollup-plugin-node-polyfills": "^0.2.1",
     "rollup-plugin-serve": "^1.0.1",
     "rollup-plugin-sourcemaps": "^0.5.0",
     "tslib": "^1.11.1",
-    "tweetnacl": "^1.0.3",
     "typescript": "^3.8.3"
+  },
+  "dependencies": {
+    "@ledgerhq/hw-transport": "^5.9.0",
+    "@ledgerhq/hw-transport-u2f": "^5.9.0",
+    "@nimiq/core-web": "^1.5.4",
+    "@types/ledgerhq__hw-transport": "^4.21.2",
+    "@types/ledgerhq__hw-transport-u2f": "^4.21.1",
+    "base32.js": "^0.1.0",
+    "blakejs": "^1.1.0",
+    "tweetnacl": "^1.0.3"
   }
 }

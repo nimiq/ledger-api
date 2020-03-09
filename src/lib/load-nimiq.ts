@@ -1,6 +1,6 @@
 type Nimiq = typeof import('@nimiq/core-web');
 
-const coreBasePath = `https://cdn.nimiq.com/latest/`;
+const coreBasePath = 'https://cdn.nimiq.com/latest/';
 
 let nimiqCorePromise: Promise<Nimiq> | null = null;
 let nimiqCryptographyPromise: Promise<void> | null = null;
