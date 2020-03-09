@@ -20,23 +20,6 @@ export function splitPath(path: string): number[] {
     return result;
 }
 
-export async function foreach<T, A>(
-    arr: T[],
-    callback: (entry: T, index: number) => Promise<A>,
-): Promise<A[]> {
-    function iterate(index: number, array: T[], result: A[]): Promise<A[]> {
-        if (index >= array.length) {
-            return Promise.resolve(result);
-        }
-        return callback(array[index], index).then((res) => {
-            result.push(res);
-            return iterate(index + 1, array, result);
-        });
-    }
-
-    return iterate(0, arr, []);
-}
-
 function _ibanCheck(str: string): number {
     const num: string = str.split('').map((c: string) => {
         const code: number = c.toUpperCase().charCodeAt(0);

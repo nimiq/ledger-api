@@ -1,6 +1,5 @@
 import {
     splitPath,
-    foreach,
     encodeEd25519PublicKey,
     verifyEd25519Signature,
     checkNimiqBip32Path,
@@ -63,6 +62,7 @@ export default class LowLevelApi {
     }
 
     public async getAppConfiguration(): Promise<{ version: string }> {
+        // Note that no heartbeat is required here as INS_GET_CONF is not interactive but thus answers directly
         const [, major, minor, patch] = await this.transport.send(CLA, INS_GET_CONF, 0x00, 0x00);
         const version = `${major}.${minor}.${patch}`;
         return { version };
@@ -84,8 +84,6 @@ export default class LowLevelApi {
     ): Promise<{ address: string }> {
         checkNimiqBip32Path(path);
 
-        const apdus = [];
-
         const pathElts = splitPath(path);
         const pathBuffer = Buffer.alloc(1 + pathElts.length * 4);
         pathBuffer[0] = pathElts.length;
@@ -93,33 +91,28 @@ export default class LowLevelApi {
             pathBuffer.writeUInt32BE(element, 1 + 4 * index);
         });
         const verifyMsg = Buffer.from('p=np?', 'ascii');
-        apdus.push(Buffer.concat([pathBuffer, verifyMsg]));
+        const data = Buffer.concat([pathBuffer, verifyMsg]);
 
-        let keepAlive = false;
         let response: Buffer;
-        await foreach(apdus, async (data) => {
-            const apduResponse = await this.transport.send(
-                CLA,
-                keepAlive ? INS_KEEP_ALIVE : INS_GET_PK,
-                boolValidate ? P1_VALIDATE : P1_NO_VALIDATE,
-                boolDisplay ? P2_CONFIRM : P2_NO_CONFIRM,
-                data,
-                [SW_OK, SW_KEEP_ALIVE],
-            );
-            const status = Buffer.from(
-                apduResponse.slice(apduResponse.length - 2),
-            ).readUInt16BE(0);
-            if (status === SW_KEEP_ALIVE) {
-                keepAlive = true;
-                apdus.push(Buffer.alloc(0));
-            }
-            response = apduResponse;
-        });
+        response = await this.transport.send(
+            CLA,
+            INS_GET_PK,
+            boolValidate ? P1_VALIDATE : P1_NO_VALIDATE,
+            boolDisplay ? P2_CONFIRM : P2_NO_CONFIRM,
+            data,
+            [SW_OK, SW_KEEP_ALIVE],
+        );
+        // handle heartbeat
+        while (response.slice(response.length - 2).readUInt16BE(0) === SW_KEEP_ALIVE) {
+            // eslint-disable-next-line no-await-in-loop
+            response = await this.transport.send(CLA, INS_KEEP_ALIVE, 0, 0, undefined, [SW_OK, SW_KEEP_ALIVE]);
+        }
+
         let offset = 0;
-        const rawPublicKey = response!.slice(offset, offset + 32);
+        const rawPublicKey = response.slice(offset, offset + 32);
         offset += 32;
         if (boolValidate) {
-            const signature = response!.slice(offset, offset + 64);
+            const signature = response.slice(offset, offset + 64);
             if (!verifyEd25519Signature(verifyMsg, signature, rawPublicKey)) {
                 throw new Error(
                     'Bad signature. Keypair is invalid. Please report this.',
@@ -146,8 +139,6 @@ export default class LowLevelApi {
     ): Promise<{ publicKey: Uint8Array }> {
         checkNimiqBip32Path(path);
 
-        const apdus = [];
-
         const pathElts = splitPath(path);
         const pathBuffer = Buffer.alloc(1 + pathElts.length * 4);
         pathBuffer[0] = pathElts.length;
@@ -155,32 +146,28 @@ export default class LowLevelApi {
             pathBuffer.writeUInt32BE(element, 1 + 4 * index);
         });
         const verifyMsg = Buffer.from('p=np?', 'ascii');
-        apdus.push(Buffer.concat([pathBuffer, verifyMsg]));
-        let keepAlive = false;
+        const data = Buffer.concat([pathBuffer, verifyMsg]);
+
         let response: Buffer;
-        await foreach(apdus, async (data) => {
-            const apduResponse = await this.transport.send(
-                CLA,
-                keepAlive ? INS_KEEP_ALIVE : INS_GET_PK,
-                boolValidate ? P1_VALIDATE : P1_NO_VALIDATE,
-                boolDisplay ? P2_CONFIRM : P2_NO_CONFIRM,
-                data,
-                [SW_OK, SW_KEEP_ALIVE],
-            );
-            const status = Buffer.from(
-                apduResponse.slice(apduResponse.length - 2),
-            ).readUInt16BE(0);
-            if (status === SW_KEEP_ALIVE) {
-                keepAlive = true;
-                apdus.push(Buffer.alloc(0));
-            }
-            response = apduResponse;
-        });
+        response = await this.transport.send(
+            CLA,
+            INS_GET_PK,
+            boolValidate ? P1_VALIDATE : P1_NO_VALIDATE,
+            boolDisplay ? P2_CONFIRM : P2_NO_CONFIRM,
+            data,
+            [SW_OK, SW_KEEP_ALIVE],
+        );
+        // handle heartbeat
+        while (response.slice(response.length - 2).readUInt16BE(0) === SW_KEEP_ALIVE) {
+            // eslint-disable-next-line no-await-in-loop
+            response = await this.transport.send(CLA, INS_KEEP_ALIVE, 0, 0, undefined, [SW_OK, SW_KEEP_ALIVE]);
+        }
+
         let offset = 0;
-        const publicKey = response!.slice(offset, offset + 32);
+        const publicKey = response.slice(offset, offset + 32);
         offset += 32;
         if (boolValidate) {
-            const signature = response!.slice(offset, offset + 64);
+            const signature = response.slice(offset, offset + 64);
             if (!verifyEd25519Signature(verifyMsg, signature, publicKey)) {
                 throw new Error(
                     'Bad signature. Keypair is invalid. Please report this.',
@@ -207,7 +194,6 @@ export default class LowLevelApi {
         checkNimiqBip32Path(path);
 
         const apdus = [];
-        let response: Buffer;
 
         const pathElts = splitPath(path);
         const pathBufferSize = 1 + pathElts.length * 4;
@@ -237,34 +223,35 @@ export default class LowLevelApi {
                 apdus.push(chunk);
             }
         }
-        let keepAlive = false;
-        await foreach(apdus, async (data, i) => {
-            const apduResponse = await this.transport.send(
+
+        let isHeartbeat = false;
+        let chunkIndex = 0;
+        let status: number;
+        let response: Buffer;
+        do {
+            const data = apdus[chunkIndex];
+            // eslint-disable-next-line no-await-in-loop
+            response = await this.transport.send(
                 CLA,
-                keepAlive ? INS_KEEP_ALIVE : INS_SIGN_TX,
-                i === 0 ? P1_FIRST_APDU : P1_MORE_APDU,
-                i === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
+                isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_TX,
+                chunkIndex === 0 ? P1_FIRST_APDU : P1_MORE_APDU, // note that for heartbeat p1, p2 and data are ignored
+                chunkIndex === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
                 data,
                 [SW_OK, SW_CANCEL, SW_KEEP_ALIVE],
             );
-            const status = Buffer.from(
-                apduResponse.slice(apduResponse.length - 2),
-            ).readUInt16BE(0);
-            if (status === SW_KEEP_ALIVE) {
-                keepAlive = true;
-                apdus.push(Buffer.alloc(0));
+            status = response.slice(response.length - 2).readUInt16BE(0);
+            console.log('Status:', status);
+            isHeartbeat = status === SW_KEEP_ALIVE;
+            if (!isHeartbeat) {
+                // we can continue sending data or end the loop when all data was sent
+                ++chunkIndex;
             }
-            response = apduResponse;
-        });
-        const status = Buffer.from(
-            response!.slice(response!.length - 2),
-        ).readUInt16BE(0);
-        if (status === SW_OK) {
-            const signature = Buffer.from(response!.slice(0, response!.length - 2));
-            return {
-                signature: Uint8Array.from(signature),
-            };
-        }
-        throw new Error('Transaction approval request was rejected');
+        } while (isHeartbeat || chunkIndex < apdus.length);
+
+        if (status !== SW_OK) throw new Error('Transaction approval request was rejected');
+        const signature = Buffer.from(response.slice(0, response.length - 2));
+        return {
+            signature: Uint8Array.from(signature),
+        };
     }
 }
