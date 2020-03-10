@@ -45,8 +45,10 @@
   "dependencies": {
     "@ledgerhq/hw-transport": "^5.9.0",
     "@ledgerhq/hw-transport-u2f": "^5.9.0",
+    "@ledgerhq/hw-transport-webusb": "^5.11.0",
     "@nimiq/core-web": "^1.5.4",
     "@types/ledgerhq__hw-transport": "^4.21.2",
-    "@types/ledgerhq__hw-transport-u2f": "^4.21.1"
+    "@types/ledgerhq__hw-transport-u2f": "^4.21.1",
+    "@types/ledgerhq__hw-transport-webusb": "^4.70.0"
   }
 }

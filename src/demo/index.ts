@@ -1,6 +1,9 @@
+import TransportWebUsb from '@ledgerhq/hw-transport-webusb';
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
 import LowLevelApi from '../../dist/low-level-api/low-level-api';
 import { loadNimiqCore } from '../lib/load-nimiq';
+
+type Transport = import('@ledgerhq/hw-transport').default;
 
 window.Buffer = Buffer;
 
@@ -18,6 +21,16 @@ window.addEventListener('load', () => {
         </section>
         
         <section class="nq-text">
+            <span id="transport-selector">
+                <label>
+                    <input type="radio" name="transport" value="webusb" checked>
+                    WebUsb
+                </label>
+                <label>
+                    <input type="radio" name="transport" value="u2f">
+                    U2F
+                </label>
+            </span>
             <button class="nq-button-s" id="connect-button">Connect</button>
         </section>
 
@@ -83,6 +96,7 @@ window.addEventListener('load', () => {
     `;
 
     const $status = document.getElementById('status')!;
+    const $transportSelector = document.getElementById('transport-selector')!;
     const $connectButton = document.getElementById('connect-button')!;
     const $bip32PathPublicKeyInput = document.getElementById('bip32-path-public-key-input') as HTMLInputElement;
     const $getPublicKeyButton = document.getElementById('get-public-key-button')!;
@@ -106,7 +120,15 @@ window.addEventListener('load', () => {
     async function createApi() {
         try {
             displayStatus('Creating Api');
-            const transport = await TransportU2F.create();
+            $transportSelector.style.display = 'none';
+            let transport: Transport;
+            if (($transportSelector.querySelector(':checked') as HTMLInputElement).value === 'webusb') {
+                // Automatically creates a transport with a connected known device or opens a browser popup to select a
+                // device if no known device is connected
+                transport = await TransportWebUsb.create();
+            } else {
+                transport = await TransportU2F.create();
+            }
             _api = new LowLevelApi(transport);
             // transport.setDebugMode(true); // TODO logging with newer log api
             displayStatus('Opened');
