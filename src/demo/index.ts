@@ -5,6 +5,9 @@ import { loadNimiqCore } from '../lib/load-nimiq';
 window.Buffer = Buffer;
 
 window.addEventListener('load', () => {
+    // You can create such a hash as follows:
+    // const tx = new Nimiq.BasicTransaction(pubKey, recipient, value, fee, validityStartHeight, undefined, networkId);
+    // Nimiq.bufferUtils.toHex(tx.serializeContent());
     const txHash = '0000573dbdf6a7d83925ecf0ba0022a9a86c9be3c081008626c5378734e05d71cb4034eb97741909764e6e'
         + '0000000000000f4240000000000000000a00000e790200';
     document.body.innerHTML = `
@@ -74,6 +77,7 @@ window.addEventListener('load', () => {
 
             .mono {
                 font-family: monospace;
+                word-break: break-word;
             }
         </style>
     `;
@@ -127,6 +131,7 @@ window.addEventListener('load', () => {
 
     async function getPublicKey(confirm: boolean) {
         try {
+            $publicKey.textContent = '';
             const bip32Path = $bip32PathPublicKeyInput.value;
             const loadNimiqPromise = loadNimiqCore();
             const api = await connect();
@@ -145,6 +150,7 @@ window.addEventListener('load', () => {
 
     async function getAddress(confirm: boolean) {
         try {
+            $address.textContent = '';
             const bip32Path = $bip32PathAddressInput.value;
             const api = await connect();
             const msg = confirm ? 'Confirm address...' : 'Getting address...';
@@ -161,6 +167,7 @@ window.addEventListener('load', () => {
 
     async function signTransaction() {
         try {
+            $signature.textContent = '';
             const tx = $txHexInput.value;
             const [api, Nimiq] = await Promise.all([
                 connect(),
