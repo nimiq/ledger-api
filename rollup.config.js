@@ -73,30 +73,20 @@ export default (commandLineArgs) => {
     const isProduction = commandLineArgs.configProduction; // called with --configProduction?
     const isServing = commandLineArgs.configServe;
 
+    const outputFormats = isProduction ? ['es', 'cjs'] : ['es'];
+
     const lowLevelApiConfig = {
         input: 'src/low-level-api/low-level-api.ts',
-        output: [
-            {
-                dir: 'dist', // not dist/low-level-api as ts plugin creates sub folder structure in dist as in rootDir
-                format: 'es',
-                entryFileNames: 'low-level-api/[name].[format].js',
-                sourcemap: true,
-                sourcemapPathTransform,
-                plugins: [
-                    fixSourcemaps(),
-                ],
-            },
-            {
-                dir: 'dist',
-                format: 'cjs',
-                entryFileNames: 'low-level-api/[name].[format].js',
-                sourcemap: true,
-                sourcemapPathTransform,
-                plugins: [
-                    fixSourcemaps(),
-                ],
-            },
-        ],
+        output: outputFormats.map((format) => ({
+            format,
+            dir: 'dist', // not dist/low-level-api as ts plugin creates sub folder structure in dist as in rootDir
+            entryFileNames: 'low-level-api/[name].[format].js',
+            sourcemap: true,
+            sourcemapPathTransform,
+            plugins: [
+                fixSourcemaps(),
+            ],
+        })),
         plugins: [
             fixedEslint({
                 throwOnError: isProduction,
@@ -172,9 +162,6 @@ export default (commandLineArgs) => {
     };
 
     if (isServing) {
-        // only build es build when serving
-        lowLevelApiConfig.output = lowLevelApiConfig.output.filter((output) => output.format === 'es');
-
         // Taken from https://github.com/webpack/webpack-dev-server/commit/e97741c84ca69913283ae5d48cc3f4e0cf8334e3
         // Note that webpack-dev-server in the mean time switched to generating a separate certificate per project but
         // we don't need that here.
