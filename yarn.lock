@@ -42,6 +42,17 @@
     "@ledgerhq/logs" "^5.11.0"
     u2f-api "0.2.7"
 
+"@ledgerhq/hw-transport-web-ble@^5.11.0":
+  version "5.11.0"
+  resolved "https://registry.yarnpkg.com/@ledgerhq/hw-transport-web-ble/-/hw-transport-web-ble-5.11.0.tgz#3100367a5f42c4bb0e417749eedd536a5a38bb40"
+  integrity sha512-U9AzbOJR3d2fs1Cfs/DNOeZxiFcLUgf6iV/fDJEhljT6eGCGYTe/6GuJGVbChu6i1qEjyexyBOSvrsz+uLzy7g==
+  dependencies:
+    "@ledgerhq/devices" "^5.11.0"
+    "@ledgerhq/errors" "^5.11.0"
+    "@ledgerhq/hw-transport" "^5.11.0"
+    "@ledgerhq/logs" "^5.11.0"
+    rxjs "^6.5.4"
+
 "@ledgerhq/hw-transport-webhid@^5.11.0":
   version "5.11.0"
   resolved "https://registry.yarnpkg.com/@ledgerhq/hw-transport-webhid/-/hw-transport-webhid-5.11.0.tgz#329031e1f7798d62e595fae392edef255bb570c3"

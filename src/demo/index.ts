@@ -1,5 +1,6 @@
 import TransportWebUsb from '@ledgerhq/hw-transport-webusb';
 import TransportWebHid from '@ledgerhq/hw-transport-webhid';
+import TransportWebBle from '@ledgerhq/hw-transport-web-ble';
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
 import LowLevelApi from '../../dist/low-level-api/low-level-api';
 import { loadNimiqCore } from '../lib/load-nimiq';
@@ -30,6 +31,10 @@ window.addEventListener('load', () => {
                 <label>
                     <input type="radio" name="transport" value="webhid">
                     WebHid
+                </label>
+                <label>
+                    <input type="radio" name="transport" value="webble">
+                    WebBle
                 </label>
                 <label>
                     <input type="radio" name="transport" value="u2f">
@@ -136,6 +141,9 @@ window.addEventListener('load', () => {
                 case 'webhid':
                     transport = await TransportWebHid.create();
                     break;
+                case 'webble':
+                    transport = await TransportWebBle.create();
+                    break;
                 default:
                     transport = await TransportU2F.create();
             }
@@ -216,6 +224,8 @@ window.addEventListener('load', () => {
     }
 
     function init() {
+        console.log('Nimiq Ledger Api demo. Note that another great place to directly experiment with the apis'
+            + ' provided by Ledger is https://ledger-repl.now.sh/');
         $connectButton.addEventListener('click', connect);
         $getPublicKeyButton.addEventListener('click', () => getPublicKey(false));
         $confirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
