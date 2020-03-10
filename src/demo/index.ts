@@ -1,4 +1,5 @@
 import TransportWebUsb from '@ledgerhq/hw-transport-webusb';
+import TransportWebHid from '@ledgerhq/hw-transport-webhid';
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
 import LowLevelApi from '../../dist/low-level-api/low-level-api';
 import { loadNimiqCore } from '../lib/load-nimiq';
@@ -25,6 +26,10 @@ window.addEventListener('load', () => {
                 <label>
                     <input type="radio" name="transport" value="webusb" checked>
                     WebUsb
+                </label>
+                <label>
+                    <input type="radio" name="transport" value="webhid">
+                    WebHid
                 </label>
                 <label>
                     <input type="radio" name="transport" value="u2f">
@@ -122,12 +127,17 @@ window.addEventListener('load', () => {
             displayStatus('Creating Api');
             $transportSelector.style.display = 'none';
             let transport: Transport;
-            if (($transportSelector.querySelector(':checked') as HTMLInputElement).value === 'webusb') {
-                // Automatically creates a transport with a connected known device or opens a browser popup to select a
-                // device if no known device is connected
-                transport = await TransportWebUsb.create();
-            } else {
-                transport = await TransportU2F.create();
+            switch (($transportSelector.querySelector(':checked') as HTMLInputElement).value) {
+                case 'webusb':
+                    // Automatically creates a transport with a connected known device or opens a browser popup to
+                    // select a device if no known device is connected.
+                    transport = await TransportWebUsb.create();
+                    break;
+                case 'webhid':
+                    transport = await TransportWebHid.create();
+                    break;
+                default:
+                    transport = await TransportU2F.create();
             }
             _api = new LowLevelApi(transport);
             // transport.setDebugMode(true); // TODO logging with newer log api
