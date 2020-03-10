@@ -1,8 +1,7 @@
 import {
-    splitPath,
+    parsePath,
     encodeEd25519PublicKey,
     verifyEd25519Signature,
-    checkNimiqBip32Path,
 } from './low-level-api-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
@@ -56,7 +55,7 @@ export default class LowLevelApi {
         this.transport = transport;
         transport.decorateAppAPIMethods(
             this,
-            ['getAppConfiguration', 'getPublicKey', 'getAddress', 'signTransaction'],
+            ['getAppConfiguration', 'getPublicKey', 'signTransaction'],
             'w0w',
         );
     }
@@ -82,44 +81,8 @@ export default class LowLevelApi {
         boolValidate: boolean = true,
         boolDisplay: boolean = false,
     ): Promise<{ address: string }> {
-        checkNimiqBip32Path(path);
-
-        const pathElts = splitPath(path);
-        const pathBuffer = Buffer.alloc(1 + pathElts.length * 4);
-        pathBuffer[0] = pathElts.length;
-        pathElts.forEach((element, index) => {
-            pathBuffer.writeUInt32BE(element, 1 + 4 * index);
-        });
-        const verifyMsg = Buffer.from('p=np?', 'ascii');
-        const data = Buffer.concat([pathBuffer, verifyMsg]);
-
-        let response: Buffer;
-        response = await this.transport.send(
-            CLA,
-            INS_GET_PK,
-            boolValidate ? P1_VALIDATE : P1_NO_VALIDATE,
-            boolDisplay ? P2_CONFIRM : P2_NO_CONFIRM,
-            data,
-            [SW_OK, SW_KEEP_ALIVE],
-        );
-        // handle heartbeat
-        while (response.slice(response.length - 2).readUInt16BE(0) === SW_KEEP_ALIVE) {
-            // eslint-disable-next-line no-await-in-loop
-            response = await this.transport.send(CLA, INS_KEEP_ALIVE, 0, 0, undefined, [SW_OK, SW_KEEP_ALIVE]);
-        }
-
-        let offset = 0;
-        const rawPublicKey = response.slice(offset, offset + 32);
-        offset += 32;
-        if (boolValidate) {
-            const signature = response.slice(offset, offset + 64);
-            if (!verifyEd25519Signature(verifyMsg, signature, rawPublicKey)) {
-                throw new Error(
-                    'Bad signature. Keypair is invalid. Please report this.',
-                );
-            }
-        }
-        const address = encodeEd25519PublicKey(rawPublicKey);
+        const { publicKey } = await this.getPublicKey(path, boolValidate, boolDisplay);
+        const address = encodeEd25519PublicKey(Buffer.from(publicKey));
         return { address };
     }
 
@@ -134,17 +97,10 @@ export default class LowLevelApi {
      */
     public async getPublicKey(
         path: string,
-        boolValidate = true,
-        boolDisplay = false,
+        boolValidate: boolean = true,
+        boolDisplay: boolean = false,
     ): Promise<{ publicKey: Uint8Array }> {
-        checkNimiqBip32Path(path);
-
-        const pathElts = splitPath(path);
-        const pathBuffer = Buffer.alloc(1 + pathElts.length * 4);
-        pathBuffer[0] = pathElts.length;
-        pathElts.forEach((element, index) => {
-            pathBuffer.writeUInt32BE(element, 1 + 4 * index);
-        });
+        const pathBuffer = parsePath(path);
         const verifyMsg = Buffer.from('p=np?', 'ascii');
         const data = Buffer.concat([pathBuffer, verifyMsg]);
 
@@ -174,9 +130,7 @@ export default class LowLevelApi {
                 );
             }
         }
-        return {
-            publicKey: Uint8Array.from(publicKey),
-        };
+        return { publicKey };
     }
 
     /**
@@ -191,19 +145,10 @@ export default class LowLevelApi {
         path: string,
         txContent: Uint8Array,
     ): Promise<{ signature: Uint8Array }> {
-        checkNimiqBip32Path(path);
-
-        const apdus = [];
-
-        const pathElts = splitPath(path);
-        const pathBufferSize = 1 + pathElts.length * 4;
-        const pathBuffer = Buffer.alloc(pathBufferSize);
-        pathBuffer[0] = pathElts.length;
-        pathElts.forEach((element, index) => {
-            pathBuffer.writeUInt32BE(element, 1 + 4 * index);
-        });
+        const pathBuffer = parsePath(path);
         const transaction = Buffer.from(txContent);
-        let chunkSize = APDU_MAX_SIZE - pathBufferSize;
+        const apdus = [];
+        let chunkSize = APDU_MAX_SIZE - pathBuffer.length;
         if (transaction.length <= chunkSize) {
             // it fits in a single apdu
             apdus.push(Buffer.concat([pathBuffer, transaction]));
@@ -240,7 +185,6 @@ export default class LowLevelApi {
                 [SW_OK, SW_CANCEL, SW_KEEP_ALIVE],
             );
             status = response.slice(response.length - 2).readUInt16BE(0);
-            console.log('Status:', status);
             isHeartbeat = status === SW_KEEP_ALIVE;
             if (!isHeartbeat) {
                 // we can continue sending data or end the loop when all data was sent
