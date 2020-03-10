@@ -1,8 +1,4 @@
-// Note: this code is partially taken from @ledgerhq/hw-app-str licenced under Apache 2.0
-
-import nacl from 'tweetnacl';
-import { encode as base32Encode } from 'base32.js/base32.js';
-import { blake2b } from 'blakejs/blake2b.js';
+import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
 
 export function parsePath(path: string): Buffer {
     if (!path.startsWith('44\'/242\'')) {
@@ -37,39 +33,21 @@ export function parsePath(path: string): Buffer {
     return pathBuffer;
 }
 
-function _ibanCheck(str: string): number {
-    const num: string = str.split('').map((c: string) => {
-        const code: number = c.toUpperCase().charCodeAt(0);
-        return code >= 48 && code <= 57 ? c : (code - 55).toString();
-    }).join('');
-    let tmp: string = '';
-
-    for (let i = 0; i < Math.ceil(num.length / 6); i++) {
-        tmp = (Number.parseInt(tmp + num.substr(i * 6, 6), 10) % 97).toString();
-    }
-    return Number.parseInt(tmp, 10);
+export async function publicKeyToAddress(publicKey: Buffer): Promise<string> {
+    const [Nimiq] = await Promise.all([
+        loadNimiqCore(),
+        loadNimiqCryptography(), // needed for hashing public key to an address
+    ]);
+    return Nimiq.PublicKey.unserialize(new Nimiq.SerialBuffer(publicKey)).toAddress().toUserFriendlyAddress();
 }
 
-export function encodeEd25519PublicKey(rawPublicKey: Buffer): string {
-    const hash: Uint8Array = blake2b(rawPublicKey, undefined, 32).subarray(0, 20);
-    const base32enconded: string = base32Encode(hash, {
-        type: 'crockford',
-        alphabet: '0123456789ABCDEFGHJKLMNPQRSTUVXY',
-    });
-    const check: string = (`00${98 - _ibanCheck(`${base32enconded}NQ00`)}`).slice(-2);
-    let res: string = `NQ${check}${base32enconded}`;
-    res = res.replace(/.{4}/g, '$& ').trim();
-    return res;
-}
-
-export function verifyEd25519Signature(
+export async function verifySignature(
     data: Buffer,
     signature: Buffer,
     publicKey: Buffer,
-): boolean {
-    return nacl.sign.detached.verify(
-        new Uint8Array(data.toJSON().data),
-        new Uint8Array(signature.toJSON().data),
-        new Uint8Array(publicKey.toJSON().data),
-    );
+): Promise<boolean> {
+    const [Nimiq] = await Promise.all([loadNimiqCore(), loadNimiqCryptography()]);
+    const nimiqSignature = Nimiq.Signature.unserialize(new Nimiq.SerialBuffer(signature));
+    const nimiqPublicKey = Nimiq.PublicKey.unserialize(new Nimiq.SerialBuffer(publicKey));
+    return nimiqSignature.verify(nimiqPublicKey, data);
 }

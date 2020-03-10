@@ -102,7 +102,7 @@ export default (commandLineArgs) => {
                 throwOnError: isProduction,
             }),
             typescript({
-                include: ['src/low-level-api/**'],
+                include: ['src/low-level-api/**', 'src/lib/**'],
                 declaration: true,
                 declarationDir: 'dist',
                 rootDir: 'src', // temporary, see https://github.com/rollup/plugins/issues/61#issuecomment-596270901

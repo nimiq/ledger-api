@@ -1,8 +1,9 @@
 import {
     parsePath,
-    encodeEd25519PublicKey,
-    verifyEd25519Signature,
+    publicKeyToAddress,
+    verifySignature,
 } from './low-level-api-utils';
+import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
@@ -39,8 +40,7 @@ declare global {
  * Nimiq API
  *
  * Low level api for communication with the Ledger wallet Nimiq app. This lib is compatible with all @ledgerhq/transport
- * libraries and does not require inclusion of Nimiq core classes but does on the other hand not include optimizations
- * for specific transport types and return raw bytes.
+ * libraries but does on the other hand not include optimizations for specific transport types and returns raw bytes.
  *
  * This library is in nature similar to other hw-app packages in @ledgerhq/ledgerjs and partially based on their code,
  * licenced under the Apache 2.0 licence.
@@ -81,8 +81,12 @@ export default class LowLevelApi {
         boolValidate: boolean = true,
         boolDisplay: boolean = false,
     ): Promise<{ address: string }> {
+        // start loading Nimiq core later needed for transforming public key to address and optional validation
+        loadNimiqCore();
+        loadNimiqCryptography();
+
         const { publicKey } = await this.getPublicKey(path, boolValidate, boolDisplay);
-        const address = encodeEd25519PublicKey(Buffer.from(publicKey));
+        const address = await publicKeyToAddress(Buffer.from(publicKey));
         return { address };
     }
 
@@ -100,6 +104,12 @@ export default class LowLevelApi {
         boolValidate: boolean = true,
         boolDisplay: boolean = false,
     ): Promise<{ publicKey: Uint8Array }> {
+        if (boolValidate) {
+            // start loading Nimiq core later needed for validation
+            loadNimiqCore();
+            loadNimiqCryptography();
+        }
+
         const pathBuffer = parsePath(path);
         const verifyMsg = Buffer.from('p=np?', 'ascii');
         const data = Buffer.concat([pathBuffer, verifyMsg]);
@@ -124,7 +134,7 @@ export default class LowLevelApi {
         offset += 32;
         if (boolValidate) {
             const signature = response.slice(offset, offset + 64);
-            if (!verifyEd25519Signature(verifyMsg, signature, publicKey)) {
+            if (!await verifySignature(verifyMsg, signature, publicKey)) {
                 throw new Error(
                     'Bad signature. Keypair is invalid. Please report this.',
                 );

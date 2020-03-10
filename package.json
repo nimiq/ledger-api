@@ -47,9 +47,6 @@
     "@ledgerhq/hw-transport-u2f": "^5.9.0",
     "@nimiq/core-web": "^1.5.4",
     "@types/ledgerhq__hw-transport": "^4.21.2",
-    "@types/ledgerhq__hw-transport-u2f": "^4.21.1",
-    "base32.js": "^0.1.0",
-    "blakejs": "^1.1.0",
-    "tweetnacl": "^1.0.3"
+    "@types/ledgerhq__hw-transport-u2f": "^4.21.1"
   }
 }
