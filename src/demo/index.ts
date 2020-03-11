@@ -2,6 +2,7 @@ import TransportWebUsb from '@ledgerhq/hw-transport-webusb';
 import TransportWebHid from '@ledgerhq/hw-transport-webhid';
 import TransportWebBle from '@ledgerhq/hw-transport-web-ble';
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
+import { listen as onLog } from '@ledgerhq/logs';
 import LowLevelApi from '../../dist/low-level-api/low-level-api';
 import { loadNimiqCore } from '../lib/load-nimiq';
 
@@ -152,7 +153,7 @@ window.addEventListener('load', () => {
                     transport = await TransportU2F.create();
             }
             _api = new LowLevelApi(transport);
-            // transport.setDebugMode(true); // TODO logging with newer log api
+            onLog((logEntry: any) => console.log('Log:', logEntry));
             displayStatus('Opened');
             return _api;
         } catch (error) {

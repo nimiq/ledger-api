@@ -11,3 +11,5 @@ declare module '@ledgerhq/hw-transport-web-ble' {
 
     export default Transport;
 }
+
+declare module '@ledgerhq/logs';
