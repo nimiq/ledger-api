@@ -24,7 +24,7 @@ window.addEventListener('load', () => {
         </section>
         
         <section class="nq-text">
-            <span id="transport-selector">
+            <div id="transport-selector">
                 <label>
                     <input type="radio" name="transport" value="webusb" checked>
                     WebUsb
@@ -41,11 +41,12 @@ window.addEventListener('load', () => {
                     <input type="radio" name="transport" value="u2f">
                     U2F
                 </label>
-            </span>
+            </div>
             <button class="nq-button-s" id="connect-button">Connect</button>
             <button class="nq-button-s" id="connect-without-user-interaction-button">
                 Connect without user interaction
             </button>
+            <button class="nq-button-s" id="close-button">Close</button>
         </section>
 
         <section class="nq-text nq-card">
@@ -88,6 +89,11 @@ window.addEventListener('load', () => {
                 align-items: center;
             }
             
+            #transport-selector {
+                text-align: center;
+                margin-bottom: 1.5rem;
+            }
+
             .nq-card {
                 min-width: 75rem;
                 margin-bottom: 0;
@@ -113,6 +119,7 @@ window.addEventListener('load', () => {
     const $transportSelector = document.getElementById('transport-selector')!;
     const $connectButton = document.getElementById('connect-button')!;
     const $connectWithoutUserInteractionButton = document.getElementById('connect-without-user-interaction-button')!;
+    const $closeButton = document.getElementById('close-button')!;
     const $bip32PathPublicKeyInput = document.getElementById('bip32-path-public-key-input') as HTMLInputElement;
     const $getPublicKeyButton = document.getElementById('get-public-key-button')!;
     const $confirmPublicKeyButton = document.getElementById('confirm-public-key-button')!;
@@ -125,6 +132,7 @@ window.addEventListener('load', () => {
     const $signTxButton = document.getElementById('sign-tx-button')!;
     const $signature = document.getElementById('signature')!;
 
+    let _transport: Transport | null = null;
     let _api: LowLevelApi | null = null;
 
     function displayStatus(msg: string) {
@@ -134,27 +142,30 @@ window.addEventListener('load', () => {
 
     async function createApi() {
         try {
-            displayStatus('Creating Api');
             $transportSelector.style.display = 'none';
-            let transport: Transport;
-            switch (($transportSelector.querySelector(':checked') as HTMLInputElement).value) {
+            onLog((logEntry: any) => console.log('Log:', logEntry));
+
+            const transportType = ($transportSelector.querySelector(':checked') as HTMLInputElement).value;
+            displayStatus(`Creating Api for ${transportType}`);
+            switch (transportType) {
                 case 'webusb':
                     // Automatically creates a transport with a connected known device or opens a browser popup to
                     // select a device if no known device is connected.
-                    transport = await TransportWebUsb.create();
+                    _transport = await TransportWebUsb.create();
                     break;
                 case 'webhid':
-                    transport = await TransportWebHid.create();
+                    _transport = await TransportWebHid.create();
                     break;
                 case 'webble':
-                    transport = await TransportWebBle.create();
+                    _transport = await TransportWebBle.create();
                     break;
                 default:
-                    transport = await TransportU2F.create();
+                    _transport = await TransportU2F.create();
             }
-            _api = new LowLevelApi(transport);
-            onLog((logEntry: any) => console.log('Log:', logEntry));
+            _api = new LowLevelApi(_transport);
+
             displayStatus('Opened');
+            _transport.on('disconnect', () => displayStatus('Disconnected.'));
             return _api;
         } catch (error) {
             displayStatus(`Error creating api: ${error}`);
@@ -163,15 +174,12 @@ window.addEventListener('load', () => {
     }
 
     async function connect() {
-        try {
-            const api = _api || await createApi();
-            const { version } = await api.getAppConfiguration();
-            displayStatus(`Connected (app version ${version})`);
-            return api;
-        } catch (error) {
-            _api = null;
-            throw error;
-        }
+        const api = _api || await createApi();
+        const { version } = await api.getAppConfiguration();
+        // @ts-ignore: deviceModel does not exist on all transport types
+        const deviceModel = _transport.deviceModel ? _transport.deviceModel.productName : 'device type unknown';
+        displayStatus(`Connected (app version ${version}, ${deviceModel})`);
+        return api;
     }
 
     async function connectWithoutUserInteraction() {
@@ -179,6 +187,13 @@ window.addEventListener('load', () => {
         // https://github.com/whatwg/html/issues/1903 to learn more about how user interaction is tracked in Chrome.
         displayStatus('Waiting a moment for user interaction flag to get cleared.');
         setTimeout(connect, 5000);
+    }
+
+    async function close() {
+        if (!_transport) return;
+        displayStatus('Closing transport...');
+        await _transport.close();
+        displayStatus('Transport closed');
     }
 
     async function getPublicKey(confirm: boolean) {
@@ -240,6 +255,7 @@ window.addEventListener('load', () => {
             + ' provided by Ledger is https://ledger-repl.now.sh/');
         $connectButton.addEventListener('click', connect);
         $connectWithoutUserInteractionButton.addEventListener('click', connectWithoutUserInteraction);
+        $closeButton.addEventListener('click', close);
         $getPublicKeyButton.addEventListener('click', () => getPublicKey(false));
         $confirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
         $getAddressButton.addEventListener('click', () => getAddress(false));
