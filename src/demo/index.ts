@@ -42,6 +42,9 @@ window.addEventListener('load', () => {
                 </label>
             </span>
             <button class="nq-button-s" id="connect-button">Connect</button>
+            <button class="nq-button-s" id="connect-without-user-interaction-button">
+                Connect without user interaction
+            </button>
         </section>
 
         <section class="nq-text nq-card">
@@ -108,6 +111,7 @@ window.addEventListener('load', () => {
     const $status = document.getElementById('status')!;
     const $transportSelector = document.getElementById('transport-selector')!;
     const $connectButton = document.getElementById('connect-button')!;
+    const $connectWithoutUserInteractionButton = document.getElementById('connect-without-user-interaction-button')!;
     const $bip32PathPublicKeyInput = document.getElementById('bip32-path-public-key-input') as HTMLInputElement;
     const $getPublicKeyButton = document.getElementById('get-public-key-button')!;
     const $confirmPublicKeyButton = document.getElementById('confirm-public-key-button')!;
@@ -169,6 +173,13 @@ window.addEventListener('load', () => {
         }
     }
 
+    async function connectWithoutUserInteraction() {
+        // Wait until user interaction flag is reset. See https://mustaqahmed.github.io/user-activation-v2/ and
+        // https://github.com/whatwg/html/issues/1903 to learn more about how user interaction is tracked in Chrome.
+        displayStatus('Waiting a moment for user interaction flag to get cleared.');
+        setTimeout(connect, 5000);
+    }
+
     async function getPublicKey(confirm: boolean) {
         try {
             $publicKey.textContent = '';
@@ -227,6 +238,7 @@ window.addEventListener('load', () => {
         console.log('Nimiq Ledger Api demo. Note that another great place to directly experiment with the apis'
             + ' provided by Ledger is https://ledger-repl.now.sh/');
         $connectButton.addEventListener('click', connect);
+        $connectWithoutUserInteractionButton.addEventListener('click', connectWithoutUserInteraction);
         $getPublicKeyButton.addEventListener('click', () => getPublicKey(false));
         $confirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
         $getAddressButton.addEventListener('click', () => getAddress(false));
