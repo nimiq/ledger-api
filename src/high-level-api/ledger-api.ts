@@ -63,11 +63,10 @@
 // - use an appropriate ledger transport library (u2f, WebAuthn, WebUSB, WebBluetooth) depending on platform
 // - Also, the verification and address computation in ledgerjs should be done by Nimiq's crypto methods instead of
 //   unnecessarily bundling tweetnacl and blakejs.
-import Observable = Nimiq.Observable;
 
-type LedgerJs = any;
-// tslint:disable-next-line:variable-name no-var-requires
-const LedgerJs: LedgerJs = require('@nimiq/ledgerjs/ledgerjs-nimiq.min.js');
+import LowLevelApi from '../low-level-api/low-level-api';
+import TransportU2F from '@ledgerhq/hw-transport-u2f';
+import Observable = Nimiq.Observable;
 
 type LedgerApiListener = (...args: any[]) => void;
 
@@ -88,12 +87,12 @@ class LedgerApiRequest<T> extends Observable {
     public static readonly EVENT_CANCEL = 'cancel';
     public readonly type: LedgerApi.RequestType;
     public readonly params: LedgerApi.RequestParams;
-    private readonly _call: (api: LedgerJs, params: LedgerApi.RequestParams) => Promise<T>;
+    private readonly _call: (api: LowLevelApi, params: LedgerApi.RequestParams) => Promise<T>;
     private _cancelled: boolean = false;
     private _finished: boolean = false;
 
     constructor(type: LedgerApi.RequestType,
-                call: (api: LedgerJs, params: LedgerApi.RequestParams) => Promise<T>,
+                call: (api: LowLevelApi, params: LedgerApi.RequestParams) => Promise<T>,
                 params: LedgerApi.RequestParams) {
         super();
         this.type = type;
@@ -105,7 +104,7 @@ class LedgerApiRequest<T> extends Observable {
         return this._cancelled;
     }
 
-    public async call(api: LedgerJs): Promise<T> {
+    public async call(api: LowLevelApi): Promise<T> {
         const result = await this._call.call(this, api, this.params);
         this._finished = true;
         return result;
@@ -401,7 +400,7 @@ class LedgerApi {
     }
 
     // private fields and methods
-    private static _apiPromise: Promise<LedgerJs> | null = null;
+    private static _apiPromise: Promise<LowLevelApi> | null = null;
     private static _currentState: LedgerApi.State = { type: 'idle' as LedgerApi.StateType };
     private static _currentRequest: LedgerApiRequest<any> | null = null;
     private static _currentlyConnectedWalletId: string | null = null;
@@ -487,7 +486,7 @@ class LedgerApi {
         }
     }
 
-    private static async _connect(walletId?: string): Promise<LedgerJs> {
+    private static async _connect(walletId?: string): Promise<LowLevelApi> {
         // Resolves when connected to unlocked ledger with open Nimiq app otherwise throws an exception after timeout.
         // If the Ledger is already connected and the library already loaded, the call typically takes < 500ms.
         try {
@@ -530,13 +529,13 @@ class LedgerApi {
         }
     }
 
-    private static async _loadApi(): Promise<LedgerJs> {
+    private static async _loadApi(): Promise<LowLevelApi> {
         // TODO: Lazy loading of Ledger Api
         LedgerApi._apiPromise = LedgerApi._apiPromise
             || (async () => {
                 LedgerApi._setState(LedgerApi.StateType.LOADING);
-                const transport = await LedgerJs.Transport.create();
-                return new LedgerJs.Api(transport);
+                const transport = await TransportU2F.create();
+                return new LowLevelApi(transport);
             })().catch((e: Error) => {
                 LedgerApi._apiPromise = null;
                 throw e;
