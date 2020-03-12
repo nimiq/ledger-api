@@ -66,9 +66,7 @@
 
 import LowLevelApi from '../low-level-api/low-level-api';
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
-import Observable = Nimiq.Observable;
-
-type LedgerApiListener = (...args: any[]) => void;
+import Observable, { EventListener } from '../lib/observable';
 
 interface TransactionInfo {
     sender: Nimiq.Address;
@@ -89,7 +87,6 @@ class LedgerApiRequest<T> extends Observable {
     public readonly params: LedgerApi.RequestParams;
     private readonly _call: (api: LowLevelApi, params: LedgerApi.RequestParams) => Promise<T>;
     private _cancelled: boolean = false;
-    private _finished: boolean = false;
 
     constructor(type: LedgerApi.RequestType,
                 call: (api: LowLevelApi, params: LedgerApi.RequestParams) => Promise<T>,
@@ -105,9 +102,7 @@ class LedgerApiRequest<T> extends Observable {
     }
 
     public async call(api: LowLevelApi): Promise<T> {
-        const result = await this._call.call(this, api, this.params);
-        this._finished = true;
-        return result;
+        return this._call.call(this, api, this.params);
     }
 
     public cancel(): void {
@@ -115,7 +110,7 @@ class LedgerApiRequest<T> extends Observable {
         this.fire(LedgerApiRequest.EVENT_CANCEL);
     }
 
-    public on(type: string, callback: (...args: any[]) => any): number {
+    public on(type: string, callback: EventListener): void {
         if (type === LedgerApiRequest.EVENT_CANCEL && this._cancelled) {
             // trigger callback directly
             callback();
@@ -184,28 +179,16 @@ class LedgerApi {
         }
     }
 
-    public static on(eventType: LedgerApi.EventType, listener: LedgerApiListener): void {
-        if (!LedgerApi._listeners.has(eventType)) {
-            LedgerApi._listeners.set(eventType, [listener]);
-        } else {
-            LedgerApi._listeners.get(eventType)!.push(listener);
-        }
+    public static on(eventType: LedgerApi.EventType, listener: EventListener): void {
+        LedgerApi._observable.on(eventType, listener);
     }
 
-    public static off(eventType: LedgerApi.EventType, listener: LedgerApiListener): void {
-        const listenersForEvent = LedgerApi._listeners.get(eventType);
-        if (!listenersForEvent) return;
-        const index = listenersForEvent.indexOf(listener);
-        if (index === -1) return;
-        listenersForEvent.splice(index, 1);
+    public static off(eventType: LedgerApi.EventType, listener: EventListener): void {
+        LedgerApi._observable.off(eventType, listener);
     }
 
-    public static once(eventType: LedgerApi.EventType, listener: LedgerApiListener): void {
-        const onceListener: LedgerApiListener = ((...args: any[]) => {
-            LedgerApi.off(eventType, onceListener);
-            listener(...args);
-        });
-        LedgerApi.on(eventType, onceListener);
+    public static once(eventType: LedgerApi.EventType, listener: EventListener): void {
+        LedgerApi._observable.once(eventType, listener);
     }
 
     public static getBip32PathForKeyId(keyId: number): string {
@@ -404,7 +387,7 @@ class LedgerApi {
     private static _currentState: LedgerApi.State = { type: 'idle' as LedgerApi.StateType };
     private static _currentRequest: LedgerApiRequest<any> | null = null;
     private static _currentlyConnectedWalletId: string | null = null;
-    private static _listeners = new Map<LedgerApi.EventType, LedgerApiListener[]>();
+    private static _observable = new Observable();
 
     private static async _callLedger<T>(request: LedgerApiRequest<T>): Promise<T> {
         if (LedgerApi.isBusy) {
@@ -594,11 +577,7 @@ class LedgerApi {
     }
 
     private static _fire(eventName: LedgerApi.EventType, ...args: any[]): void {
-        const listenersForEvent = LedgerApi._listeners.get(eventName);
-        if (!listenersForEvent) return;
-        for (const listener of listenersForEvent) {
-            setTimeout(listener, 0, ...args);
-        }
+        LedgerApi._observable.fire(eventName, ...args);
     }
 
 }
