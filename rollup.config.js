@@ -75,6 +75,51 @@ export default (commandLineArgs) => {
 
     const outputFormats = isProduction ? ['es', 'cjs'] : ['es'];
 
+    const highLevelApiConfig = {
+        input: 'src/high-level-api/ledger-api.ts',
+        output: outputFormats.map((format) => ({
+            format,
+            dir: 'dist', // not dist/high-level-api as ts plugin creates sub folder structure in dist as in rootDir
+            entryFileNames: 'high-level-api/[name].[format].js',
+            sourcemap: true,
+            sourcemapPathTransform,
+            plugins: [
+                fixSourcemaps(),
+            ],
+        })),
+        plugins: [
+            // fixedEslint({
+            //     throwOnError: isProduction,
+            // }),
+            typescript({
+                include: ['src/high-level-api/**', 'src/low-level-api/**', 'src/lib/**'],
+                declaration: true,
+                declarationDir: 'dist',
+                rootDir: 'src', // temporary, see https://github.com/rollup/plugins/issues/61#issuecomment-596270901
+                noEmitOnError: isProduction,
+            }),
+            resolve({
+                browser: true, // use browser versions of packages if defined in their package.json
+                preferBuiltins: true, // don't touch imports of node builtins as these will be handled by nodePolyfills
+            }),
+            sourcemaps(),
+            commonjs({
+                namedExports: {
+                    'u2f-api': ['sign', 'isSupported'],
+                },
+            }),
+            nodePolyfills({
+                include: [
+                    'src/**/*',
+                    'node_modules/**/*.js',
+                ],
+            }),
+        ],
+        watch: {
+            clearScreen: false,
+        },
+    };
+
     const lowLevelApiConfig = {
         input: 'src/low-level-api/low-level-api.ts',
         output: outputFormats.map((format) => ({
@@ -98,7 +143,9 @@ export default (commandLineArgs) => {
                 rootDir: 'src', // temporary, see https://github.com/rollup/plugins/issues/61#issuecomment-596270901
                 noEmitOnError: isProduction,
             }),
-            resolve({ browser: true }), // use browser versions of packages if defined in their package.json
+            resolve({
+                browser: true, // use browser versions of packages if defined in their package.json
+            }),
             sourcemaps(),
             commonjs(),
         ],
@@ -186,5 +233,5 @@ export default (commandLineArgs) => {
         ];
     }
 
-    return [lowLevelApiConfig, demoConfig];
+    return [highLevelApiConfig, lowLevelApiConfig, demoConfig];
 };
