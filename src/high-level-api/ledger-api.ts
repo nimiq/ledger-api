@@ -71,6 +71,7 @@ import LowLevelApi from '../low-level-api/low-level-api';
 import Observable, { EventListener } from '../lib/observable';
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
 
+type Nimiq = typeof import('@nimiq/core-web');
 type Address = import('@nimiq/core-web').Address;
 type AccountType = import('@nimiq/core-web').Account.Type;
 type Transaction = import('@nimiq/core-web').Transaction;
@@ -329,9 +330,9 @@ class LedgerApi {
                     false, // display
                 );
 
-                // Note that the actual load of the Nimiq core and cryptography is triggered in _loadApi, including
+                // Note that the actual load of the Nimiq core and cryptography is triggered in _connect, including
                 // error handling. The call here is just used to get the reference to the Nimiq object and can not fail.
-                const Nimiq = await loadNimiqCore();
+                const Nimiq = await this._loadNimiq();
 
                 let nimiqTx: Transaction;
                 let signerPubKey: PublicKey;
@@ -507,6 +508,7 @@ class LedgerApi {
         // Resolves when connected to unlocked ledger with open Nimiq app otherwise throws an exception after timeout.
         // If the Ledger is already connected and the library already loaded, the call typically takes < 500ms.
         try {
+            const nimiqPromise = this._loadNimiq();
             const api = await LedgerApi._loadApi();
             LedgerApi._setState(LedgerApi.StateType.CONNECTING);
             // To check whether the connection to Nimiq app is established and to calculate the walletId. This can also
@@ -520,9 +522,7 @@ class LedgerApi {
             const { version } = await api.getAppConfiguration();
             if (!LedgerApi._isAppVersionSupported(version)) throw new Error('Ledger Nimiq App is outdated.');
 
-            // Note that the actual load of the Nimiq core and cryptography is triggered in _loadApi. The call here is
-            // just used to get the reference to the Nimiq object and can not fail.
-            const Nimiq = await loadNimiqCore();
+            const Nimiq = await nimiqPromise;
             // Use sha256 as blake2b yields the nimiq address
             LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAccountPubKeyBytes).toBase64();
             if (walletId !== undefined && LedgerApi._currentlyConnectedWalletId !== walletId) {
@@ -560,19 +560,28 @@ class LedgerApi {
                 LedgerApi._setState(LedgerApi.StateType.LOADING);
                 const transport = await TransportU2F.create();
                 return new LowLevelApi(transport);
-            })().catch((e: Error) => {
-                LedgerApi._apiPromise = null;
-                throw e;
-            });
-        const [api] = await Promise.all([
-            LedgerApi._apiPromise,
-            loadNimiqCore(),
-            // needed for walletId hashing and pub key to address derivation in SignatureProof and BasicTransaction
-            loadNimiqCryptography(),
-        ]).catch((e) => {
+            })();
+        try {
+            return await LedgerApi._apiPromise;
+        } catch (e) {
+            LedgerApi._apiPromise = null;
             throw new Error(`Failed loading dependencies: ${e.message || e}`);
-        });
-        return api;
+        }
+    }
+
+    private static async _loadNimiq(): Promise<Nimiq> {
+        // Small helper that throws a "Failed loading dependencies" exception on error. Note that we don't need to cache
+        // a promise here as in _loadApi as loadNimiqCore and loadNimiqCryptography already do that.
+        try {
+            const [Nimiq] = await Promise.all([
+                loadNimiqCore(),
+                // needed for walletId hashing and pub key to address derivation in SignatureProof and BasicTransaction
+                loadNimiqCryptography(),
+            ]);
+            return Nimiq;
+        } catch (e) {
+            throw new Error(`Failed loading dependencies: ${e.message || e}`);
+        }
     }
 
     private static _isAppVersionSupported(versionString: string): boolean {
