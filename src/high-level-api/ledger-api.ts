@@ -67,12 +67,19 @@
 import LowLevelApi from '../low-level-api/low-level-api';
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
 import Observable, { EventListener } from '../lib/observable';
+import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
+
+type Nimiq = typeof import('@nimiq/core-web');
+type Address = import('@nimiq/core-web').Address;
+type AccountType = import('@nimiq/core-web').Account.Type;
+type Transaction = import('@nimiq/core-web').Transaction;
+type PublicKey = import('@nimiq/core-web').PublicKey;
 
 interface TransactionInfo {
-    sender: Nimiq.Address;
-    senderType?: Nimiq.Account.Type;
-    recipient: Nimiq.Address;
-    recipientType?: Nimiq.Account.Type;
+    sender: Address;
+    senderType?: AccountType;
+    recipient: Address;
+    recipientType?: AccountType;
     value: number; // In Luna
     fee?: number;
     validityStartHeight: number;
@@ -294,17 +301,21 @@ class LedgerApi {
     }
 
     public static async signTransaction(transaction: TransactionInfo, keyPath: string, walletId?: string)
-        : Promise<Nimiq.Transaction> {
+        : Promise<Transaction> {
         const request = new LedgerApiRequest(LedgerApi.RequestType.SIGN_TRANSACTION,
-            async (api, params): Promise<Nimiq.Transaction> => {
+            async (api, params): Promise<Transaction> => {
                 // Note: We make api calls outside of try...catch blocks to let the exceptions fall through such that
                 // _callLedger can decide how to behave depending on the api error. All other errors are converted to
                 // REQUEST_ASSERTION_FAILED errors which stop the execution of the request.
                 const signerPubKeyBytes =
                     (await api.getPublicKey(params.keyPath, /*validate*/ true, /*display*/ false)).publicKey;
 
-                let nimiqTx: Nimiq.Transaction;
-                let signerPubKey: Nimiq.PublicKey;
+                // Note that the actual load of the Nimiq core and cryptography is triggered in _loadApi, including
+                // error handling. The call here is just used to get the reference to the Nimiq object and can not fail.
+                const Nimiq = await loadNimiqCore();
+
+                let nimiqTx: Transaction;
+                let signerPubKey: PublicKey;
                 try {
                     const tx = params.transaction!;
                     signerPubKey = new Nimiq.PublicKey(signerPubKeyBytes);
@@ -482,6 +493,10 @@ class LedgerApi {
                 await api.getPublicKey(LedgerApi.getBip32PathForKeyId(0), /*validate*/ false, /*display*/ false);
             const version = (await api.getAppConfiguration()).version;
             if (!LedgerApi._isAppVersionSupported(version)) throw new Error('Ledger Nimiq App is outdated.');
+
+            // Note that the actual load of the Nimiq core and cryptography is triggered in _loadApi. The call here is
+            // just used to get the reference to the Nimiq object and can not fail.
+            const Nimiq = await loadNimiqCore();
             // Use sha256 as blake2b yields the nimiq address
             LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAccountPubKeyBytes).toBase64();
             if (walletId !== undefined && LedgerApi._currentlyConnectedWalletId !== walletId) {
@@ -525,8 +540,9 @@ class LedgerApi {
             });
         const [api] = await Promise.all([
             LedgerApi._apiPromise,
-            // needed for walletId hashing and address derivation from public key in SignatureProof and BasicTransaction
-            Nimiq.WasmHelper.doImport(),
+            loadNimiqCore(),
+            // needed for walletId hashing and pub key to address derivation in SignatureProof and BasicTransaction
+            loadNimiqCryptography(),
         ]).catch((e) => {
             throw new Error(`Failed loading dependencies: ${e.message || e}`);
         });
