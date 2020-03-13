@@ -88,9 +88,9 @@ export default (commandLineArgs) => {
             ],
         })),
         plugins: [
-            // fixedEslint({
-            //     throwOnError: isProduction,
-            // }),
+            fixedEslint({
+                throwOnError: isProduction,
+            }),
             typescript({
                 include: ['src/high-level-api/**', 'src/low-level-api/**', 'src/lib/**'],
                 declaration: true,

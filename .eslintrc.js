@@ -49,6 +49,7 @@ module.exports = {
 
         // False positives that are checked by TS
         'no-redeclare': 'off',
+        '@typescript-eslint/no-use-before-define': 'off',
         'import/no-unresolved': 'off',
         'import/extensions': 'off',
     },

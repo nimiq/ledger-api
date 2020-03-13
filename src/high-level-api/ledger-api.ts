@@ -64,12 +64,13 @@
 // - Also, the verification and address computation in ledgerjs should be done by Nimiq's crypto methods instead of
 //   unnecessarily bundling tweetnacl and blakejs.
 
-import LowLevelApi from '../low-level-api/low-level-api';
+/* eslint-disable max-classes-per-file */
+
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
+import LowLevelApi from '../low-level-api/low-level-api';
 import Observable, { EventListener } from '../lib/observable';
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
 
-type Nimiq = typeof import('@nimiq/core-web');
 type Address = import('@nimiq/core-web').Address;
 type AccountType = import('@nimiq/core-web').Account.Type;
 type Transaction = import('@nimiq/core-web').Transaction;
@@ -95,9 +96,11 @@ class LedgerApiRequest<T> extends Observable {
     private readonly _call: (api: LowLevelApi, params: LedgerApi.RequestParams) => Promise<T>;
     private _cancelled: boolean = false;
 
-    constructor(type: LedgerApi.RequestType,
-                call: (api: LowLevelApi, params: LedgerApi.RequestParams) => Promise<T>,
-                params: LedgerApi.RequestParams) {
+    constructor(
+        type: LedgerApi.RequestType,
+        call: (api: LowLevelApi, params: LedgerApi.RequestParams) => Promise<T>,
+        params: LedgerApi.RequestParams,
+    ) {
         super();
         this.type = type;
         this._call = call;
@@ -128,7 +131,7 @@ class LedgerApiRequest<T> extends Observable {
 
 class LedgerApi {
     // public fields and methods
-    public static readonly BIP32_BASE_PATH = `44'/242'/0'/`;
+    public static readonly BIP32_BASE_PATH = '44\'/242\'/0\'/';
     public static readonly BIP32_PATH_REGEX = new RegExp(`^${LedgerApi.BIP32_BASE_PATH}(\\d+)'$`);
     public static readonly MIN_REQUIRED_APP_VERSION = [1, 4, 1];
     public static readonly WAIT_TIME_AFTER_TIMEOUT = 1500;
@@ -174,16 +177,15 @@ class LedgerApi {
                 LedgerApi.on(LedgerApi.EventType.CONNECTED, onConnect);
                 LedgerApi.on(LedgerApi.EventType.REQUEST_CANCELLED, onCancel);
             });
-        } else {
-            const request = new LedgerApiRequest(LedgerApi.RequestType.GET_WALLET_ID,
-                (): Promise<string> => {
-                    // we're connected when the request get's executed
-                    return Promise.resolve(LedgerApi._currentlyConnectedWalletId!);
-                },
-                {},
-            );
-            return LedgerApi._callLedger(request);
         }
+        // We have to send a request ourselves
+        const request = new LedgerApiRequest(
+            LedgerApi.RequestType.GET_WALLET_ID,
+            // we're connected when the request get's executed
+            (): Promise<string> => Promise.resolve(LedgerApi._currentlyConnectedWalletId!),
+            {},
+        );
+        return LedgerApi._callLedger(request);
     }
 
     public static on(eventType: LedgerApi.EventType, listener: EventListener): void {
@@ -215,10 +217,13 @@ class LedgerApi {
                 const accounts = [];
                 for (const keyPath of params.pathsToDerive!) {
                     if (request.cancelled) return accounts;
-                    accounts.push({
-                        address: (await api.getAddress(keyPath, /*validate*/ true, /*display*/ false)).address,
+                    // eslint-disable-next-line no-await-in-loop
+                    const { address } = await api.getAddress(
                         keyPath,
-                    });
+                        true, // validate
+                        false, // display
+                    );
+                    accounts.push({ address, keyPath });
                 }
                 return accounts;
             },
@@ -238,8 +243,12 @@ class LedgerApi {
     public static async getPublicKey(keyPath: string, walletId?: string): Promise<Uint8Array> {
         const request = new LedgerApiRequest(LedgerApi.RequestType.GET_PUBLIC_KEY,
             async (api, params): Promise<Uint8Array> => {
-                const result = await api.getPublicKey(params.keyPath, /*validate*/ true, /*display*/ false);
-                return result.publicKey;
+                const { publicKey } = await api.getPublicKey(
+                    params.keyPath!,
+                    true, // validate
+                    false, // display
+                );
+                return publicKey;
             },
             {
                 walletId,
@@ -255,8 +264,12 @@ class LedgerApi {
     public static async getAddress(keyPath: string, walletId?: string): Promise<string> {
         const request = new LedgerApiRequest(LedgerApi.RequestType.GET_ADDRESS,
             async (api, params): Promise<string> => {
-                const result = await api.getAddress(params.keyPath, /*validate*/ true, /*display*/ false);
-                return result.address;
+                const { address } = await api.getAddress(
+                    params.keyPath!,
+                    true, // validate
+                    false, // display
+                );
+                return address;
             },
             {
                 walletId,
@@ -273,8 +286,11 @@ class LedgerApi {
         : Promise<string> {
         const request = new LedgerApiRequest(LedgerApi.RequestType.CONFIRM_ADDRESS,
             async (api, params): Promise<string> => {
-                const result = await api.getAddress(params.keyPath, /*validate*/ true, /*display*/ true);
-                const confirmedAddress = result.address;
+                const { address: confirmedAddress } = await api.getAddress(
+                    params.keyPath!,
+                    true, // validate
+                    true, // display
+                );
 
                 if (params.addressToConfirm!.replace(/ /g, '').toUpperCase()
                     !== confirmedAddress.replace(/ /g, '').toUpperCase()) {
@@ -297,7 +313,7 @@ class LedgerApi {
 
     public static async getConfirmedAddress(keyPath: string, walletId?: string): Promise<string> {
         const address = await LedgerApi.getAddress(keyPath, walletId);
-        return await this.confirmAddress(address, keyPath, walletId);
+        return this.confirmAddress(address, keyPath, walletId);
     }
 
     public static async signTransaction(transaction: TransactionInfo, keyPath: string, walletId?: string)
@@ -307,8 +323,11 @@ class LedgerApi {
                 // Note: We make api calls outside of try...catch blocks to let the exceptions fall through such that
                 // _callLedger can decide how to behave depending on the api error. All other errors are converted to
                 // REQUEST_ASSERTION_FAILED errors which stop the execution of the request.
-                const signerPubKeyBytes =
-                    (await api.getPublicKey(params.keyPath, /*validate*/ true, /*display*/ false)).publicKey;
+                const { publicKey: signerPubKeyBytes } = await api.getPublicKey(
+                    params.keyPath!,
+                    true, // validate
+                    false, // display
+                );
 
                 // Note that the actual load of the Nimiq core and cryptography is triggered in _loadApi, including
                 // error handling. The call here is just used to get the reference to the Nimiq object and can not fail.
@@ -328,7 +347,7 @@ class LedgerApi {
                         ? tx.recipientType
                         : Nimiq.Account.Type.BASIC;
 
-                    let network = tx.network;
+                    let { network } = tx;
                     if (!network) {
                         try {
                             network = Nimiq.GenesisConfig.NETWORK_NAME as 'main' | 'test' | 'dev';
@@ -346,7 +365,7 @@ class LedgerApi {
                         : Nimiq.Transaction.Flag.NONE;
                     const fee = tx.fee || 0;
 
-                    if (tx.extraData && tx.extraData.length !== 0
+                    if ((tx.extraData && tx.extraData.length !== 0)
                         || senderType !== Nimiq.Account.Type.BASIC
                         || recipientType !== Nimiq.Account.Type.BASIC
                         || flags !== Nimiq.Transaction.Flag.NONE
@@ -354,17 +373,19 @@ class LedgerApi {
                         const extraData = tx.extraData ? tx.extraData : new Uint8Array(0);
                         nimiqTx = new Nimiq.ExtendedTransaction(tx.sender, senderType, tx.recipient,
                             recipientType, tx.value, fee, tx.validityStartHeight, flags, extraData,
-                            /*proof*/ undefined, networkId);
+                            /* proof */ undefined, networkId);
                     } else {
                         nimiqTx = new Nimiq.BasicTransaction(signerPubKey, tx.recipient, tx.value,
-                            fee, tx.validityStartHeight, /*signature*/ undefined, networkId);
+                            fee, tx.validityStartHeight, /* signature */ undefined, networkId);
                     }
                 } catch (e) {
                     this._throwError(LedgerApi.ErrorType.REQUEST_ASSERTION_FAILED, e, request);
                 }
 
-                const signatureBytes =
-                    (await api.signTransaction(params.keyPath, nimiqTx!.serializeContent())).signature;
+                const { signature: signatureBytes } = await api.signTransaction(
+                    params.keyPath!,
+                    nimiqTx!.serializeContent(),
+                );
 
                 try {
                     const signature = new Nimiq.Signature(signatureBytes);
@@ -407,6 +428,7 @@ class LedgerApi {
         }
         try {
             LedgerApi._currentRequest = request;
+            /* eslint-disable no-await-in-loop, no-async-promise-executor */
             return await new Promise<T>(async (resolve, reject) => {
                 let isConnected = false;
                 let wasLocked = false;
@@ -469,6 +491,7 @@ class LedgerApi {
                 LedgerApi._fire(LedgerApi.EventType.REQUEST_CANCELLED, request);
                 reject(new Error('Request cancelled'));
             });
+            /* eslint-enable no-await-in-loop, no-async-promise-executor */
         } finally {
             LedgerApi._currentRequest = null;
             LedgerApi._currentlyConnectedWalletId = null; // reset as we don't note when Ledger gets disconnected
@@ -489,9 +512,12 @@ class LedgerApi {
             // To check whether the connection to Nimiq app is established and to calculate the walletId. This can also
             // unfreeze the ledger app, see notes at top. Using getPublicKey and not getAppConfiguration, as other apps
             // also respond to getAppConfiguration. Set validate to false as otherwise the call is much slower.
-            const { publicKey: firstAccountPubKeyBytes } =
-                await api.getPublicKey(LedgerApi.getBip32PathForKeyId(0), /*validate*/ false, /*display*/ false);
-            const version = (await api.getAppConfiguration()).version;
+            const { publicKey: firstAccountPubKeyBytes } = await api.getPublicKey(
+                LedgerApi.getBip32PathForKeyId(0),
+                false, // validate
+                false, // display
+            );
+            const { version } = await api.getAppConfiguration();
             if (!LedgerApi._isAppVersionSupported(version)) throw new Error('Ledger Nimiq App is outdated.');
 
             // Note that the actual load of the Nimiq core and cryptography is triggered in _loadApi. The call here is
@@ -574,8 +600,10 @@ class LedgerApi {
         LedgerApi._fire(LedgerApi.EventType.STATE_CHANGE, state);
     }
 
-    private static _throwError(type: LedgerApi.ErrorType,
-                               error: Error | string, request?: LedgerApiRequest<any>): void {
+    private static _throwError(
+        type: LedgerApi.ErrorType,
+        error: Error | string, request?: LedgerApiRequest<any>,
+    ): void {
         const state: LedgerApi.State = {
             type: LedgerApi.StateType.ERROR,
             error: {
@@ -595,7 +623,6 @@ class LedgerApi {
     private static _fire(eventName: LedgerApi.EventType, ...args: any[]): void {
         LedgerApi._observable.fire(eventName, ...args);
     }
-
 }
 
 namespace LedgerApi {
@@ -639,8 +666,8 @@ namespace LedgerApi {
     export interface State {
         type: LedgerApi.StateType;
         error?: {
-            type: LedgerApi.ErrorType;
-            message: string;
+            type: LedgerApi.ErrorType,
+            message: string,
         };
         request?: LedgerApiRequest<any>;
     }
