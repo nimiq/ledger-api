@@ -64,11 +64,10 @@
 // - Also, the verification and address computation in ledgerjs should be done by Nimiq's crypto methods instead of
 //   unnecessarily bundling tweetnacl and blakejs.
 
-/* eslint-disable max-classes-per-file */
-
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
 import LowLevelApi from '../low-level-api/low-level-api';
 import Observable, { EventListener } from '../lib/observable';
+import LedgerApiRequest, { RequestType, RequestParams } from './ledger-api-request';
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
 
 type Nimiq = typeof import('@nimiq/core-web');
@@ -76,6 +75,8 @@ type Address = import('@nimiq/core-web').Address;
 type AccountType = import('@nimiq/core-web').Account.Type;
 type Transaction = import('@nimiq/core-web').Transaction;
 type PublicKey = import('@nimiq/core-web').PublicKey;
+
+export { RequestType, RequestParams };
 
 // events appear at a single point of time while states reflect the current state of the api for a timespan ranging
 // into the future. E.g. if a request was cancelled, a REQUEST_CANCELLED event gets thrown and the state changes to
@@ -96,15 +97,6 @@ export enum StateType {
     ERROR = 'error',
 }
 
-export enum RequestType {
-    GET_WALLET_ID = 'get-wallet-id',
-    DERIVE_ACCOUNTS = 'derive-accounts',
-    GET_PUBLIC_KEY = 'get-public-key',
-    GET_ADDRESS = 'get-address',
-    CONFIRM_ADDRESS = 'confirm-address',
-    SIGN_TRANSACTION = 'sign-transaction',
-}
-
 export enum ErrorType {
     LEDGER_BUSY = 'ledger-busy',
     FAILED_LOADING_DEPENDENCIES = 'failed-loading-dependencies',
@@ -123,15 +115,7 @@ export interface State {
     request?: LedgerApiRequest<any>;
 }
 
-export interface RequestParams {
-    walletId?: string; // optional for all calls
-    keyPath?: string; // for everything besides DERIVE_ACCOUNTS
-    pathsToDerive?: Iterable<string>; // for DERIVE_ACCOUNTS
-    addressToConfirm?: string; // for CONFIRM_TRANSACTION
-    transaction?: TransactionInfo; // for SIGN_TRANSACTION
-}
-
-interface TransactionInfo {
+export interface TransactionInfo {
     sender: Address;
     senderType?: AccountType;
     recipient: Address;
@@ -142,46 +126,6 @@ interface TransactionInfo {
     network?: 'main' | 'test' | 'dev';
     flags?: number;
     extraData?: Uint8Array;
-}
-
-class LedgerApiRequest<T> extends Observable {
-    public static readonly EVENT_CANCEL = 'cancel';
-    public readonly type: RequestType;
-    public readonly params: RequestParams;
-    private readonly _call: (api: LowLevelApi, params: RequestParams) => Promise<T>;
-    private _cancelled: boolean = false;
-
-    constructor(
-        type: RequestType,
-        call: (api: LowLevelApi, params: RequestParams) => Promise<T>,
-        params: RequestParams,
-    ) {
-        super();
-        this.type = type;
-        this._call = call;
-        this.params = params;
-    }
-
-    public get cancelled(): boolean {
-        return this._cancelled;
-    }
-
-    public async call(api: LowLevelApi): Promise<T> {
-        return this._call.call(this, api, this.params);
-    }
-
-    public cancel(): void {
-        this._cancelled = true;
-        this.fire(LedgerApiRequest.EVENT_CANCEL);
-    }
-
-    public on(type: string, callback: EventListener): void {
-        if (type === LedgerApiRequest.EVENT_CANCEL && this._cancelled) {
-            // trigger callback directly
-            callback();
-        }
-        return super.on(type, callback);
-    }
 }
 
 export default class LedgerApi {
