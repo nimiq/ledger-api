@@ -3,7 +3,6 @@ type Nimiq = typeof import('@nimiq/core-web');
 const coreBasePath = 'https://cdn.nimiq.com/latest/';
 
 let nimiqCorePromise: Promise<Nimiq> | null = null;
-let nimiqCryptographyPromise: Promise<void> | null = null;
 
 /**
  * Lazy-load the Nimiq core api from the cdn server if it's not loaded yet.
@@ -20,9 +19,9 @@ export async function loadNimiqCore(coreVariant: 'web' | 'web-offline' = 'web-of
             $script.parentNode!.removeChild($script);
             resolve();
         };
-        $script.onerror = () => {
+        $script.onerror = (e) => {
             $script.parentNode!.removeChild($script);
-            reject();
+            reject(e);
         };
         $script.src = `${coreBasePath}${coreVariant}.js`;
         $head.appendChild($script);
@@ -45,10 +44,8 @@ export async function loadNimiqCore(coreVariant: 'web' | 'web-offline' = 'web-of
  * deriving keys or addresses, signing transactions or messages, etc.
  */
 export async function loadNimiqCryptography(): Promise<void> {
-    nimiqCryptographyPromise = nimiqCryptographyPromise || (async () => {
-        const Nimiq = await loadNimiqCore();
-        // Note that we don't need to cache a promise for doImport() as the core already does that.
-        await Nimiq.WasmHelper.doImport();
-    })();
-    return nimiqCryptographyPromise;
+    // Note that there is no need to cache a promise like in loadNimiqCore for this call, as loadNimiqCore and doImport
+    // already do that themselves.
+    const Nimiq = await loadNimiqCore();
+    await Nimiq.WasmHelper.doImport();
 }
