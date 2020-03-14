@@ -77,6 +77,60 @@ type AccountType = import('@nimiq/core-web').Account.Type;
 type Transaction = import('@nimiq/core-web').Transaction;
 type PublicKey = import('@nimiq/core-web').PublicKey;
 
+// events appear at a single point of time while states reflect the current state of the api for a timespan ranging
+// into the future. E.g. if a request was cancelled, a REQUEST_CANCELLED event gets thrown and the state changes to
+// IDLE. Errors trigger an error state (e.g. when app outdated) and thus are a state, not an event.
+export enum EventType {
+    STATE_CHANGE = 'state-change',
+    REQUEST_SUCCESSFUL = 'request-successful',
+    REQUEST_CANCELLED = 'request-cancelled',
+    CONNECTED = 'connected',
+}
+
+export enum StateType {
+    IDLE = 'idle',
+    LOADING = 'loading',
+    CONNECTING = 'connecting',
+    REQUEST_PROCESSING = 'request-processing',
+    REQUEST_CANCELLING = 'request-cancelling',
+    ERROR = 'error',
+}
+
+export enum RequestType {
+    GET_WALLET_ID = 'get-wallet-id',
+    DERIVE_ACCOUNTS = 'derive-accounts',
+    GET_PUBLIC_KEY = 'get-public-key',
+    GET_ADDRESS = 'get-address',
+    CONFIRM_ADDRESS = 'confirm-address',
+    SIGN_TRANSACTION = 'sign-transaction',
+}
+
+export enum ErrorType {
+    LEDGER_BUSY = 'ledger-busy',
+    FAILED_LOADING_DEPENDENCIES = 'failed-loading-dependencies',
+    NO_BROWSER_SUPPORT = 'no-browser-support',
+    APP_OUTDATED = 'app-outdated',
+    WRONG_LEDGER = 'wrong-ledger',
+    REQUEST_ASSERTION_FAILED = 'request-specific-error',
+}
+
+export interface State {
+    type: StateType;
+    error?: {
+        type: ErrorType,
+        message: string,
+    };
+    request?: LedgerApiRequest<any>;
+}
+
+export interface RequestParams {
+    walletId?: string; // optional for all calls
+    keyPath?: string; // for everything besides DERIVE_ACCOUNTS
+    pathsToDerive?: Iterable<string>; // for DERIVE_ACCOUNTS
+    addressToConfirm?: string; // for CONFIRM_TRANSACTION
+    transaction?: TransactionInfo; // for SIGN_TRANSACTION
+}
+
 interface TransactionInfo {
     sender: Address;
     senderType?: AccountType;
@@ -92,15 +146,15 @@ interface TransactionInfo {
 
 class LedgerApiRequest<T> extends Observable {
     public static readonly EVENT_CANCEL = 'cancel';
-    public readonly type: LedgerApi.RequestType;
-    public readonly params: LedgerApi.RequestParams;
-    private readonly _call: (api: LowLevelApi, params: LedgerApi.RequestParams) => Promise<T>;
+    public readonly type: RequestType;
+    public readonly params: RequestParams;
+    private readonly _call: (api: LowLevelApi, params: RequestParams) => Promise<T>;
     private _cancelled: boolean = false;
 
     constructor(
-        type: LedgerApi.RequestType,
-        call: (api: LowLevelApi, params: LedgerApi.RequestParams) => Promise<T>,
-        params: LedgerApi.RequestParams,
+        type: RequestType,
+        call: (api: LowLevelApi, params: RequestParams) => Promise<T>,
+        params: RequestParams,
     ) {
         super();
         this.type = type;
@@ -130,7 +184,7 @@ class LedgerApiRequest<T> extends Observable {
     }
 }
 
-class LedgerApi {
+export default class LedgerApi {
     // public fields and methods
     public static readonly BIP32_BASE_PATH = '44\'/242\'/0\'/';
     public static readonly BIP32_PATH_REGEX = new RegExp(`^${LedgerApi.BIP32_BASE_PATH}(\\d+)'$`);
@@ -138,7 +192,7 @@ class LedgerApi {
     public static readonly WAIT_TIME_AFTER_TIMEOUT = 1500;
     public static readonly WAIT_TIME_AFTER_ERROR = 500;
 
-    public static get currentState(): LedgerApi.State {
+    public static get currentState(): State {
         return LedgerApi._currentState;
     }
 
@@ -166,22 +220,22 @@ class LedgerApi {
             // already a request going on. Just wait for it to connect.
             return new Promise<string>((resolve, reject) => {
                 const onConnect = (walletId: string) => {
-                    LedgerApi.off(LedgerApi.EventType.CONNECTED, onConnect);
-                    LedgerApi.off(LedgerApi.EventType.REQUEST_CANCELLED, onCancel);
+                    LedgerApi.off(EventType.CONNECTED, onConnect);
+                    LedgerApi.off(EventType.REQUEST_CANCELLED, onCancel);
                     resolve(walletId);
                 };
                 const onCancel = () => {
-                    LedgerApi.off(LedgerApi.EventType.CONNECTED, onConnect);
-                    LedgerApi.off(LedgerApi.EventType.REQUEST_CANCELLED, onCancel);
+                    LedgerApi.off(EventType.CONNECTED, onConnect);
+                    LedgerApi.off(EventType.REQUEST_CANCELLED, onCancel);
                     reject();
                 };
-                LedgerApi.on(LedgerApi.EventType.CONNECTED, onConnect);
-                LedgerApi.on(LedgerApi.EventType.REQUEST_CANCELLED, onCancel);
+                LedgerApi.on(EventType.CONNECTED, onConnect);
+                LedgerApi.on(EventType.REQUEST_CANCELLED, onCancel);
             });
         }
         // We have to send a request ourselves
         const request = new LedgerApiRequest(
-            LedgerApi.RequestType.GET_WALLET_ID,
+            RequestType.GET_WALLET_ID,
             // we're connected when the request get's executed
             (): Promise<string> => Promise.resolve(LedgerApi._currentlyConnectedWalletId!),
             {},
@@ -189,15 +243,15 @@ class LedgerApi {
         return LedgerApi._callLedger(request);
     }
 
-    public static on(eventType: LedgerApi.EventType, listener: EventListener): void {
+    public static on(eventType: EventType, listener: EventListener): void {
         LedgerApi._observable.on(eventType, listener);
     }
 
-    public static off(eventType: LedgerApi.EventType, listener: EventListener): void {
+    public static off(eventType: EventType, listener: EventListener): void {
         LedgerApi._observable.off(eventType, listener);
     }
 
-    public static once(eventType: LedgerApi.EventType, listener: EventListener): void {
+    public static once(eventType: EventType, listener: EventListener): void {
         LedgerApi._observable.once(eventType, listener);
     }
 
@@ -213,7 +267,7 @@ class LedgerApi {
 
     public static async deriveAccounts(pathsToDerive: Iterable<string>, walletId?: string)
         : Promise<Array<{ address: string, keyPath: string }>> {
-        const request = new LedgerApiRequest(LedgerApi.RequestType.DERIVE_ACCOUNTS,
+        const request = new LedgerApiRequest(RequestType.DERIVE_ACCOUNTS,
             async (api, params): Promise<Array<{ address: string, keyPath: string }>> => {
                 const accounts = [];
                 for (const keyPath of params.pathsToDerive!) {
@@ -236,13 +290,13 @@ class LedgerApi {
         // check paths outside of request to avoid endless loop in _callLedger if we'd throw for an invalid keyPath
         for (const keyPath of pathsToDerive) {
             if (LedgerApi.BIP32_PATH_REGEX.test(keyPath)) continue;
-            this._throwError(LedgerApi.ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
         }
         return LedgerApi._callLedger(request);
     }
 
     public static async getPublicKey(keyPath: string, walletId?: string): Promise<Uint8Array> {
-        const request = new LedgerApiRequest(LedgerApi.RequestType.GET_PUBLIC_KEY,
+        const request = new LedgerApiRequest(RequestType.GET_PUBLIC_KEY,
             async (api, params): Promise<Uint8Array> => {
                 const { publicKey } = await api.getPublicKey(
                     params.keyPath!,
@@ -257,13 +311,13 @@ class LedgerApi {
             },
         );
         if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-            this._throwError(LedgerApi.ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
         }
         return LedgerApi._callLedger(request);
     }
 
     public static async getAddress(keyPath: string, walletId?: string): Promise<string> {
-        const request = new LedgerApiRequest(LedgerApi.RequestType.GET_ADDRESS,
+        const request = new LedgerApiRequest(RequestType.GET_ADDRESS,
             async (api, params): Promise<string> => {
                 const { address } = await api.getAddress(
                     params.keyPath!,
@@ -278,14 +332,14 @@ class LedgerApi {
             },
         );
         if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-            this._throwError(LedgerApi.ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
         }
         return LedgerApi._callLedger(request);
     }
 
     public static async confirmAddress(userFriendlyAddress: string, keyPath: string, walletId?: string)
         : Promise<string> {
-        const request = new LedgerApiRequest(LedgerApi.RequestType.CONFIRM_ADDRESS,
+        const request = new LedgerApiRequest(RequestType.CONFIRM_ADDRESS,
             async (api, params): Promise<string> => {
                 const { address: confirmedAddress } = await api.getAddress(
                     params.keyPath!,
@@ -295,7 +349,7 @@ class LedgerApi {
 
                 if (params.addressToConfirm!.replace(/ /g, '').toUpperCase()
                     !== confirmedAddress.replace(/ /g, '').toUpperCase()) {
-                    LedgerApi._throwError(LedgerApi.ErrorType.REQUEST_ASSERTION_FAILED, 'Address mismatch', request);
+                    LedgerApi._throwError(ErrorType.REQUEST_ASSERTION_FAILED, 'Address mismatch', request);
                 }
 
                 return confirmedAddress;
@@ -307,7 +361,7 @@ class LedgerApi {
             },
         );
         if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-            this._throwError(LedgerApi.ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
         }
         return LedgerApi._callLedger(request);
     }
@@ -319,7 +373,7 @@ class LedgerApi {
 
     public static async signTransaction(transaction: TransactionInfo, keyPath: string, walletId?: string)
         : Promise<Transaction> {
-        const request = new LedgerApiRequest(LedgerApi.RequestType.SIGN_TRANSACTION,
+        const request = new LedgerApiRequest(RequestType.SIGN_TRANSACTION,
             async (api, params): Promise<Transaction> => {
                 // Note: We make api calls outside of try...catch blocks to let the exceptions fall through such that
                 // _callLedger can decide how to behave depending on the api error. All other errors are converted to
@@ -380,7 +434,7 @@ class LedgerApi {
                             fee, tx.validityStartHeight, /* signature */ undefined, networkId);
                     }
                 } catch (e) {
-                    this._throwError(LedgerApi.ErrorType.REQUEST_ASSERTION_FAILED, e, request);
+                    this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, e, request);
                 }
 
                 const { signature: signatureBytes } = await api.signTransaction(
@@ -397,7 +451,7 @@ class LedgerApi {
                         nimiqTx!.proof = Nimiq.SignatureProof.singleSig(signerPubKey!, signature).serialize();
                     }
                 } catch (e) {
-                    this._throwError(LedgerApi.ErrorType.REQUEST_ASSERTION_FAILED, e, request);
+                    this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, e, request);
                 }
 
                 return nimiqTx!;
@@ -410,21 +464,21 @@ class LedgerApi {
         );
 
         if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-            this._throwError(LedgerApi.ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
         }
         return LedgerApi._callLedger(request);
     }
 
     // private fields and methods
     private static _apiPromise: Promise<LowLevelApi> | null = null;
-    private static _currentState: LedgerApi.State = { type: 'idle' as LedgerApi.StateType };
+    private static _currentState: State = { type: StateType.IDLE };
     private static _currentRequest: LedgerApiRequest<any> | null = null;
     private static _currentlyConnectedWalletId: string | null = null;
     private static _observable = new Observable();
 
     private static async _callLedger<T>(request: LedgerApiRequest<T>): Promise<T> {
         if (LedgerApi.isBusy) {
-            LedgerApi._throwError(LedgerApi.ErrorType.LEDGER_BUSY, 'Only one call to Ledger at a time allowed',
+            LedgerApi._throwError(ErrorType.LEDGER_BUSY, 'Only one call to Ledger at a time allowed',
                 request);
         }
         try {
@@ -436,9 +490,9 @@ class LedgerApi {
                 request.on(LedgerApiRequest.EVENT_CANCEL, () => {
                     // If the ledger is not connected, we can reject the call right away. Otherwise just notify that
                     // the request was requested to be cancelled such that the user can cancel the call on the ledger.
-                    LedgerApi._setState(LedgerApi.StateType.REQUEST_CANCELLING);
+                    LedgerApi._setState(StateType.REQUEST_CANCELLING);
                     if (!isConnected) {
-                        LedgerApi._fire(LedgerApi.EventType.REQUEST_CANCELLED, request);
+                        LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
                         reject(new Error('Request cancelled'));
                     }
                 });
@@ -449,11 +503,11 @@ class LedgerApi {
                         isConnected = true;
                         if (request.cancelled && !wasLocked) break; // don't break on wasLocked to replace the call
                         if (!request.cancelled) {
-                            LedgerApi._setState(LedgerApi.StateType.REQUEST_PROCESSING);
+                            LedgerApi._setState(StateType.REQUEST_PROCESSING);
                         }
                         const result = await request.call(api);
                         if (request.cancelled) break; // don't check wasLocked here as if cancelled should never resolve
-                        LedgerApi._fire(LedgerApi.EventType.REQUEST_SUCCESSFUL, request, result);
+                        LedgerApi._fire(EventType.REQUEST_SUCCESSFUL, request, result);
                         resolve(result);
                         return;
                     } catch (e) {
@@ -468,7 +522,7 @@ class LedgerApi {
                         }
                         // Errors that should end the request
                         if ((LedgerApi.currentState.error
-                            && LedgerApi.currentState.error.type === LedgerApi.ErrorType.REQUEST_ASSERTION_FAILED)
+                            && LedgerApi.currentState.error.type === ErrorType.REQUEST_ASSERTION_FAILED)
                             || message.indexOf('not supported') !== -1) { // no browser support
                             reject(e);
                             return;
@@ -489,7 +543,7 @@ class LedgerApi {
                         await new Promise((resolve2) => setTimeout(resolve2, waitTime));
                     }
                 }
-                LedgerApi._fire(LedgerApi.EventType.REQUEST_CANCELLED, request);
+                LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
                 reject(new Error('Request cancelled'));
             });
             /* eslint-enable no-await-in-loop, no-async-promise-executor */
@@ -497,9 +551,9 @@ class LedgerApi {
             LedgerApi._currentRequest = null;
             LedgerApi._currentlyConnectedWalletId = null; // reset as we don't note when Ledger gets disconnected
             const errorType = LedgerApi.currentState.error ? LedgerApi.currentState.error.type : null;
-            if (errorType !== LedgerApi.ErrorType.NO_BROWSER_SUPPORT
-                && errorType !== LedgerApi.ErrorType.REQUEST_ASSERTION_FAILED) {
-                LedgerApi._setState(LedgerApi.StateType.IDLE);
+            if (errorType !== ErrorType.NO_BROWSER_SUPPORT
+                && errorType !== ErrorType.REQUEST_ASSERTION_FAILED) {
+                LedgerApi._setState(StateType.IDLE);
             }
         }
     }
@@ -510,7 +564,7 @@ class LedgerApi {
         try {
             const nimiqPromise = this._loadNimiq();
             const api = await LedgerApi._loadApi();
-            LedgerApi._setState(LedgerApi.StateType.CONNECTING);
+            LedgerApi._setState(StateType.CONNECTING);
             // To check whether the connection to Nimiq app is established and to calculate the walletId. This can also
             // unfreeze the ledger app, see notes at top. Using getPublicKey and not getAppConfiguration, as other apps
             // also respond to getAppConfiguration. Set validate to false as otherwise the call is much slower.
@@ -528,24 +582,24 @@ class LedgerApi {
             if (walletId !== undefined && LedgerApi._currentlyConnectedWalletId !== walletId) {
                 throw new Error('Wrong Ledger connected');
             }
-            this._fire(LedgerApi.EventType.CONNECTED, LedgerApi._currentlyConnectedWalletId);
+            this._fire(EventType.CONNECTED, LedgerApi._currentlyConnectedWalletId);
             return api;
         } catch (e) {
             const message = (e.message || e || '').toLowerCase();
             if (message.indexOf('wrong ledger') !== -1) {
-                LedgerApi._throwError(LedgerApi.ErrorType.WRONG_LEDGER, e);
+                LedgerApi._throwError(ErrorType.WRONG_LEDGER, e);
             }
             LedgerApi._currentlyConnectedWalletId = null;
             if (message.indexOf('browser support') !== -1 || message.indexOf('u2f device_ineligible') !== -1
                 || message.indexOf('u2f other_error') !== -1) {
-                LedgerApi._throwError(LedgerApi.ErrorType.NO_BROWSER_SUPPORT,
+                LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT,
                     'Ledger not supported by browser or support not enabled.');
             } else if (message.indexOf('outdated') !== -1) {
-                LedgerApi._throwError(LedgerApi.ErrorType.APP_OUTDATED, e);
+                LedgerApi._throwError(ErrorType.APP_OUTDATED, e);
             } else if (message.indexOf('busy') !== -1) {
-                LedgerApi._throwError(LedgerApi.ErrorType.LEDGER_BUSY, e);
+                LedgerApi._throwError(ErrorType.LEDGER_BUSY, e);
             } else if (message.indexOf('dependencies') !== -1) {
-                LedgerApi._throwError(LedgerApi.ErrorType.FAILED_LOADING_DEPENDENCIES, e);
+                LedgerApi._throwError(ErrorType.FAILED_LOADING_DEPENDENCIES, e);
             }
             // on other errors (like timeout, dongle locked) that just keep the API retrying and not fire an error state
             // we just rethrow the error.
@@ -557,7 +611,7 @@ class LedgerApi {
         // TODO: Lazy loading of Ledger Api
         LedgerApi._apiPromise = LedgerApi._apiPromise
             || (async () => {
-                LedgerApi._setState(LedgerApi.StateType.LOADING);
+                LedgerApi._setState(StateType.LOADING);
                 const transport = await TransportU2F.create();
                 return new LowLevelApi(transport);
             })();
@@ -593,7 +647,7 @@ class LedgerApi {
         return true;
     }
 
-    private static _setState(state: LedgerApi.State | LedgerApi.StateType): void {
+    private static _setState(state: State | StateType): void {
         if (typeof state === 'string') {
             // it's an entry from LedgerApi.StateType enum
             state = { type: state };
@@ -606,15 +660,15 @@ class LedgerApi {
                     && LedgerApi._currentState.error.type === state.error.type))
             && LedgerApi._currentState.request === state.request) return;
         LedgerApi._currentState = state;
-        LedgerApi._fire(LedgerApi.EventType.STATE_CHANGE, state);
+        LedgerApi._fire(EventType.STATE_CHANGE, state);
     }
 
     private static _throwError(
-        type: LedgerApi.ErrorType,
+        type: ErrorType,
         error: Error | string, request?: LedgerApiRequest<any>,
     ): void {
-        const state: LedgerApi.State = {
-            type: LedgerApi.StateType.ERROR,
+        const state: State = {
+            type: StateType.ERROR,
             error: {
                 type,
                 message: typeof error === 'string' ? error : error.message,
@@ -629,65 +683,7 @@ class LedgerApi {
         }
     }
 
-    private static _fire(eventName: LedgerApi.EventType, ...args: any[]): void {
+    private static _fire(eventName: EventType, ...args: any[]): void {
         LedgerApi._observable.fire(eventName, ...args);
     }
 }
-
-namespace LedgerApi {
-    // events appear at a single point of time while states reflect the current state of the api for a timespan ranging
-    // into the future. E.g. if a request was cancelled, a REQUEST_CANCELLED event gets thrown and the state changes to
-    // IDLE. Errors trigger an error state (e.g. when app outdated) and thus are a state, not an event.
-    export enum EventType {
-        STATE_CHANGE = 'state-change',
-        REQUEST_SUCCESSFUL = 'request-successful',
-        REQUEST_CANCELLED = 'request-cancelled',
-        CONNECTED = 'connected',
-    }
-
-    export enum StateType {
-        IDLE = 'idle',
-        LOADING = 'loading',
-        CONNECTING = 'connecting',
-        REQUEST_PROCESSING = 'request-processing',
-        REQUEST_CANCELLING = 'request-cancelling',
-        ERROR = 'error',
-    }
-
-    export enum RequestType {
-        GET_WALLET_ID = 'get-wallet-id',
-        DERIVE_ACCOUNTS = 'derive-accounts',
-        GET_PUBLIC_KEY = 'get-public-key',
-        GET_ADDRESS = 'get-address',
-        CONFIRM_ADDRESS = 'confirm-address',
-        SIGN_TRANSACTION = 'sign-transaction',
-    }
-
-    export enum ErrorType {
-        LEDGER_BUSY = 'ledger-busy',
-        FAILED_LOADING_DEPENDENCIES = 'failed-loading-dependencies',
-        NO_BROWSER_SUPPORT = 'no-browser-support',
-        APP_OUTDATED = 'app-outdated',
-        WRONG_LEDGER = 'wrong-ledger',
-        REQUEST_ASSERTION_FAILED = 'request-specific-error',
-    }
-
-    export interface State {
-        type: LedgerApi.StateType;
-        error?: {
-            type: LedgerApi.ErrorType,
-            message: string,
-        };
-        request?: LedgerApiRequest<any>;
-    }
-
-    export interface RequestParams {
-        walletId?: string; // optional for all calls
-        keyPath?: string; // for everything besides DERIVE_ACCOUNTS
-        pathsToDerive?: Iterable<string>; // for DERIVE_ACCOUNTS
-        addressToConfirm?: string; // for CONFIRM_TRANSACTION
-        transaction?: TransactionInfo; // for SIGN_TRANSACTION
-    }
-}
-
-export default LedgerApi;

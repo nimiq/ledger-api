@@ -81,6 +81,7 @@ export default (commandLineArgs) => {
             format,
             dir: 'dist', // not dist/high-level-api as ts plugin creates sub folder structure in dist as in rootDir
             entryFileNames: 'high-level-api/[name].[format].js',
+            exports: 'named', // enable multiple exports at the cost that cjs bundle must be imported as bundle.default
             sourcemap: true,
             sourcemapPathTransform,
             plugins: [
