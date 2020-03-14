@@ -638,14 +638,14 @@ namespace LedgerApi {
     // events appear at a single point of time while states reflect the current state of the api for a timespan ranging
     // into the future. E.g. if a request was cancelled, a REQUEST_CANCELLED event gets thrown and the state changes to
     // IDLE. Errors trigger an error state (e.g. when app outdated) and thus are a state, not an event.
-    export const enum EventType {
+    export enum EventType {
         STATE_CHANGE = 'state-change',
         REQUEST_SUCCESSFUL = 'request-successful',
         REQUEST_CANCELLED = 'request-cancelled',
         CONNECTED = 'connected',
     }
 
-    export const enum StateType {
+    export enum StateType {
         IDLE = 'idle',
         LOADING = 'loading',
         CONNECTING = 'connecting',
@@ -654,7 +654,7 @@ namespace LedgerApi {
         ERROR = 'error',
     }
 
-    export const enum RequestType {
+    export enum RequestType {
         GET_WALLET_ID = 'get-wallet-id',
         DERIVE_ACCOUNTS = 'derive-accounts',
         GET_PUBLIC_KEY = 'get-public-key',
@@ -663,7 +663,7 @@ namespace LedgerApi {
         SIGN_TRANSACTION = 'sign-transaction',
     }
 
-    export const enum ErrorType {
+    export enum ErrorType {
         LEDGER_BUSY = 'ledger-busy',
         FAILED_LOADING_DEPENDENCIES = 'failed-loading-dependencies',
         NO_BROWSER_SUPPORT = 'no-browser-support',
