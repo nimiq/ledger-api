@@ -64,11 +64,11 @@
 // - Also, the verification and address computation in ledgerjs should be done by Nimiq's crypto methods instead of
 //   unnecessarily bundling tweetnacl and blakejs.
 
-import TransportU2F from '@ledgerhq/hw-transport-u2f';
 import LowLevelApi from '../low-level-api/low-level-api';
 import Observable, { EventListener } from '../lib/observable';
-import LedgerApiRequest, { RequestType, RequestParams } from './ledger-api-request';
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
+import { isSupported, createTransport, determineTransportTypeToUse, TransportType } from './transport-utils';
+import LedgerApiRequest, { RequestType, RequestParams } from './ledger-api-request';
 
 type Nimiq = typeof import('@nimiq/core-web');
 type Address = import('@nimiq/core-web').Address;
@@ -77,6 +77,7 @@ type Transaction = import('@nimiq/core-web').Transaction;
 type PublicKey = import('@nimiq/core-web').PublicKey;
 
 export { RequestType, RequestParams };
+export { isSupported, TransportType };
 
 // events appear at a single point of time while states reflect the current state of the api for a timespan ranging
 // into the future. E.g. if a request was cancelled, a REQUEST_CANCELLED event gets thrown and the state changes to
@@ -552,11 +553,12 @@ export default class LedgerApi {
     }
 
     private static async _loadApi(): Promise<LowLevelApi> {
-        // TODO: Lazy loading of Ledger Api
         LedgerApi._apiPromise = LedgerApi._apiPromise
             || (async () => {
                 LedgerApi._setState(StateType.LOADING);
-                const transport = await TransportU2F.create();
+                const transportType = determineTransportTypeToUse();
+                if (!transportType) throw new Error('No browser support');
+                const transport = await createTransport(transportType);
                 return new LowLevelApi(transport);
             })();
         try {
