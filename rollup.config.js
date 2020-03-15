@@ -89,6 +89,11 @@ export default (commandLineArgs) => {
                 fixSourcemaps(),
             ],
         })),
+        manualChunks: {
+            buffer: ['buffer'], // avoid that Buffer polyfill gets bundled into ledger-api chunk from where it is
+            // imported by other chunks, causing a circular dependency and an additional entry chunk that re-exports
+            // everything from ledger-api but Buffer.
+        },
         plugins: [
             fixedEslint({
                 throwOnError: isProduction,
