@@ -163,7 +163,7 @@ export default (commandLineArgs) => {
 
     const demoConfig = {
         input: 'src/demo/index.ts',
-        external: ['../low-level-api/low-level-api.es.js'],
+        external: ['../low-level-api/low-level-api.es.js', '../high-level-api/ledger-api.es.js'],
         output: {
             dir: 'dist/demo',
             format: 'es',
@@ -181,10 +181,11 @@ export default (commandLineArgs) => {
                 include: ['src/demo/**', 'src/lib/**'],
                 noEmitOnError: isProduction,
             }),
-            // typescript needs 'low-level-api' to find the .d.ts file but for external import we need .es.js file
+            // typescript needs the import as specified to find the .d.ts file but for actual import we need .es.js file
             alias({
                 entries: {
                     '../../dist/low-level-api/low-level-api': '../low-level-api/low-level-api.es.js',
+                    '../../dist/high-level-api/ledger-api': '../high-level-api/ledger-api.es.js',
                 },
             }),
             resolve({
