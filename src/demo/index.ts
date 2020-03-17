@@ -40,7 +40,7 @@ window.addEventListener('load', () => {
                     Low Level Api
                 </label>
             </div>
-            <div id="transport-selector" class="selector show-${ApiType.LOW_LEVEL}">
+            <div id="transport-selector" class="selector">
                 <label>
                     <input type="radio" name="transport-selector" value="${TransportType.WEB_USB}" checked>
                     WebUsb
@@ -179,15 +179,14 @@ window.addEventListener('load', () => {
     async function createApi() {
         if (_api) return _api;
         try {
-            disableSelector($transportSelector);
             disableSelector($apiSelector);
             onLog((logEntry: any) => console.log('Log:', logEntry));
 
             displayStatus('Creating Api');
             const apiType = ($apiSelector.querySelector(':checked') as HTMLInputElement).value;
-            // TODO implement transport type selection for high level api
+            const transportType = ($transportSelector.querySelector(':checked') as HTMLInputElement).value;
             if (apiType === ApiType.LOW_LEVEL) {
-                const transportType = ($transportSelector.querySelector(':checked') as HTMLInputElement).value;
+                disableSelector($transportSelector);
                 switch (transportType) {
                     case TransportType.WEB_USB:
                         // Automatically creates a transport with a connected known device or opens a browser popup to
@@ -207,6 +206,11 @@ window.addEventListener('load', () => {
                 _api = new LowLevelApi(_transport);
             } else {
                 _api = HighLevelApi;
+                _api.setTransportType(transportType as TransportType);
+                $transportSelector.addEventListener('change', (e) => {
+                    const input = e.target as HTMLInputElement;
+                    (_api as typeof HighLevelApi).setTransportType(input.value as TransportType);
+                });
             }
 
             displayStatus('Api created');
@@ -330,7 +334,7 @@ window.addEventListener('load', () => {
     function init() {
         console.log('Nimiq Ledger Api demo. Note that another great place to directly experiment with the apis'
             + ' provided by Ledger is https://ledger-repl.now.sh/');
-        $apiSelector.querySelectorAll('input').forEach((el) => el.addEventListener('change', switchApi));
+        $apiSelector.addEventListener('change', switchApi);
         $connectButton.addEventListener('click', connect);
         $connectWithoutUserInteractionButton.addEventListener('click', connectWithoutUserInteraction);
         $closeButton.addEventListener('click', close);

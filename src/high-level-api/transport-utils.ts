@@ -7,9 +7,9 @@ export enum TransportType {
     U2F = 'u2f',
 }
 
-export function isSupported(transportType?: TransportType) {
+export function isSupported(transportType?: TransportType): boolean {
     if (window.location.protocol !== 'https:') return false;
-    if (!transportType) return !!determineTransportTypeToUse();
+    if (!transportType) return !!autoDetectTransportTypeToUse();
     // inspired by @ledgerhq/hw-transport libs
     switch (transportType) {
         case TransportType.WEB_HID:
@@ -31,7 +31,8 @@ export function isSupported(transportType?: TransportType) {
     }
 }
 
-export function determineTransportTypeToUse(): TransportType | null {
+export function autoDetectTransportTypeToUse(): TransportType | null {
+    // Determine the best available transport type. Exclude WebBle as it's only suitable for Nano X.
     return [
         TransportType.WEB_HID, // WebHID preferred over WebUSB because of better compatibility on windows
         TransportType.WEB_USB, // WebUSB preferred over U2F because U2F can time out and causes popups in Windows

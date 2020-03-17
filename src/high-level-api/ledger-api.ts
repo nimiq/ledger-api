@@ -67,7 +67,7 @@
 import LowLevelApi from '../low-level-api/low-level-api';
 import Observable, { EventListener } from '../lib/observable';
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
-import { isSupported, createTransport, determineTransportTypeToUse, TransportType } from './transport-utils';
+import { isSupported, createTransport, autoDetectTransportTypeToUse, TransportType } from './transport-utils';
 import LedgerApiRequest, { RequestType, RequestParams } from './ledger-api-request';
 
 type Nimiq = typeof import('@nimiq/core-web');
@@ -147,6 +147,38 @@ export default class LedgerApi {
 
     public static get isBusy(): boolean {
         return !!LedgerApi._currentRequest;
+    }
+
+    public static get transportType(): TransportType | null {
+        return LedgerApi._transportType;
+    }
+
+    /**
+     * Check for general support or support of a specific transport type. Note that isSupported is additionally exported
+     * as separate export that doesn't require bundling the whole api.
+     * @param [transportType] - Transport type for which to test for support. If omitted test for support of any type.
+     */
+    public static isSupported(transportType?: TransportType): boolean {
+        return isSupported(transportType);
+    }
+
+    /**
+     * Set a specific transport type. Note that an already connected ongoing request will still use the previous
+     * transport type.
+     * @param transportType - Transport type to use for connections to Ledger devices.
+     */
+    public static setTransportType(transportType: TransportType) {
+        if (!isSupported(transportType)) throw new Error('Unsupported transport type.');
+        if (transportType === LedgerApi._transportType) return;
+        LedgerApi._transportType = transportType;
+        // reset currently initialized api / transport to create a new one for specified transport type on next request
+        LedgerApi._apiPromise = null;
+    }
+
+    public static resetTransportType() {
+        const transportType = autoDetectTransportTypeToUse();
+        if (!transportType) return;
+        LedgerApi.setTransportType(transportType);
     }
 
     /**
@@ -415,6 +447,7 @@ export default class LedgerApi {
     }
 
     // private fields and methods
+    private static _transportType: TransportType | null = autoDetectTransportTypeToUse();
     private static _apiPromise: Promise<LowLevelApi> | null = null;
     private static _currentState: State = { type: StateType.IDLE };
     private static _currentRequest: LedgerApiRequest<any> | null = null;
@@ -553,19 +586,27 @@ export default class LedgerApi {
     }
 
     private static async _loadApi(): Promise<LowLevelApi> {
+        const transportType = LedgerApi._transportType;
         LedgerApi._apiPromise = LedgerApi._apiPromise
             || (async () => {
                 LedgerApi._setState(StateType.LOADING);
-                const transportType = determineTransportTypeToUse();
                 if (!transportType) throw new Error('No browser support');
                 const transport = await createTransport(transportType);
                 return new LowLevelApi(transport);
             })();
         try {
-            return await LedgerApi._apiPromise;
+            const api = await LedgerApi._apiPromise;
+            if (this._transportType === transportType) return api;
+            // Transport type changed while we were connecting; rerun.
+            return LedgerApi._loadApi();
         } catch (e) {
-            LedgerApi._apiPromise = null;
-            throw new Error(`Failed loading dependencies: ${e.message || e}`);
+            if (this._transportType === transportType) {
+                LedgerApi._apiPromise = null;
+                // TODO better error handling, handle exceptions due to missing user interaction or user cancellation
+                throw new Error(`Failed loading dependencies: ${e.message || e}`);
+            }
+            // Transport type changed while we were connecting; ignore error and rerun
+            return LedgerApi._loadApi();
         }
     }
 
