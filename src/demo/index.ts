@@ -16,6 +16,13 @@ enum ApiType {
     HIGH_LEVEL = 'high-level',
 }
 
+declare global {
+    interface Window {
+        _transport?: Transport;
+        _api?: LowLevelApi | typeof HighLevelApi;
+    }
+}
+
 window.addEventListener('load', () => {
     // You can create such a hash as follows:
     // const tx = new Nimiq.BasicTransaction(pubKey, recipient, value, fee, validityStartHeight, undefined, networkId);
@@ -156,9 +163,6 @@ window.addEventListener('load', () => {
     const $signTxButton = document.getElementById('sign-tx-button')!;
     const $signature = document.getElementById('signature')!;
 
-    let _transport: Transport | null = null;
-    let _api: LowLevelApi | typeof HighLevelApi | null = null;
-
     function displayStatus(msg: string) {
         console.log(msg);
         $status.textContent = msg;
@@ -177,7 +181,7 @@ window.addEventListener('load', () => {
     }
 
     async function createApi() {
-        if (_api) return _api;
+        if (window._api) return window._api;
         try {
             disableSelector($apiSelector);
             onLog((logEntry: any) => console.log('Log:', logEntry));
@@ -191,30 +195,30 @@ window.addEventListener('load', () => {
                     case TransportType.WEB_USB:
                         // Automatically creates a transport with a connected known device or opens a browser popup to
                         // select a device if no known device is connected.
-                        _transport = await TransportWebUsb.create();
+                        window._transport = await TransportWebUsb.create();
                         break;
                     case TransportType.WEB_HID:
-                        _transport = await TransportWebHid.create();
+                        window._transport = await TransportWebHid.create();
                         break;
                     case TransportType.WEB_BLE:
-                        _transport = await TransportWebBle.create();
+                        window._transport = await TransportWebBle.create();
                         break;
                     default:
-                        _transport = await TransportU2F.create();
+                        window._transport = await TransportU2F.create();
                 }
-                _transport.on('disconnect', () => displayStatus('Disconnected.'));
-                _api = new LowLevelApi(_transport);
+                window._transport.on('disconnect', () => displayStatus('Disconnected.'));
+                window._api = new LowLevelApi(window._transport);
             } else {
-                _api = HighLevelApi;
-                _api.setTransportType(transportType as TransportType);
+                window._api = HighLevelApi;
+                window._api.setTransportType(transportType as TransportType);
                 $transportSelector.addEventListener('change', (e) => {
                     const input = e.target as HTMLInputElement;
-                    (_api as typeof HighLevelApi).setTransportType(input.value as TransportType);
+                    (window._api as typeof HighLevelApi).setTransportType(input.value as TransportType);
                 });
             }
 
             displayStatus('Api created');
-            return _api;
+            return window._api;
         } catch (error) {
             displayStatus(`Error creating api: ${error}`);
             throw error;
@@ -223,11 +227,11 @@ window.addEventListener('load', () => {
 
     async function connect() {
         // TODO implement high level api connect
-        const api = _api || await createApi();
+        const api = window._api || await createApi();
         if (!(api instanceof LowLevelApi)) return;
         const { version } = await api.getAppConfiguration();
         // @ts-ignore: deviceModel does not exist on all transport types
-        const deviceModel = _transport.deviceModel ? _transport.deviceModel.productName : 'device type unknown';
+        const deviceModel = (window._transport.deviceModel || {}).productName || 'device type unknown';
         displayStatus(`Connected (app version ${version}, ${deviceModel})`);
     }
 
@@ -239,9 +243,9 @@ window.addEventListener('load', () => {
     }
 
     async function close() {
-        if (!_transport) return;
+        if (!window._transport) return;
         displayStatus('Closing transport...');
-        await _transport.close();
+        await window._transport.close();
         displayStatus('Transport closed');
     }
 
