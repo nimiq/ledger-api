@@ -67,8 +67,8 @@
 import LowLevelApi from '../low-level-api/low-level-api';
 import Observable, { EventListener } from '../lib/observable';
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
-import { isSupported, createTransport, autoDetectTransportTypeToUse, TransportType } from './transport-utils';
-import LedgerApiRequest, { RequestType, RequestParams } from './ledger-api-request';
+import { autoDetectTransportTypeToUse, createTransport, isSupported, TransportType } from './transport-utils';
+import LedgerApiRequest, { RequestParams, RequestType } from './ledger-api-request';
 
 type Nimiq = typeof import('@nimiq/core-web');
 type Address = import('@nimiq/core-web').Address;
@@ -173,6 +173,8 @@ export default class LedgerApi {
         LedgerApi._transportType = transportType;
         // reset currently initialized api / transport to create a new one for specified transport type on next request
         LedgerApi._apiPromise = null;
+        // User might select a different Ledger on connection via new transport type or switch account in between
+        this._currentlyConnectedWalletId = null;
     }
 
     public static resetTransportType() {
@@ -490,6 +492,10 @@ export default class LedgerApi {
                         return;
                     } catch (e) {
                         console.log(e);
+                        if (LedgerApi._transportType === TransportType.U2F) {
+                            // We don't know for sure whether the Ledger is still connected.
+                            LedgerApi._currentlyConnectedWalletId = null;
+                        }
                         const message = (e.message || e || '').toLowerCase();
                         wasLocked = message.indexOf('locked') !== -1;
                         if (message.indexOf('timeout') !== -1) isConnected = false;
@@ -527,7 +533,9 @@ export default class LedgerApi {
             /* eslint-enable no-await-in-loop, no-async-promise-executor */
         } finally {
             LedgerApi._currentRequest = null;
-            LedgerApi._currentlyConnectedWalletId = null; // reset as we don't note when Ledger gets disconnected
+            if (LedgerApi._transportType === TransportType.U2F) {
+                LedgerApi._currentlyConnectedWalletId = null; // reset as we don't note when Ledger gets disconnected
+            }
             const errorType = LedgerApi.currentState.error ? LedgerApi.currentState.error.type : null;
             if (errorType !== ErrorType.NO_BROWSER_SUPPORT
                 && errorType !== ErrorType.REQUEST_ASSERTION_FAILED) {
@@ -542,21 +550,25 @@ export default class LedgerApi {
         try {
             const nimiqPromise = this._loadNimiq();
             const api = await LedgerApi._loadApi();
-            LedgerApi._setState(StateType.CONNECTING);
-            // To check whether the connection to Nimiq app is established and to calculate the walletId. This can also
-            // unfreeze the ledger app, see notes at top. Using getPublicKey and not getAppConfiguration, as other apps
-            // also respond to getAppConfiguration. Set validate to false as otherwise the call is much slower.
-            const { publicKey: firstAccountPubKeyBytes } = await api.getPublicKey(
-                LedgerApi.getBip32PathForKeyId(0),
-                false, // validate
-                false, // display
-            );
-            const { version } = await api.getAppConfiguration();
-            if (!LedgerApi._isAppVersionSupported(version)) throw new Error('Ledger Nimiq App is outdated.');
+            if (!LedgerApi._currentlyConnectedWalletId) {
+                // Not connected yet.
+                LedgerApi._setState(StateType.CONNECTING);
+                // To check whether the connection to Nimiq app is established and to calculate the walletId. Set
+                // validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger
+                // app, see notes at top. Using getPublicKey and not getAppConfiguration, as other apps also respond to
+                // getAppConfiguration (for example the Ethereum app).
+                const { publicKey: firstAccountPubKeyBytes } = await api.getPublicKey(
+                    LedgerApi.getBip32PathForKeyId(0),
+                    false, // validate
+                    false, // display
+                );
+                const { version } = await api.getAppConfiguration();
+                if (!LedgerApi._isAppVersionSupported(version)) throw new Error('Ledger Nimiq App is outdated.');
 
-            const Nimiq = await nimiqPromise;
-            // Use sha256 as blake2b yields the nimiq address
-            LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAccountPubKeyBytes).toBase64();
+                const Nimiq = await nimiqPromise;
+                // Use sha256 as blake2b yields the nimiq address
+                LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAccountPubKeyBytes).toBase64();
+            }
             if (walletId !== undefined && LedgerApi._currentlyConnectedWalletId !== walletId) {
                 throw new Error('Wrong Ledger connected');
             }
@@ -598,6 +610,7 @@ export default class LedgerApi {
                     if (this._transportType !== transportType) return;
                     // A disconnected transport can not be reconnected. Therefore reset the _apiPromise.
                     LedgerApi._apiPromise = null;
+                    LedgerApi._currentlyConnectedWalletId = null;
                 };
                 transport.on('disconnect', onDisconnect);
                 return new LowLevelApi(transport);
