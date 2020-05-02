@@ -34,6 +34,8 @@ export function isSupported(transportType?: TransportType): boolean {
 export function autoDetectTransportTypeToUse(): TransportType | null {
     // Determine the best available transport type. Exclude WebBle as it's only suitable for Nano X.
     return [
+        // TODO investigate further whether HID is actually preferable over USB because currently HID always triggers
+        //  the selection ui while usb does not. Also HID does not emit disconnects immediately.
         TransportType.WEB_HID, // WebHID preferred over WebUSB because of better compatibility on windows
         TransportType.WEB_USB, // WebUSB preferred over U2F because U2F can time out and causes popups in Windows
         TransportType.U2F, // U2F as legacy fallback

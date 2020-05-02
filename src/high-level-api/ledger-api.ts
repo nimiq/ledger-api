@@ -592,6 +592,14 @@ export default class LedgerApi {
                 LedgerApi._setState(StateType.LOADING);
                 if (!transportType) throw new Error('No browser support');
                 const transport = await createTransport(transportType);
+                const onDisconnect = () => {
+                    console.log('Ledger disconnected');
+                    transport.off('disconnect', onDisconnect);
+                    if (this._transportType !== transportType) return;
+                    // A disconnected transport can not be reconnected. Therefore reset the _apiPromise.
+                    LedgerApi._apiPromise = null;
+                };
+                transport.on('disconnect', onDisconnect);
                 return new LowLevelApi(transport);
             })();
         try {
