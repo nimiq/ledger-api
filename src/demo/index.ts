@@ -232,8 +232,8 @@ window.addEventListener('load', () => {
             const deviceModel = (window._transport.deviceModel || {}).productName || 'device type unknown';
             displayStatus(`Connected (app version ${version}, ${deviceModel})`);
         } else {
-            await api.connect();
-            displayStatus('Connected');
+            const connected = await api.connect();
+            displayStatus(connected ? 'Connected' : 'Connection cancelled');
         }
     }
 

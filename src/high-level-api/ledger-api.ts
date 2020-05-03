@@ -189,16 +189,22 @@ export default class LedgerApi {
      * However, if that connection fails due to a required user interaction / user gesture, you can manually connect in
      * the context of a user interaction, for example a click.
      */
-    public static async connect(): Promise<void> {
+    public static async connect(): Promise<boolean> {
         try {
             // Initialize the api again if it failed previously, for example due to missing user interaction.
             await LedgerApi._initializeLowLevelApi();
         } catch (e) {
-            // Don't throw on errors, same as the other API methods. Error was reported by _initializeLowLevelApi as
-            // error state instead.
+            // Silently continue on errors, same as the other API methods. Error was reported by _initializeLowLevelApi
+            // as error state instead. Only if the user cancelled the connection, don't continue.
+            if ((e.message || e).indexOf('cancelled') !== -1) return false;
         }
-        // Use getWalletId to detect when the ledger is connected.
-        await LedgerApi.getWalletId();
+        try {
+            // Use getWalletId to detect when the ledger is connected.
+            await LedgerApi.getWalletId();
+            return true;
+        } catch (e) {
+            return false;
+        }
     }
 
     /**
@@ -224,7 +230,7 @@ export default class LedgerApi {
                 const onCancel = () => {
                     LedgerApi.off(EventType.CONNECTED, onConnect);
                     LedgerApi.off(EventType.REQUEST_CANCELLED, onCancel);
-                    reject();
+                    reject(new Error('Request cancelled'));
                 };
                 LedgerApi.on(EventType.CONNECTED, onConnect);
                 LedgerApi.on(EventType.REQUEST_CANCELLED, onCancel);
@@ -519,7 +525,8 @@ export default class LedgerApi {
                         if (message.indexOf('timeout') !== -1) isConnected = false;
                         // user cancelled call on ledger
                         if (message.indexOf('denied') !== -1 // user rejected confirmAddress
-                            || message.indexOf('rejected') !== -1) { // user rejected signTransaction
+                            || message.indexOf('rejected') !== -1 // user rejected signTransaction
+                            || message.indexOf('cancelled') !== -1) { // user cancelled connection
                             break; // continue after loop
                         }
                         // Errors that should end the request
@@ -641,9 +648,10 @@ export default class LedgerApi {
         } catch (e) {
             if (this._transportType === transportType) {
                 LedgerApi._lowLevelApiPromise = null;
-                // TODO better error handling, handle exceptions due to user cancellation
                 const message = e.message || e;
-                if (message.indexOf('user gesture') !== -1) {
+                if (message.indexOf('No device selected') !== -1) {
+                    throw new Error('User cancelled connection');
+                } else if (message.indexOf('user gesture') !== -1) {
                     LedgerApi._throwError(ErrorType.USER_INTERACTION_REQUIRED, e);
                 } else {
                     LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED,
