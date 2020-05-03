@@ -65,11 +65,14 @@ window.addEventListener('load', () => {
                     U2F
                 </label>
             </div>
-            <button class="nq-button-s" id="connect-button">Connect</button>
-            <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="connect-without-user-interaction-button">
-                Connect without user interaction
-            </button>
-            <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="close-button">Close</button>
+            <label>
+                <input type="checkbox" id="no-user-interaction-checkbox">
+                Call without user interaction
+            </label>
+            <div>
+                <button class="nq-button-s" id="connect-button">Connect</button>
+                <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="close-button">Close</button>
+            </div>
         </section>
 
         <section class="nq-text nq-card">
@@ -117,6 +120,11 @@ window.addEventListener('load', () => {
             .selector {
                 margin-bottom: 1.5rem;
             }
+            
+            #connect-button,
+            #close-button {
+                margin-top: 2rem;
+            }
 
             .nq-card {
                 min-width: 75rem;
@@ -147,8 +155,8 @@ window.addEventListener('load', () => {
     const $status = document.getElementById('status')!;
     const $apiSelector = document.getElementById('api-selector')!;
     const $transportSelector = document.getElementById('transport-selector')!;
+    const $noUserInteractionCheckbox = document.getElementById('no-user-interaction-checkbox') as HTMLInputElement;
     const $connectButton = document.getElementById('connect-button')!;
-    const $connectWithoutUserInteractionButton = document.getElementById('connect-without-user-interaction-button')!;
     const $closeButton = document.getElementById('close-button')!;
     const $bip32PathPublicKeyInput = document.getElementById('bip32-path-public-key-input') as HTMLInputElement;
     const $getPublicKeyButton = document.getElementById('get-public-key-button')!;
@@ -177,6 +185,14 @@ window.addEventListener('load', () => {
         const api = ($apiSelector.querySelector(':checked') as HTMLInputElement).value;
         document.body.classList.toggle(ApiType.LOW_LEVEL, api === ApiType.LOW_LEVEL);
         document.body.classList.toggle(ApiType.HIGH_LEVEL, api === ApiType.HIGH_LEVEL);
+    }
+
+    async function clearUserInteraction() {
+        // Wait until user interaction flag is reset. See https://mustaqahmed.github.io/user-activation-v2/,
+        // https://developers.google.com/web/updates/2019/01/user-activation and
+        // https://github.com/whatwg/html/issues/1903 to learn more about how user interaction is tracked in Chrome.
+        displayStatus('Waiting a moment for user interaction flag to get cleared.');
+        return new Promise((resolve) => setTimeout(resolve, 5000));
     }
 
     async function createApi() {
@@ -225,6 +241,7 @@ window.addEventListener('load', () => {
     }
 
     async function connect() {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         const api = window._api || await createApi();
         if (api instanceof LowLevelApi) {
             const { version } = await api.getAppConfiguration();
@@ -237,22 +254,16 @@ window.addEventListener('load', () => {
         }
     }
 
-    async function connectWithoutUserInteraction() {
-        // Wait until user interaction flag is reset. See https://mustaqahmed.github.io/user-activation-v2/,
-        // https://developers.google.com/web/updates/2019/01/user-activation and
-        // https://github.com/whatwg/html/issues/1903 to learn more about how user interaction is tracked in Chrome.
-        displayStatus('Waiting a moment for user interaction flag to get cleared.');
-        setTimeout(connect, 5000);
-    }
-
     async function close() {
         if (!window._transport) return;
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         displayStatus('Closing transport...');
         await window._transport.close();
         displayStatus('Transport closed');
     }
 
     async function getPublicKey(confirm: boolean) {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         try {
             $publicKey.textContent = '';
             const bip32Path = $bip32PathPublicKeyInput.value;
@@ -278,6 +289,7 @@ window.addEventListener('load', () => {
     }
 
     async function getAddress(confirm: boolean) {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         try {
             $address.textContent = '';
             const bip32Path = $bip32PathAddressInput.value;
@@ -300,6 +312,7 @@ window.addEventListener('load', () => {
     }
 
     async function signTransaction() {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         try {
             $signature.textContent = '';
             const tx = $txHexInput.value;
@@ -345,7 +358,6 @@ window.addEventListener('load', () => {
             + ' previously granted permissions.');
         $apiSelector.addEventListener('change', switchApi);
         $connectButton.addEventListener('click', connect);
-        $connectWithoutUserInteractionButton.addEventListener('click', connectWithoutUserInteraction);
         $closeButton.addEventListener('click', close);
         $getPublicKeyButton.addEventListener('click', () => getPublicKey(false));
         $confirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
