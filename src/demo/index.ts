@@ -36,7 +36,7 @@ window.addEventListener('load', () => {
             Status: <span id="status" class="mono"></span>
         </section>
         
-        <section class="nq-text">
+        <section class="nq-text" style="text-align: center">
             <div id="api-selector" class="selector">
                 <label>
                     <input type="radio" name="api-selector" value="${ApiType.HIGH_LEVEL}" checked>
@@ -65,7 +65,7 @@ window.addEventListener('load', () => {
                     U2F
                 </label>
             </div>
-            <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="connect-button">Connect</button>
+            <button class="nq-button-s" id="connect-button">Connect</button>
             <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="connect-without-user-interaction-button">
                 Connect without user interaction
             </button>
@@ -115,7 +115,6 @@ window.addEventListener('load', () => {
             }
             
             .selector {
-                text-align: center;
                 margin-bottom: 1.5rem;
             }
 
@@ -226,17 +225,21 @@ window.addEventListener('load', () => {
     }
 
     async function connect() {
-        // TODO implement high level api connect
         const api = window._api || await createApi();
-        if (!(api instanceof LowLevelApi)) return;
-        const { version } = await api.getAppConfiguration();
-        // @ts-ignore: deviceModel does not exist on all transport types
-        const deviceModel = (window._transport.deviceModel || {}).productName || 'device type unknown';
-        displayStatus(`Connected (app version ${version}, ${deviceModel})`);
+        if (api instanceof LowLevelApi) {
+            const { version } = await api.getAppConfiguration();
+            // @ts-ignore: deviceModel does not exist on all transport types
+            const deviceModel = (window._transport.deviceModel || {}).productName || 'device type unknown';
+            displayStatus(`Connected (app version ${version}, ${deviceModel})`);
+        } else {
+            await api.connect();
+            displayStatus('Connected');
+        }
     }
 
     async function connectWithoutUserInteraction() {
-        // Wait until user interaction flag is reset. See https://mustaqahmed.github.io/user-activation-v2/ and
+        // Wait until user interaction flag is reset. See https://mustaqahmed.github.io/user-activation-v2/,
+        // https://developers.google.com/web/updates/2019/01/user-activation and
         // https://github.com/whatwg/html/issues/1903 to learn more about how user interaction is tracked in Chrome.
         displayStatus('Waiting a moment for user interaction flag to get cleared.');
         setTimeout(connect, 5000);
@@ -338,6 +341,8 @@ window.addEventListener('load', () => {
     function init() {
         console.log('Nimiq Ledger Api demo. Note that another great place to directly experiment with the apis'
             + ' provided by Ledger is https://ledger-repl.now.sh/');
+        console.log('To experiment with how connecting to the Ledger works on a fresh system, don\'t forget to revoke'
+            + ' previously granted permissions.');
         $apiSelector.addEventListener('change', switchApi);
         $connectButton.addEventListener('click', connect);
         $connectWithoutUserInteractionButton.addEventListener('click', connectWithoutUserInteraction);

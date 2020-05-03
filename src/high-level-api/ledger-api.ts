@@ -100,7 +100,8 @@ export enum StateType {
 
 export enum ErrorType {
     LEDGER_BUSY = 'ledger-busy',
-    FAILED_LOADING_DEPENDENCIES = 'failed-loading-dependencies',
+    LOADING_DEPENDENCIES_FAILED = 'loading-dependencies-failed',
+    USER_INTERACTION_REQUIRED = 'user-interaction-required',
     NO_BROWSER_SUPPORT = 'no-browser-support',
     APP_OUTDATED = 'app-outdated',
     WRONG_LEDGER = 'wrong-ledger',
@@ -172,7 +173,7 @@ export default class LedgerApi {
         if (transportType === LedgerApi._transportType) return;
         LedgerApi._transportType = transportType;
         // reset currently initialized api / transport to create a new one for specified transport type on next request
-        LedgerApi._apiPromise = null;
+        LedgerApi._lowLevelApiPromise = null;
         // User might select a different Ledger on connection via new transport type or switch account in between
         this._currentlyConnectedWalletId = null;
     }
@@ -181,6 +182,23 @@ export default class LedgerApi {
         const transportType = autoDetectTransportTypeToUse();
         if (!transportType) return;
         LedgerApi.setTransportType(transportType);
+    }
+
+    /**
+     * Manually connect to a Ledger. Typically, this is not required as all requests establish a connection themselves.
+     * However, if that connection fails due to a required user interaction / user gesture, you can manually connect in
+     * the context of a user interaction, for example a click.
+     */
+    public static async connect(): Promise<void> {
+        try {
+            // Initialize the api again if it failed previously, for example due to missing user interaction.
+            await LedgerApi._initializeLowLevelApi();
+        } catch (e) {
+            // Don't throw on errors, same as the other API methods. Error was reported by _initializeLowLevelApi as
+            // error state instead.
+        }
+        // Use getWalletId to detect when the ledger is connected.
+        await LedgerApi.getWalletId();
     }
 
     /**
@@ -450,7 +468,7 @@ export default class LedgerApi {
 
     // private fields and methods
     private static _transportType: TransportType | null = autoDetectTransportTypeToUse();
-    private static _apiPromise: Promise<LowLevelApi> | null = null;
+    private static _lowLevelApiPromise: Promise<LowLevelApi> | null = null;
     private static _currentState: State = { type: StateType.IDLE };
     private static _currentRequest: LedgerApiRequest<any> | null = null;
     private static _currentlyConnectedWalletId: string | null = null;
@@ -512,9 +530,7 @@ export default class LedgerApi {
                             return;
                         }
                         // On other errors try again
-                        if (message.indexOf('timeout') === -1 && message.indexOf('locked') === -1
-                            && message.indexOf('busy') === -1 && message.indexOf('outdated') === -1
-                            && message.indexOf('dependencies') === -1 && message.indexOf('wrong ledger') === -1) {
+                        if (!/timeout|locked|busy|outdated|user gesture|dependencies|wrong ledger/i.test(message)) {
                             console.warn('Unknown Ledger Error', e);
                         }
                         // Wait a little when replacing a previous request (see notes at top).
@@ -545,11 +561,15 @@ export default class LedgerApi {
     }
 
     private static async _connect(walletId?: string): Promise<LowLevelApi> {
-        // Resolves when connected to unlocked ledger with open Nimiq app otherwise throws an exception after timeout.
+        // Resolves when connected to unlocked ledger with open Nimiq app otherwise throws an exception after timeout,
+        // in contrast to the public connect method which uses getWalletId to listen for a connection or to try to
+        // connect repeatedly until success via _callLedger which uses the private _connect under the hood. Also this
+        // method is not publicly exposed to avoid that it could be invoked multiple times in parallel which the ledger
+        // requests called here do not allow. Additionally, this method exposes the low level api which is private.
         // If the Ledger is already connected and the library already loaded, the call typically takes < 500ms.
         try {
             const nimiqPromise = this._loadNimiq();
-            const api = await LedgerApi._loadApi();
+            const api = await LedgerApi._initializeLowLevelApi();
             if (!LedgerApi._currentlyConnectedWalletId) {
                 // Not connected yet.
                 LedgerApi._setState(StateType.CONNECTING);
@@ -588,18 +608,16 @@ export default class LedgerApi {
                 LedgerApi._throwError(ErrorType.APP_OUTDATED, e);
             } else if (message.indexOf('busy') !== -1) {
                 LedgerApi._throwError(ErrorType.LEDGER_BUSY, e);
-            } else if (message.indexOf('dependencies') !== -1) {
-                LedgerApi._throwError(ErrorType.FAILED_LOADING_DEPENDENCIES, e);
             }
-            // on other errors (like timeout, dongle locked) that just keep the API retrying and not fire an error state
-            // we just rethrow the error.
+            // Just rethrow the error and not fire an error state for _initializeDependencies errors which fires error
+            // states itself and for other errors (like timeout, dongle locked) that just keep the API retrying.
             throw e;
         }
     }
 
-    private static async _loadApi(): Promise<LowLevelApi> {
+    private static async _initializeLowLevelApi(): Promise<LowLevelApi> {
         const transportType = LedgerApi._transportType;
-        LedgerApi._apiPromise = LedgerApi._apiPromise
+        LedgerApi._lowLevelApiPromise = LedgerApi._lowLevelApiPromise
             || (async () => {
                 LedgerApi._setState(StateType.LOADING);
                 if (!transportType) throw new Error('No browser support');
@@ -608,32 +626,38 @@ export default class LedgerApi {
                     console.log('Ledger disconnected');
                     transport.off('disconnect', onDisconnect);
                     if (this._transportType !== transportType) return;
-                    // A disconnected transport can not be reconnected. Therefore reset the _apiPromise.
-                    LedgerApi._apiPromise = null;
+                    // A disconnected transport can not be reconnected. Therefore reset the _lowLevelApiPromise.
+                    LedgerApi._lowLevelApiPromise = null;
                     LedgerApi._currentlyConnectedWalletId = null;
                 };
                 transport.on('disconnect', onDisconnect);
                 return new LowLevelApi(transport);
             })();
         try {
-            const api = await LedgerApi._apiPromise;
+            const api = await LedgerApi._lowLevelApiPromise;
             if (this._transportType === transportType) return api;
             // Transport type changed while we were connecting; rerun.
-            return LedgerApi._loadApi();
+            return LedgerApi._initializeLowLevelApi();
         } catch (e) {
             if (this._transportType === transportType) {
-                LedgerApi._apiPromise = null;
-                // TODO better error handling, handle exceptions due to missing user interaction or user cancellation
-                throw new Error(`Failed loading dependencies: ${e.message || e}`);
+                LedgerApi._lowLevelApiPromise = null;
+                // TODO better error handling, handle exceptions due to user cancellation
+                const message = e.message || e;
+                if (message.indexOf('user gesture') !== -1) {
+                    LedgerApi._throwError(ErrorType.USER_INTERACTION_REQUIRED, e);
+                } else {
+                    LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED,
+                        `Failed loading dependencies: ${message}`);
+                }
             }
             // Transport type changed while we were connecting; ignore error and rerun
-            return LedgerApi._loadApi();
+            return LedgerApi._initializeLowLevelApi();
         }
     }
 
     private static async _loadNimiq(): Promise<Nimiq> {
         // Small helper that throws a "Failed loading dependencies" exception on error. Note that we don't need to cache
-        // a promise here as in _loadApi as loadNimiqCore and loadNimiqCryptography already do that.
+        // a promise here as in _initializeLowLevelApi as loadNimiqCore and loadNimiqCryptography already do that.
         try {
             const [Nimiq] = await Promise.all([
                 loadNimiqCore(),
@@ -673,7 +697,8 @@ export default class LedgerApi {
 
     private static _throwError(
         type: ErrorType,
-        error: Error | string, request?: LedgerApiRequest<any>,
+        error: Error | string,
+        request?: LedgerApiRequest<any>,
     ): void {
         const state: State = {
             type: StateType.ERROR,
