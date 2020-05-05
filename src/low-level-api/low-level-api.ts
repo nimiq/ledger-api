@@ -60,6 +60,18 @@ export default class LowLevelApi {
         );
     }
 
+    /**
+     * Close the transport instance. Note that this does not emit a disconnect. Disconnects are only emitted when the
+     * device actually disconnects (or switches it's descriptor which happens when switching to the dashboard or apps).
+     */
+    public close() {
+        try {
+            this.transport.close();
+        } catch (e) {
+            // Ignore. Transport might already be closed.
+        }
+    }
+
     public async getAppConfiguration(): Promise<{ version: string }> {
         // Note that no heartbeat is required here as INS_GET_CONF is not interactive but thus answers directly
         const [, major, minor, patch] = await this.transport.send(CLA, INS_GET_CONF, 0x00, 0x00);

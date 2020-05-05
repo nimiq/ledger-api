@@ -172,10 +172,8 @@ export default class LedgerApi {
         if (!isSupported(transportType)) throw new Error('Unsupported transport type.');
         if (transportType === LedgerApi._transportType) return;
         LedgerApi._transportType = transportType;
-        // reset currently initialized api / transport to create a new one for specified transport type on next request
-        LedgerApi._lowLevelApiPromise = null;
-        // User might select a different Ledger on connection via new transport type or switch account in between
-        this._currentlyConnectedWalletId = null;
+        // Close api for current transport to create a new one for specified transport type on next request.
+        LedgerApi.disconnect(/* cancelRequest */ false);
     }
 
     public static resetTransportType() {
@@ -204,6 +202,34 @@ export default class LedgerApi {
             return true;
         } catch (e) {
             return false;
+        }
+    }
+
+    /**
+     * Disconnect the api and clean up.
+     * @param cancelRequest - Whether to cancel an ongoing request.
+     * @param requestTypeToDisconnect - If specified, only disconnect if no request is going on or if the ongoing
+     *  request is of the specified type.
+     */
+    public static async disconnect(cancelRequest = true, requestTypeToDisconnect?: RequestType) {
+        const { currentRequest } = LedgerApi;
+        if (currentRequest) {
+            if (requestTypeToDisconnect !== undefined && currentRequest.type !== requestTypeToDisconnect) return;
+            if (cancelRequest) {
+                currentRequest.cancel();
+            }
+        }
+
+        const apiPromise = LedgerApi._lowLevelApiPromise;
+        LedgerApi._lowLevelApiPromise = null;
+        LedgerApi._currentlyConnectedWalletId = null;
+
+        if (!apiPromise) return;
+        try {
+            const api = await apiPromise;
+            await api.close();
+        } catch (e) {
+            // Ignore.
         }
     }
 

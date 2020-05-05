@@ -71,7 +71,7 @@ window.addEventListener('load', () => {
             </label>
             <div>
                 <button class="nq-button-s" id="connect-button">Connect</button>
-                <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="close-button">Close</button>
+                <button class="nq-button-s" id="disconnect-button">Disconnect</button>
             </div>
         </section>
 
@@ -122,7 +122,7 @@ window.addEventListener('load', () => {
             }
             
             #connect-button,
-            #close-button {
+            #disconnect-button {
                 margin-top: 2rem;
             }
 
@@ -157,7 +157,7 @@ window.addEventListener('load', () => {
     const $transportSelector = document.getElementById('transport-selector')!;
     const $noUserInteractionCheckbox = document.getElementById('no-user-interaction-checkbox') as HTMLInputElement;
     const $connectButton = document.getElementById('connect-button')!;
-    const $closeButton = document.getElementById('close-button')!;
+    const $disconnectButton = document.getElementById('disconnect-button')!;
     const $bip32PathPublicKeyInput = document.getElementById('bip32-path-public-key-input') as HTMLInputElement;
     const $getPublicKeyButton = document.getElementById('get-public-key-button')!;
     const $confirmPublicKeyButton = document.getElementById('confirm-public-key-button')!;
@@ -254,12 +254,16 @@ window.addEventListener('load', () => {
         }
     }
 
-    async function close() {
-        if (!window._transport) return;
+    async function disconnect() {
+        if (!window._api) return;
         if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
-        displayStatus('Closing transport...');
-        await window._transport.close();
-        displayStatus('Transport closed');
+        displayStatus('Disconnecting api...');
+        if (window._api instanceof LowLevelApi) {
+            await window._api.close();
+        } else {
+            await window._api.disconnect();
+        }
+        displayStatus('Api disconnected');
     }
 
     async function getPublicKey(confirm: boolean) {
@@ -358,7 +362,7 @@ window.addEventListener('load', () => {
             + ' previously granted permissions.');
         $apiSelector.addEventListener('change', switchApi);
         $connectButton.addEventListener('click', connect);
-        $closeButton.addEventListener('click', close);
+        $disconnectButton.addEventListener('click', disconnect);
         $getPublicKeyButton.addEventListener('click', () => getPublicKey(false));
         $confirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
         $getAddressButton.addEventListener('click', () => getAddress(false));
