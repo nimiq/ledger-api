@@ -49,10 +49,10 @@ declare global {
  * const nim = new LowLevelApi(transport)
  */
 export default class LowLevelApi {
-    private transport: Transport;
+    private _transport: Transport;
 
     constructor(transport: Transport) {
-        this.transport = transport;
+        this._transport = transport;
         transport.decorateAppAPIMethods(
             this,
             ['getAppConfiguration', 'getPublicKey', 'signTransaction'],
@@ -66,25 +66,29 @@ export default class LowLevelApi {
      */
     public close() {
         try {
-            this.transport.close();
+            this._transport.close();
         } catch (e) {
             // Ignore. Transport might already be closed.
         }
     }
 
+    /**
+     * Get the version of the connected Ledger Nimiq App. Note that some other apps like the Ethereum app also respond
+     * to this call.
+     */
     public async getAppConfiguration(): Promise<{ version: string }> {
         // Note that no heartbeat is required here as INS_GET_CONF is not interactive but thus answers directly
-        const [, major, minor, patch] = await this.transport.send(CLA, INS_GET_CONF, 0x00, 0x00);
+        const [, major, minor, patch] = await this._transport.send(CLA, INS_GET_CONF, 0x00, 0x00);
         const version = `${major}.${minor}.${patch}`;
         return { version };
     }
 
     /**
-     * get Nimiq address for a given BIP 32 path.
-     * @param path a path in BIP 32 format
-     * @param boolValidate optionally enable key pair validation
-     * @param boolDisplay optionally display the address on the ledger
-     * @return an object with the address
+     * Get Nimiq address for a given BIP 32 path.
+     * @param path - A path in BIP 32 format.
+     * @param boolValidate - Optionally enable key pair validation.
+     * @param boolDisplay - Optionally display the address on the ledger.
+     * @returns An object with the address
      * @example
      * nim.getAddress("44'/242'/0'/0'").then(o => o.address)
      */
@@ -103,11 +107,11 @@ export default class LowLevelApi {
     }
 
     /**
-     * get Nimiq public key for a given BIP 32 path.
-     * @param path a path in BIP 32 format
-     * @param boolValidate optionally enable key pair validation
-     * @param boolDisplay optionally display the corresponding address on the ledger
-     * @return an object with the publicKey
+     * Get Nimiq public key for a given BIP 32 path.
+     * @param path - A path in BIP 32 format.
+     * @param boolValidate - Optionally enable key pair validation.
+     * @param boolDisplay - Optionally display the corresponding address on the ledger.
+     * @returns An object with the publicKey
      * @example
      * nim.getPublicKey("44'/242'/0'/0'").then(o => o.publicKey)
      */
@@ -127,7 +131,7 @@ export default class LowLevelApi {
         const data = Buffer.concat([pathBuffer, verifyMsg]);
 
         let response: Buffer;
-        response = await this.transport.send(
+        response = await this._transport.send(
             CLA,
             INS_GET_PK,
             boolValidate ? P1_VALIDATE : P1_NO_VALIDATE,
@@ -138,7 +142,7 @@ export default class LowLevelApi {
         // handle heartbeat
         while (response.slice(response.length - 2).readUInt16BE(0) === SW_KEEP_ALIVE) {
             // eslint-disable-next-line no-await-in-loop
-            response = await this.transport.send(CLA, INS_KEEP_ALIVE, 0, 0, undefined, [SW_OK, SW_KEEP_ALIVE]);
+            response = await this._transport.send(CLA, INS_KEEP_ALIVE, 0, 0, undefined, [SW_OK, SW_KEEP_ALIVE]);
         }
 
         let offset = 0;
@@ -156,10 +160,10 @@ export default class LowLevelApi {
     }
 
     /**
-     * sign a Nimiq transaction.
-     * @param path a path in BIP 32 format
-     * @param txContent transaction content in serialized form
-     * @return an object with the signature
+     * Sign a Nimiq transaction.
+     * @param path - A path in BIP 32 format.
+     * @param txContent - Transaction content in serialized form.
+     * @returns An object with the signature
      * @example
      * nim.signTransaction("44'/242'/0'/0'", signatureBase).then(o => o.signature)
      */
@@ -198,7 +202,7 @@ export default class LowLevelApi {
         do {
             const data = apdus[chunkIndex];
             // eslint-disable-next-line no-await-in-loop
-            response = await this.transport.send(
+            response = await this._transport.send(
                 CLA,
                 isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_TX,
                 chunkIndex === 0 ? P1_FIRST_APDU : P1_MORE_APDU, // note that for heartbeat p1, p2 and data are ignored
