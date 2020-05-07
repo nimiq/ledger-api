@@ -515,13 +515,13 @@ export default class LedgerApi {
             LedgerApi._currentRequest = request;
             /* eslint-disable no-await-in-loop, no-async-promise-executor */
             return await new Promise<T>(async (resolve, reject) => {
-                let isConnected = false;
+                let canCancelDirectly = false;
                 let wasLocked = false;
                 request.on(LedgerApiRequest.EVENT_CANCEL, () => {
-                    // If the ledger is not connected, we can reject the call right away. Otherwise just notify that
-                    // the request was requested to be cancelled such that the user can cancel the call on the ledger.
+                    // If we can, reject the call right away. Otherwise just notify that the request was requested to be
+                    // cancelled such that the user can cancel the call on the ledger.
                     LedgerApi._setState(StateType.REQUEST_CANCELLING);
-                    if (!isConnected) {
+                    if (canCancelDirectly) {
                         LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
                         reject(new Error('Request cancelled'));
                     }
@@ -530,11 +530,11 @@ export default class LedgerApi {
                     || wasLocked) { // when locked continue even when cancelled to replace call, see notes
                     try {
                         const api = await LedgerApi._connect(request.params.walletId);
-                        isConnected = true;
                         if (request.cancelled && !wasLocked) break; // don't break on wasLocked to replace the call
                         if (!request.cancelled) {
                             LedgerApi._setState(StateType.REQUEST_PROCESSING);
                         }
+                        canCancelDirectly = false; // sending request which has to be resolved / cancelled by the Ledger
                         const result = await request.call(api);
                         if (request.cancelled) break; // don't check wasLocked here as if cancelled should never resolve
                         LedgerApi._fire(EventType.REQUEST_SUCCESSFUL, request, result);
@@ -548,7 +548,8 @@ export default class LedgerApi {
                         }
                         const message = (e.message || e || '').toLowerCase();
                         wasLocked = message.indexOf('locked') !== -1;
-                        if (message.indexOf('timeout') !== -1) isConnected = false;
+                        // u2f timed out or webusb/webhid/webble are connected to Ledger dashboard
+                        if (/timeout|incorrect length/i.test(message)) canCancelDirectly = true;
                         // user cancelled call on ledger
                         if (message.indexOf('denied') !== -1 // user rejected confirmAddress
                             || message.indexOf('rejected') !== -1 // user rejected signTransaction
@@ -563,7 +564,8 @@ export default class LedgerApi {
                             return;
                         }
                         // On other errors try again
-                        if (!/timeout|locked|busy|outdated|user gesture|dependencies|wrong ledger/i.test(message)) {
+                        if (!/timeout|locked|incorrect length|busy|outdated|user gesture|dependencies|wrong ledger/i
+                            .test(message)) {
                             console.warn('Unknown Ledger Error', e);
                         }
                         // Wait a little when replacing a previous request (see notes at top).
