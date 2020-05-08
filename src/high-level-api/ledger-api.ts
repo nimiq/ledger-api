@@ -6,9 +6,11 @@
 // - The browsers U2F API has a timeout after which the call fails in the browser. The timeout is about 30s
 // - The Nimiq Ledger App avoids timeouts by keeping the call alive via a heartbeat when the Ledger is connected and the
 //   app opened. However when the Ledger is not connected or gets disconnected, timeouts still occur.
-// - If the ledger is locked while the nimiq app (or another app throwing that same exception) was running, a "dongle
-//   locked" exception gets thrown. It does however not get thrown when the ledger was just being connected or when
-//   the ledger locks on the homescreen. (If I remember correctly, need to verify again).
+// - If the ledger is locked while the nimiq app (or another app throwing that same exception) was running, an exception
+//   gets thrown. The error code for this was 0x6982 before and got translated to a "dongle locked" error, but this
+//   seems to have changed. Get public key / address requests now throw a 0x6804 UNKNOWN_ERROR; other requests don't
+//   throw and just stay pending until unlocked. No exception gets thrown when the Ledger is locked on the dashboard or
+//   locked when just being connected. getAppConfiguration can be called even when the app is locked.
 // - If the ledger is busy with another call it throws an exception that it is busy. The ledger API however only knows,
 //   if the ledger is busy by another call from this same page (and same API instance?).
 // - If we make another call while the other call is still ongoing and the ledger not detected as being busy, the
@@ -542,15 +544,18 @@ export default class LedgerApi {
                         return;
                     } catch (e) {
                         console.log(e);
-                        if (LedgerApi._transportType === TransportType.U2F) {
-                            // We don't know for sure whether the Ledger is still connected.
+                        const message = (e.message || e || '').toLowerCase();
+                        // Test whether Ledger is locked
+                        wasLocked = /locked|0x6804/i.test(message);
+                        if (LedgerApi._transportType === TransportType.U2F || wasLocked) {
+                            // For u2f we don't get notified about disconnects therefore clear connection on every
+                            // exception. When locked clear connection for all transport types as user might unlock with
+                            // a different PIN for another wallet.
                             LedgerApi._currentlyConnectedWalletId = null;
                         }
-                        const message = (e.message || e || '').toLowerCase();
-                        wasLocked = message.indexOf('locked') !== -1;
-                        // u2f timed out or webusb/webhid/webble are connected to Ledger dashboard
+                        // Test whether u2f timed out or webusb/webhid/webble are connected to Ledger dashboard
                         if (/timeout|incorrect length/i.test(message)) canCancelDirectly = true;
-                        // user cancelled call on ledger
+                        // Test whether user cancelled call on ledger
                         if (message.indexOf('denied') !== -1 // user rejected confirmAddress
                             || message.indexOf('rejected') !== -1 // user rejected signTransaction
                             || message.indexOf('cancelled') !== -1) { // user cancelled connection
@@ -564,8 +569,8 @@ export default class LedgerApi {
                             return;
                         }
                         // On other errors try again
-                        if (!/timeout|locked|incorrect length|busy|outdated|user gesture|dependencies|wrong ledger/i
-                            .test(message)) {
+                        if (!/timeout|incorrect length|busy|outdated|user gesture|dependencies|wrong ledger/i
+                            .test(message) && !wasLocked) {
                             console.warn('Unknown Ledger Error', e);
                         }
                         // Wait a little when replacing a previous request (see notes at top).
