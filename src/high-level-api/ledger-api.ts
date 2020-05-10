@@ -17,10 +17,13 @@
 //   heartbeat breaks and a timeout occurs.
 // - Requests that were cancelled via request.cancel() are not actually cancelled on the ledger and keep the ledger
 //   busy until the request times out or the user confirms/declines.
+//
+// Notes about app versions < 1.4.3 (?) or older firmwares:
 // - If the ledger locks during a signTransaction request and the "dongle locked" exception gets thrown after some while
 //   and the user then unlocks the ledger again, the request data is gone or not displayed (amount, recipient, fee,
-//   network, extra data etc). If the user then rejects/confirms, the ledger freezes and can not be unfrozen. This does
-//   not occur with this api, as the api replaces that call after unlock.
+//   network, extra data etc). If the user then rejects/confirms, the ledger freezes and can not be unfrozen. This did
+//   not occur with this api, as we replaced that call after unlock. That behavior has now been removed though, as it's
+//   not relevant for newer versions anymore.
 //
 // Notes about app versions < 1.4.1 / 1.4.0:
 // - App versions < 1.4.0 are incompatible with Chrome 72+, see https://github.com/LedgerHQ/ledgerjs/issues/306.
@@ -518,7 +521,6 @@ export default class LedgerApi {
             /* eslint-disable no-await-in-loop, no-async-promise-executor */
             return await new Promise<T>(async (resolve, reject) => {
                 let canCancelDirectly = false;
-                let wasLocked = false;
                 request.on(LedgerApiRequest.EVENT_CANCEL, () => {
                     // If we can, reject the call right away. Otherwise just notify that the request was requested to be
                     // cancelled such that the user can cancel the call on the ledger.
@@ -528,26 +530,24 @@ export default class LedgerApi {
                         reject(new Error('Request cancelled'));
                     }
                 });
-                while (!request.cancelled
-                    || wasLocked) { // when locked continue even when cancelled to replace call, see notes
+                while (!request.cancelled) {
                     try {
                         const api = await LedgerApi._connect(request.params.walletId);
-                        if (request.cancelled && !wasLocked) break; // don't break on wasLocked to replace the call
+                        if (request.cancelled) break;
                         if (!request.cancelled) {
                             LedgerApi._setState(StateType.REQUEST_PROCESSING);
                         }
                         canCancelDirectly = false; // sending request which has to be resolved / cancelled by the Ledger
                         const result = await request.call(api);
-                        if (request.cancelled) break; // don't check wasLocked here as if cancelled should never resolve
+                        if (request.cancelled) break;
                         LedgerApi._fire(EventType.REQUEST_SUCCESSFUL, request, result);
                         resolve(result);
                         return;
                     } catch (e) {
                         console.log(e);
                         const message = (e.message || e || '').toLowerCase();
-                        // Test whether Ledger is locked
-                        wasLocked = /locked|0x6804/i.test(message);
-                        if (LedgerApi._transportType === TransportType.U2F || wasLocked) {
+                        const isLocked = /locked|0x6804/i.test(message);
+                        if (LedgerApi._transportType === TransportType.U2F || isLocked) {
                             // For u2f we don't get notified about disconnects therefore clear connection on every
                             // exception. When locked clear connection for all transport types as user might unlock with
                             // a different PIN for another wallet.
@@ -570,7 +570,7 @@ export default class LedgerApi {
                         }
                         // On other errors try again
                         if (!/timeout|incorrect length|busy|outdated|user gesture|dependencies|wrong ledger/i
-                            .test(message) && !wasLocked) {
+                            .test(message) && !isLocked) {
                             console.warn('Unknown Ledger Error', e);
                         }
                         // Wait a little when replacing a previous request (see notes at top).
