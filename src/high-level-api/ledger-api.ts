@@ -1,9 +1,9 @@
 // Some notes about the behaviour of the ledger:
 // - The ledger only supports one call at a time.
 // - If the browser doesn't support U2F, an exception gets thrown ("U2F browser support is needed for Ledger")
-// - Firefox' implementation of U2F (when enabled in about:config) does not seem to be compatible with ledger and
-//   throws "U2F DEVICE_INELIGIBLE"
-// - The browsers U2F API has a timeout after which the call fails in the browser. The timeout is about 30s
+// - The browsers U2F API has a timeout after which the call fails in the browser. The timeout is about 30s.
+// - Previously, a "timeout" exception got thrown on u2f timeouts, but now it's generic "U2F DEVICE_INELIGIBLE" in
+//   Chrome and "U2F OTHER_ERROR" in Firefox.
 // - The Nimiq Ledger App avoids timeouts by keeping the call alive via a heartbeat when the Ledger is connected and the
 //   app opened. However when the Ledger is not connected or gets disconnected, timeouts still occur.
 // - If the ledger is locked while the nimiq app (or another app throwing that same exception) was running, an exception
@@ -47,6 +47,13 @@
 //   otherwise the Nimiq app gets displayed. If the user confirms the new request, the app afterwards behaves normal.
 //   If he declines the request though, any request afterwards seems to time out and the nimiq ledger app needs to be
 //   restarted. This is a corner case that is not covered in this api.
+//
+// Notes about old Firefox versions:
+// - Old Firefox implementation of U2F (when enabled in about:config) did not seem to be compatible with ledger and
+//   threw "U2F DEVICE_INELIGIBLE". Previously, we translated that error into the "not supported" error, but the current
+//   api doesn't do so anymore as the current Firefox version is compatible and DEVICE_INELIGIBLE gets now thrown
+//   on timeouts (see above).
+
 
 // The following flows should be tested if changing this code:
 // - ledger not connected yet
@@ -546,15 +553,16 @@ export default class LedgerApi {
                     } catch (e) {
                         console.log(e);
                         const message = (e.message || e || '').toLowerCase();
+                        const isTimeout = /timeout|u2f device_ineligible|u2f other_error/i.test(message);
                         const isLocked = /locked|0x6804/i.test(message);
+                        const isConnectedToDashboard = /incorrect length/i.test(message);
                         if (LedgerApi._transportType === TransportType.U2F || isLocked) {
                             // For u2f we don't get notified about disconnects therefore clear connection on every
                             // exception. When locked clear connection for all transport types as user might unlock with
                             // a different PIN for another wallet.
                             LedgerApi._currentlyConnectedWalletId = null;
                         }
-                        // Test whether u2f timed out or webusb/webhid/webble are connected to Ledger dashboard
-                        if (/timeout|incorrect length/i.test(message)) canCancelDirectly = true;
+                        if (isTimeout || isConnectedToDashboard) canCancelDirectly = true;
                         // Test whether user cancelled call on ledger
                         if (message.indexOf('denied') !== -1 // user rejected confirmAddress
                             || message.indexOf('rejected') !== -1 // user rejected signTransaction
@@ -569,12 +577,12 @@ export default class LedgerApi {
                             return;
                         }
                         // On other errors try again
-                        if (!/timeout|incorrect length|busy|outdated|user gesture|dependencies|wrong ledger/i
-                            .test(message) && !isLocked) {
+                        if (!/busy|outdated|user gesture|dependencies|wrong ledger/i.test(message)
+                            && !isTimeout && !isLocked && !isConnectedToDashboard) {
                             console.warn('Unknown Ledger Error', e);
                         }
                         // Wait a little when replacing a previous request (see notes at top).
-                        const waitTime = message.indexOf('timeout') !== -1 ? LedgerApi.WAIT_TIME_AFTER_TIMEOUT
+                        const waitTime = isTimeout ? LedgerApi.WAIT_TIME_AFTER_TIMEOUT
                             // If the API tells us that the ledger is busy (see notes at top) use a longer wait time to
                             // reduce the chance that we hit unfortunate 1.5s window after timeout of cancelled call
                             : message.indexOf('busy') !== -1 ? 4 * LedgerApi.WAIT_TIME_AFTER_TIMEOUT
@@ -640,11 +648,7 @@ export default class LedgerApi {
                 LedgerApi._throwError(ErrorType.WRONG_LEDGER, e);
             }
             LedgerApi._currentlyConnectedWalletId = null;
-            if (message.indexOf('browser support') !== -1 || message.indexOf('u2f device_ineligible') !== -1
-                || message.indexOf('u2f other_error') !== -1) {
-                LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT,
-                    'Ledger not supported by browser or support not enabled.');
-            } else if (message.indexOf('outdated') !== -1) {
+            if (message.indexOf('outdated') !== -1) {
                 LedgerApi._throwError(ErrorType.APP_OUTDATED, e);
             } else if (message.indexOf('busy') !== -1) {
                 LedgerApi._throwError(ErrorType.LEDGER_BUSY, e);
@@ -683,9 +687,12 @@ export default class LedgerApi {
                 LedgerApi._lowLevelApiPromise = null;
                 const message = e.message || e;
                 if (message.indexOf('No device selected') !== -1) {
-                    throw new Error('User cancelled connection');
+                    throw new Error('User cancelled connection'); // leads to request cancellation
                 } else if (message.indexOf('user gesture') !== -1) {
                     LedgerApi._throwError(ErrorType.USER_INTERACTION_REQUIRED, e);
+                } else if (message.indexOf('browser support') !== -1) {
+                    LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT,
+                        'Ledger not supported by browser or support not enabled.');
                 } else {
                     LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED,
                         `Failed loading dependencies: ${message}`);
