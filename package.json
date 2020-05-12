@@ -2,7 +2,11 @@
   "name": "ledger-api",
   "version": "0.1.0",
   "description": "Api for communicating with Ledger Hardware Wallets",
-  "main": "dist/LedgerApi.js",
+  "main": "dist/high-level-api/ledger-api.cjs.js",
+  "module": "dist/high-level-api/ledger-api.es.js",
+  "types": "dist/high-level-api/ledger-api.d.ts",
+  "files": ["dist", "!dist/demo"],
+  "sideEffects": false,
   "scripts": {
     "build": "rollup --config --configProduction",
     "serve": "rollup --config --watch --configServe"
