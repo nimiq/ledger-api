@@ -633,9 +633,14 @@ export default class LedgerApi {
                 const { version } = await api.getAppConfiguration();
                 if (!LedgerApi._isAppVersionSupported(version)) throw new Error('Ledger Nimiq App is outdated.');
 
-                const Nimiq = await nimiqPromise;
-                // Use sha256 as blake2b yields the nimiq address
-                LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAccountPubKeyBytes).toBase64();
+                try {
+                    const Nimiq = await nimiqPromise;
+                    // Use sha256 as blake2b yields the nimiq address
+                    LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAccountPubKeyBytes).toBase64();
+                } catch (e) {
+                    LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED,
+                        `Failed loading dependencies: ${e.message || e}`);
+                }
             }
             if (walletId !== undefined && LedgerApi._currentlyConnectedWalletId !== walletId) {
                 throw new Error('Wrong Ledger connected');
