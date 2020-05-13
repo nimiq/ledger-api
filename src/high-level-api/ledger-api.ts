@@ -114,6 +114,7 @@ export enum ErrorType {
     LEDGER_BUSY = 'ledger-busy',
     LOADING_DEPENDENCIES_FAILED = 'loading-dependencies-failed',
     USER_INTERACTION_REQUIRED = 'user-interaction-required',
+    CONNECTION_ABORTED = 'connection-aborted',
     NO_BROWSER_SUPPORT = 'no-browser-support',
     APP_OUTDATED = 'app-outdated',
     WRONG_LEDGER = 'wrong-ledger',
@@ -200,13 +201,14 @@ export default class LedgerApi {
      * the context of a user interaction, for example a click.
      */
     public static async connect(): Promise<boolean> {
+        LedgerApi._connectionAborted = false; // reset aborted flag on manual connection
         try {
             // Initialize the api again if it failed previously, for example due to missing user interaction.
             await LedgerApi._initializeLowLevelApi();
         } catch (e) {
             // Silently continue on errors, same as the other API methods. Error was reported by _initializeLowLevelApi
-            // as error state instead. Only if the user cancelled the connection, don't continue.
-            if ((e.message || e).indexOf('cancelled') !== -1) return false;
+            // as error state instead. Only if user aborted the connection or browser is not supported, don't continue.
+            if (/connection aborted|not supported/i.test(e.message || e)) return false;
         }
         try {
             // Use getWalletId to detect when the ledger is connected.
@@ -516,6 +518,7 @@ export default class LedgerApi {
     private static _currentState: State = { type: StateType.IDLE };
     private static _currentRequest: LedgerApiRequest<any> | null = null;
     private static _currentlyConnectedWalletId: string | null = null;
+    private static _connectionAborted: boolean = false;
     private static _observable = new Observable();
 
     private static async _callLedger<T>(request: LedgerApiRequest<T>): Promise<T> {
@@ -523,6 +526,7 @@ export default class LedgerApi {
             LedgerApi._throwError(ErrorType.LEDGER_BUSY, 'Only one call to Ledger at a time allowed',
                 request);
         }
+        LedgerApi._connectionAborted = false; // user is initiating a new request
         try {
             LedgerApi._currentRequest = request;
             /* eslint-disable no-await-in-loop, no-async-promise-executor */
@@ -565,8 +569,7 @@ export default class LedgerApi {
                         if (isTimeout || isConnectedToDashboard) canCancelDirectly = true;
                         // Test whether user cancelled call on ledger
                         if (message.indexOf('denied') !== -1 // user rejected confirmAddress
-                            || message.indexOf('rejected') !== -1 // user rejected signTransaction
-                            || message.indexOf('cancelled') !== -1) { // user cancelled connection
+                            || message.indexOf('rejected') !== -1) { // user rejected signTransaction
                             break; // continue after loop
                         }
                         // Errors that should end the request
@@ -577,7 +580,7 @@ export default class LedgerApi {
                             return;
                         }
                         // On other errors try again
-                        if (!/busy|outdated|user gesture|dependencies|wrong ledger/i.test(message)
+                        if (!/busy|outdated|connection aborted|user gesture|dependencies|wrong ledger/i.test(message)
                             && !isTimeout && !isLocked && !isConnectedToDashboard) {
                             console.warn('Unknown Ledger Error', e);
                         }
@@ -615,6 +618,10 @@ export default class LedgerApi {
         // method is not publicly exposed to avoid that it could be invoked multiple times in parallel which the ledger
         // requests called here do not allow. Additionally, this method exposes the low level api which is private.
         // If the Ledger is already connected and the library already loaded, the call typically takes < 500ms.
+        if (LedgerApi._connectionAborted) {
+            // When the connection was aborted, don't retry connecting until a manual connection is requested.
+            throw new Error('Connection aborted');
+        }
         try {
             const nimiqPromise = this._loadNimiq();
             const api = await LedgerApi._initializeLowLevelApi();
@@ -690,9 +697,10 @@ export default class LedgerApi {
         } catch (e) {
             if (this._transportType === transportType) {
                 LedgerApi._lowLevelApiPromise = null;
-                const message = e.message || e;
-                if (message.indexOf('No device selected') !== -1) {
-                    throw new Error('User cancelled connection'); // leads to request cancellation
+                const message = (e.message || e).toLowerCase();
+                if (message.indexOf('no device selected') !== -1) {
+                    LedgerApi._connectionAborted = true;
+                    LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
                 } else if (message.indexOf('user gesture') !== -1) {
                     LedgerApi._throwError(ErrorType.USER_INTERACTION_REQUIRED, e);
                 } else if (message.indexOf('browser support') !== -1) {
