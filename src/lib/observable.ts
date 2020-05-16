@@ -28,11 +28,13 @@ export default class Observable {
     }
 
     public fire(eventName: string, ...args: any[]): void {
-        const listenersForEvent = this._listeners.get(eventName);
-        if (!listenersForEvent) return;
-        for (const listener of listenersForEvent) {
-            // Let current micro task finish before invoking listeners
-            setTimeout(listener, 0, ...args);
-        }
+        // Let current micro task finish before invoking listeners
+        setTimeout(() => {
+            const listenersForEvent = this._listeners.get(eventName);
+            if (!listenersForEvent) return;
+            for (const listener of listenersForEvent) {
+                listener(...args);
+            }
+        }, 0);
     }
 }
