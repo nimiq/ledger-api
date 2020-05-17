@@ -199,6 +199,7 @@ export default class LedgerApi {
      * Manually connect to a Ledger. Typically, this is not required as all requests establish a connection themselves.
      * However, if that connection fails due to a required user interaction / user gesture, you can manually connect in
      * the context of a user interaction, for example a click.
+     * @returns Whether connecting to the Ledger succeeded.
      */
     public static async connect(): Promise<boolean> {
         LedgerApi._connectionAborted = false; // reset aborted flag on manual connection
@@ -255,6 +256,8 @@ export default class LedgerApi {
      * If currently a request to the ledger is in process, this call does not require an additional
      * request to the Ledger. Thus, if you want to know the walletId in conjunction with another
      * request, try to call this method after initiating the other request but before it finishes.
+     *
+     * @returns The walletId of the currently connected ledger as base 64.
      */
     public static async getWalletId(): Promise<string> {
         if (LedgerApi._currentlyConnectedWalletId) return LedgerApi._currentlyConnectedWalletId;
@@ -298,16 +301,32 @@ export default class LedgerApi {
         LedgerApi._observable.once(eventType, listener);
     }
 
+    /**
+     * Convert an address's index / keyId to the full Nimiq bip32 path.
+     * @param keyId - The address's index.
+     * @returns The full bip32 path.
+     */
     public static getBip32PathForKeyId(keyId: number): string {
         return `${LedgerApi.BIP32_BASE_PATH}${keyId}'`;
     }
 
+    /**
+     * Extract an address's index / keyId from its bip32 path.
+     * @param path - The address's bip32 path.
+     * @returns The address's index or null if the provided path is not a valid Nimiq key bip32 path.
+     */
     public static getKeyIdForBip32Path(path: string): number | null {
         const pathMatch = LedgerApi.BIP32_PATH_REGEX.exec(path);
         if (!pathMatch) return null;
         return parseInt(pathMatch[pathMatch.length - 1], 10);
     }
 
+    /**
+     * Derive addresses for given bip32 key paths.
+     * @param pathsToDerive - The paths for which to derive addresses.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The derived addresses and their corresponding key paths.
+     */
     public static async deriveAddresses(pathsToDerive: Iterable<string>, walletId?: string)
         : Promise<Array<{ address: string, keyPath: string }>> {
         const request = new LedgerApiRequest(RequestType.DERIVE_ADDRESSES,
@@ -338,6 +357,12 @@ export default class LedgerApi {
         return LedgerApi._callLedger(request);
     }
 
+    /**
+     * Get the public key for a given bip32 key path.
+     * @param keyPath - The path for which to derive the public key.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The derived public key.
+     */
     public static async getPublicKey(keyPath: string, walletId?: string): Promise<PublicKey> {
         const request = new LedgerApiRequest(RequestType.GET_PUBLIC_KEY,
             async (api, params): Promise<PublicKey> => {
@@ -364,6 +389,12 @@ export default class LedgerApi {
         return LedgerApi._callLedger(request);
     }
 
+    /**
+     * Get the address for a given bip32 key path.
+     * @param keyPath - The path for which to derive the address.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The derived address.
+     */
     public static async getAddress(keyPath: string, walletId?: string): Promise<string> {
         const request = new LedgerApiRequest(RequestType.GET_ADDRESS,
             async (api, params): Promise<string> => {
@@ -385,6 +416,13 @@ export default class LedgerApi {
         return LedgerApi._callLedger(request);
     }
 
+    /**
+     * Confirm that an address belongs to the connected Ledger and display the address to the user on the Ledger screen.
+     * @param userFriendlyAddress - The address to check.
+     * @param keyPath - The address's bip32 key path.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The confirmed address.
+     */
     public static async confirmAddress(userFriendlyAddress: string, keyPath: string, walletId?: string)
         : Promise<string> {
         const request = new LedgerApiRequest(RequestType.CONFIRM_ADDRESS,
@@ -414,11 +452,26 @@ export default class LedgerApi {
         return LedgerApi._callLedger(request);
     }
 
+    /**
+     * Utility function that combines getAddress and confirmAddress to directly get a confirmed address.
+     * @param keyPath - The bip32 key path for which to get and confirm the address.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The confirmed address.
+     */
     public static async getConfirmedAddress(keyPath: string, walletId?: string): Promise<string> {
         const address = await LedgerApi.getAddress(keyPath, walletId);
         return this.confirmAddress(address, keyPath, walletId);
     }
 
+    /**
+     * Sign a transaction for a signing key specified by its bip32 key path. Note that the signing key / corresponding
+     * address does not necessarily need to be the transaction's sender address for example for transactions sent from
+     * vesting contracts.
+     * @param transaction - Transaction details, see interface TransactionInfo.
+     * @param keyPath - The signing address's bip32 key path.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The signed transaction.
+     */
     public static async signTransaction(transaction: TransactionInfo, keyPath: string, walletId?: string)
         : Promise<Transaction> {
         const request = new LedgerApiRequest(RequestType.SIGN_TRANSACTION,

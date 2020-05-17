@@ -4,6 +4,7 @@ import TransportWebBle from '@ledgerhq/hw-transport-web-ble';
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
 import { listen as onLog } from '@ledgerhq/logs';
 import { loadNimiqCore } from '../lib/load-nimiq';
+// typescript needs the import as specified to find the .d.ts file, see rollup.config.js
 import LowLevelApi from '../../dist/low-level-api/low-level-api';
 import HighLevelApi, { TransportType } from '../../dist/high-level-api/ledger-api';
 
