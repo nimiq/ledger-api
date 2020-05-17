@@ -5,7 +5,7 @@ type TransactionInfo = import('./ledger-api').TransactionInfo;
 
 export enum RequestType {
     GET_WALLET_ID = 'get-wallet-id',
-    DERIVE_ACCOUNTS = 'derive-accounts',
+    DERIVE_ADDRESSES = 'derive-addresses',
     GET_PUBLIC_KEY = 'get-public-key',
     GET_ADDRESS = 'get-address',
     CONFIRM_ADDRESS = 'confirm-address',
@@ -14,8 +14,8 @@ export enum RequestType {
 
 export interface RequestParams {
     walletId?: string; // optional for all calls
-    keyPath?: string; // for everything besides DERIVE_ACCOUNTS
-    pathsToDerive?: Iterable<string>; // for DERIVE_ACCOUNTS
+    keyPath?: string; // for everything besides DERIVE_ADDRESSES
+    pathsToDerive?: Iterable<string>; // for DERIVE_ADDRESSES
     addressToConfirm?: string; // for CONFIRM_TRANSACTION
     transaction?: TransactionInfo; // for SIGN_TRANSACTION
 }

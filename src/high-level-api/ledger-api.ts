@@ -308,22 +308,22 @@ export default class LedgerApi {
         return parseInt(pathMatch[pathMatch.length - 1], 10);
     }
 
-    public static async deriveAccounts(pathsToDerive: Iterable<string>, walletId?: string)
+    public static async deriveAddresses(pathsToDerive: Iterable<string>, walletId?: string)
         : Promise<Array<{ address: string, keyPath: string }>> {
-        const request = new LedgerApiRequest(RequestType.DERIVE_ACCOUNTS,
+        const request = new LedgerApiRequest(RequestType.DERIVE_ADDRESSES,
             async (api, params): Promise<Array<{ address: string, keyPath: string }>> => {
-                const accounts = [];
+                const addressRecords = [];
                 for (const keyPath of params.pathsToDerive!) {
-                    if (request.cancelled) return accounts;
+                    if (request.cancelled) return addressRecords;
                     // eslint-disable-next-line no-await-in-loop
                     const { address } = await api.getAddress(
                         keyPath,
                         true, // validate
                         false, // display
                     );
-                    accounts.push({ address, keyPath });
+                    addressRecords.push({ address, keyPath });
                 }
-                return accounts;
+                return addressRecords;
             },
             {
                 walletId,
@@ -632,7 +632,7 @@ export default class LedgerApi {
                 // validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger
                 // app, see notes at top. Using getPublicKey and not getAppConfiguration, as other apps also respond to
                 // getAppConfiguration (for example the Ethereum app).
-                const { publicKey: firstAccountPubKeyBytes } = await api.getPublicKey(
+                const { publicKey: firstAddressPubKeyBytes } = await api.getPublicKey(
                     LedgerApi.getBip32PathForKeyId(0),
                     false, // validate
                     false, // display
@@ -643,7 +643,7 @@ export default class LedgerApi {
                 try {
                     const Nimiq = await nimiqPromise;
                     // Use sha256 as blake2b yields the nimiq address
-                    LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAccountPubKeyBytes).toBase64();
+                    LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAddressPubKeyBytes).toBase64();
                 } catch (e) {
                     LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED,
                         `Failed loading dependencies: ${e.message || e}`);
