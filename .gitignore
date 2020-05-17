@@ -1,0 +1,10 @@
+**/*
+!.gitignore
+!index.html
+!demo
+!demo/**/*
+!high-level-api
+!high-level-api/**/*
+!low-level-api
+!low-level-api/**/*
+**/*.cjs*
