@@ -1,6 +1,7 @@
 type Nimiq = typeof import('@nimiq/core-web');
 
-const coreBasePath = 'https://cdn.nimiq.com/latest/';
+// Use jsdelivr instead of nimiq cdn to avoid getting blocked by ad blockers.
+const coreBasePath = 'https://cdn.jsdelivr.net/npm/@nimiq/core-web/';
 
 let nimiqCorePromise: Promise<Nimiq> | null = null;
 
