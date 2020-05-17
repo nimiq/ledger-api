@@ -338,15 +338,20 @@ export default class LedgerApi {
         return LedgerApi._callLedger(request);
     }
 
-    public static async getPublicKey(keyPath: string, walletId?: string): Promise<Uint8Array> {
+    public static async getPublicKey(keyPath: string, walletId?: string): Promise<PublicKey> {
         const request = new LedgerApiRequest(RequestType.GET_PUBLIC_KEY,
-            async (api, params): Promise<Uint8Array> => {
+            async (api, params): Promise<PublicKey> => {
                 const { publicKey } = await api.getPublicKey(
                     params.keyPath!,
                     true, // validate
                     false, // display
                 );
-                return publicKey;
+
+                // Note that the actual load of the Nimiq core and cryptography is triggered in _connect, including
+                // error handling. The call here is just used to get the reference to the Nimiq object and can not fail.
+                const Nimiq = await this._loadNimiq();
+
+                return new Nimiq.PublicKey(publicKey);
             },
             {
                 walletId,

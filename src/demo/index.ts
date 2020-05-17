@@ -280,7 +280,7 @@ window.addEventListener('load', () => {
                 ({ publicKey } = await api.getPublicKey(bip32Path, false, confirm));
             } else {
                 if (confirm) throw new Error('High level api does not provide the option to confirm a public key');
-                publicKey = await api.getPublicKey(bip32Path);
+                publicKey = (await api.getPublicKey(bip32Path)).serialize();
             }
             const Nimiq = await loadNimiqPromise;
             $publicKey.textContent = Nimiq.BufferUtils.toHex(publicKey);
