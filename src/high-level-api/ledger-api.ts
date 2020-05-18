@@ -733,7 +733,15 @@ export default class LedgerApi {
         const transportType = LedgerApi._transportType;
         LedgerApi._lowLevelApiPromise = LedgerApi._lowLevelApiPromise
             || (async () => {
-                LedgerApi._setState(StateType.LOADING);
+                const errorType = LedgerApi.currentState.error ? LedgerApi.currentState.error.type : null;
+                if (errorType !== ErrorType.CONNECTION_ABORTED
+                    && errorType !== ErrorType.USER_INTERACTION_REQUIRED
+                    && errorType !== ErrorType.LOADING_DEPENDENCIES_FAILED) {
+                    // On LOADING_DEPENDENCIES_FAILED which repeatedly retries to initialize the api or exceptions which
+                    // can only throw when the api was actually loaded successfully, don't reset the state to loading to
+                    // avoid switching back and forth between loading and error state.
+                    LedgerApi._setState(StateType.LOADING);
+                }
                 if (!transportType) throw new Error('No browser support');
                 const transport = await createTransport(transportType);
                 const onDisconnect = () => {
