@@ -6,7 +6,7 @@ import { listen as onLog } from '@ledgerhq/logs';
 import { loadNimiqCore } from '../lib/load-nimiq';
 // typescript needs the import as specified to find the .d.ts file, see rollup.config.js
 import LowLevelApi from '../../dist/low-level-api/low-level-api';
-import HighLevelApi, { TransportType } from '../../dist/high-level-api/ledger-api';
+import HighLevelApi, { EventType, State, TransportType } from '../../dist/high-level-api/ledger-api';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
@@ -33,11 +33,17 @@ window.addEventListener('load', () => {
     document.body.innerHTML = `
         <h1 class="nq-h1">Nimiq Ledger Api Demos</h1>
 
-        <section class="nq-text">
+        <section class="nq-text center">
             Status: <span id="status" class="mono"></span>
+            <div class="show-${ApiType.HIGH_LEVEL}">
+                Api state: <span id="high-level-api-state" class="mono"></span>
+            </div>
+            <div class="show-${ApiType.HIGH_LEVEL}">
+                Last api event: <span id="high-level-api-last-event" class="mono"></span>
+            </div>
         </section>
         
-        <section class="nq-text" style="text-align: center">
+        <section class="nq-text center">
             <div id="api-selector" class="selector">
                 <label>
                     <input type="radio" name="api-selector" value="${ApiType.HIGH_LEVEL}" checked>
@@ -73,6 +79,9 @@ window.addEventListener('load', () => {
             <div>
                 <button class="nq-button-s" id="connect-button">Connect</button>
                 <button class="nq-button-s" id="disconnect-button">Disconnect</button>
+                <button class="nq-button-s show-${ApiType.HIGH_LEVEL}" id="high-level-api-cancel-button">
+                    Cancel Request
+                </button>
             </div>
         </section>
 
@@ -81,7 +90,7 @@ window.addEventListener('load', () => {
             <div class="nq-card-body">
                 <input class="nq-input" id="bip32-path-public-key-input" value="44'/242'/0'/0'">
                 <button class="nq-button-s" id="get-public-key-button">Get Public Key</button>
-                <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="confirm-public-key-button">
+                <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="low-level-api-confirm-public-key-button">
                     Confirm Public Key
                 </button>
                 <br>
@@ -116,6 +125,10 @@ window.addEventListener('load', () => {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
+            }
+            
+            .center {
+                text-align: center;
             }
             
             .selector {
@@ -154,14 +167,17 @@ window.addEventListener('load', () => {
     `;
 
     const $status = document.getElementById('status')!;
+    const $highLevelApiState = document.getElementById('high-level-api-state')!;
+    const $highLevelApiLastEvent = document.getElementById('high-level-api-last-event')!;
     const $apiSelector = document.getElementById('api-selector')!;
     const $transportSelector = document.getElementById('transport-selector')!;
     const $noUserInteractionCheckbox = document.getElementById('no-user-interaction-checkbox') as HTMLInputElement;
     const $connectButton = document.getElementById('connect-button')!;
     const $disconnectButton = document.getElementById('disconnect-button')!;
+    const $highLevelApiCancelButton = document.getElementById('high-level-api-cancel-button')!;
     const $bip32PathPublicKeyInput = document.getElementById('bip32-path-public-key-input') as HTMLInputElement;
     const $getPublicKeyButton = document.getElementById('get-public-key-button')!;
-    const $confirmPublicKeyButton = document.getElementById('confirm-public-key-button')!;
+    const $lowLevelApiConfirmPublicKeyButton = document.getElementById('low-level-api-confirm-public-key-button')!;
     const $publicKey = document.getElementById('public-key')!;
     const $bip32PathAddressInput = document.getElementById('bip32-path-address-input') as HTMLInputElement;
     const $getAddressButton = document.getElementById('get-address-button')!;
@@ -200,13 +216,14 @@ window.addEventListener('load', () => {
         if (window._api) return window._api;
         try {
             disableSelector($apiSelector);
-            onLog((logEntry: any) => console.log('Log:', logEntry));
-
             displayStatus('Creating Api');
             const apiType = ($apiSelector.querySelector(':checked') as HTMLInputElement).value;
             const transportType = ($transportSelector.querySelector(':checked') as HTMLInputElement).value;
             if (apiType === ApiType.LOW_LEVEL) {
                 disableSelector($transportSelector);
+                // Note that for the high-level api, the ledger log does not work as the logger in the demo is a
+                // different instance than the one in the lazy loaded transports.
+                onLog((logEntry: any) => console.log('%cLog:', 'color: teal', logEntry));
                 switch (transportType) {
                     case TransportType.WEB_USB:
                         // Automatically creates a transport with a connected known device or opens a browser popup to
@@ -226,6 +243,22 @@ window.addEventListener('load', () => {
                 window._api = new LowLevelApi(window._transport);
             } else {
                 window._api = HighLevelApi;
+                window._api.on(EventType.STATE_CHANGE, (state: State) => {
+                    console.log('%cState change', 'color: teal', state);
+                    $highLevelApiState.textContent = `${state.type}${state.error ? `: ${state.error.type}` : ''}`;
+                });
+                window._api.on(EventType.CONNECTED, (walletId: string) => {
+                    console.log(`%cConnected to wallet ${walletId}`, 'color: teal');
+                    $highLevelApiLastEvent.textContent = `Connected to wallet ${walletId}`;
+                });
+                window._api.on(EventType.REQUEST_SUCCESSFUL, (...args) => {
+                    console.log('%cRequest successful', 'color: teal', ...args);
+                    $highLevelApiLastEvent.textContent = 'Request successful';
+                });
+                window._api.on(EventType.REQUEST_CANCELLED, (...args) => {
+                    console.log('%cRequest cancelled', 'color: teal', ...args);
+                    $highLevelApiLastEvent.textContent = 'Request cancelled';
+                });
                 window._api.setTransportType(transportType as TransportType);
                 $transportSelector.addEventListener('change', (e) => {
                     const input = e.target as HTMLInputElement;
@@ -265,6 +298,12 @@ window.addEventListener('load', () => {
             await window._api.disconnect();
         }
         displayStatus('Api disconnected');
+    }
+
+    async function cancelRequest() {
+        if (!window._api || window._api instanceof LowLevelApi || !window._api.currentRequest) return;
+        displayStatus('Cancelling request');
+        window._api.currentRequest.cancel();
     }
 
     async function getPublicKey(confirm: boolean) {
@@ -364,8 +403,9 @@ window.addEventListener('load', () => {
         $apiSelector.addEventListener('change', switchApi);
         $connectButton.addEventListener('click', connect);
         $disconnectButton.addEventListener('click', disconnect);
+        $highLevelApiCancelButton.addEventListener('click', cancelRequest);
         $getPublicKeyButton.addEventListener('click', () => getPublicKey(false));
-        $confirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
+        $lowLevelApiConfirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
         $getAddressButton.addEventListener('click', () => getAddress(false));
         $confirmAddressButton.addEventListener('click', () => getAddress(true));
         $signTxButton.addEventListener('click', signTransaction);
