@@ -613,7 +613,7 @@ export default class LedgerApi {
                         resolve(result);
                         return;
                     } catch (e) {
-                        console.log(e);
+                        console.debug(e);
                         const message = (e.message || e || '').toLowerCase();
                         const isTimeout = /timeout|u2f device_ineligible|u2f other_error/i.test(message);
                         const isLocked = /locked|0x6804/i.test(message);
@@ -745,7 +745,7 @@ export default class LedgerApi {
                 if (!transportType) throw new Error('No browser support');
                 const transport = await createTransport(transportType);
                 const onDisconnect = () => {
-                    console.log('Ledger disconnected');
+                    console.debug('Ledger disconnected');
                     transport.off('disconnect', onDisconnect);
                     if (this._transportType !== transportType) return;
                     // A disconnected transport can not be reconnected. Therefore reset the _lowLevelApiPromise.
