@@ -626,8 +626,8 @@ export default class LedgerApi {
                         }
                         if (isTimeout || isConnectedToDashboard) canCancelDirectly = true;
                         // Test whether user cancelled call on ledger
-                        if (message.indexOf('denied') !== -1 // user rejected confirmAddress
-                            || message.indexOf('rejected') !== -1) { // user rejected signTransaction
+                        if (message.indexOf('denied by the user') !== -1 // user rejected confirmAddress
+                            || message.indexOf('request was rejected') !== -1) { // user rejected signTransaction
                             break; // continue after loop
                         }
                         // Errors that should end the request
@@ -764,7 +764,7 @@ export default class LedgerApi {
             if (LedgerApi._transportType === transportType) {
                 LedgerApi._lowLevelApiPromise = null;
                 const message = (e.message || e).toLowerCase();
-                if (message.indexOf('no device selected') !== -1) {
+                if (/no device selected|access denied|cancelled the requestdevice/i.test(message)) {
                     if (LedgerApi._transportType === TransportType.WEB_USB) {
                         // Fallback to u2f as the user might not have been able to select his device due to the Nano X
                         // currently not being discoverable via WebUSB in Windows.
