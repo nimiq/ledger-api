@@ -22,8 +22,9 @@ export function isSupported(transportType?: TransportType): boolean {
         case TransportType.U2F:
             // Note that Chrome, Opera and Edge use an internal, hidden cryptotoken extension to handle u2f
             // (https://github.com/google/u2f-ref-code/blob/master/u2f-gae-demo/war/js/u2f-api.js) which does not
-            // expose an u2f api on window. Support via that extension is not detected by this check. However, as
-            // these browsers support WebUsb, this is acceptable.
+            // expose the u2f api on window. Support via that extension is not detected by this check. However, as
+            // these browsers support WebUSB, this is acceptable and we don't use a more elaborate check like the one
+            // in the 'u2f-api' package to avoid bundling it and also because it's async, complicating the code.
             // @ts-ignore
             return 'u2f' in window && typeof window.u2f.sign === 'function';
         default:

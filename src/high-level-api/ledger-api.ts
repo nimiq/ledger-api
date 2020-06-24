@@ -761,12 +761,26 @@ export default class LedgerApi {
             // Transport type changed while we were connecting; rerun.
             return LedgerApi._initializeLowLevelApi();
         } catch (e) {
-            if (this._transportType === transportType) {
+            if (LedgerApi._transportType === transportType) {
                 LedgerApi._lowLevelApiPromise = null;
                 const message = (e.message || e).toLowerCase();
                 if (message.indexOf('no device selected') !== -1) {
-                    LedgerApi._connectionAborted = true;
-                    LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
+                    if (LedgerApi._transportType === TransportType.WEB_USB) {
+                        // Fallback to u2f as the user might not have been able to select his device due to the Nano X
+                        // currently not being discoverable via WebUSB in Windows.
+                        // Not using setTransportType to bypass the simplified u2f support check (see
+                        // transport-utils.ts) which reports missing u2f support on browsers that use an internal
+                        // cryptotoken extension. Should u2f really not be supported, the appropriate exception gets
+                        // triggered on transport creation.
+                        // This fallback also temporarily servers users which have not updated their udev rules yet.
+                        // TODO the fallback is just temporary and to be removed once WebUSB with Nano X works on
+                        //  Windows or WebHID is more broadly available.
+                        console.warn('LedgerApi: switching to u2f as fallback');
+                        LedgerApi._transportType = TransportType.U2F;
+                    } else {
+                        LedgerApi._connectionAborted = true;
+                        LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
+                    }
                 } else if (message.indexOf('user gesture') !== -1) {
                     LedgerApi._throwError(ErrorType.USER_INTERACTION_REQUIRED, e);
                 } else if (message.indexOf('browser support') !== -1) {
