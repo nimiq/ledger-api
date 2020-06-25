@@ -17,6 +17,8 @@ This package provides two different apis:
 
 The apis are documented as jsdoc comments in [low-level-api.ts](https://github.com/nimiq/ledger-api/blob/master/src/low-level-api/low-level-api.ts) and [ledger-api.ts](https://github.com/nimiq/ledger-api/blob/master/src/high-level-api/ledger-api.ts).
 
+For a comparison of the available transport libraries, see [`transport-comparison.md`](https://github.com/nimiq/ledger-api/blob/master/transport-comparison.md).
+
 ## Development and building the library
 
 To run the demo page use:

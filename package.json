@@ -6,6 +6,7 @@
   "module": "dist/high-level-api/ledger-api.es.js",
   "types": "dist/high-level-api/ledger-api.d.ts",
   "files": [
+    "transport-comparison.md",
     "dist",
     "!dist/demo"
   ],

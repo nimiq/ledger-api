@@ -35,16 +35,8 @@ export function isSupported(transportType?: TransportType): boolean {
 export function autoDetectTransportTypeToUse(): TransportType | null {
     // Determine the best available transport type. Exclude WebBle as it's only suitable for Nano X.
     let transportTypesByPreference;
-    // HID has better compatibility on Windows due to driver issues for WebUSB for the Nano X (see
-    // https://github.com/LedgerHQ/ledgerjs/issues/456 and https://github.com/WICG/webusb/issues/143). On other
-    // platforms however, WebUSB is preferable for multiple reasons (Chrome):
-    // - Currently HID permission is only valid until device is disconnected while WebUSB remembers a granted
-    //   permission. This results in a device selection popup every time the Ledger is reconnected (or changes to
-    //   another app or the dashboard, where Ledger reports different device descriptors, i.e. appears as a
-    //   different device). This also requires a user gesture every time.
-    // - HID device selection popup does not update on changes, for example on switch from Ledger dashboard to app
-    //   or when Ledger gets connected.
-    // - HID does not emit disconnects immediately but only at next request.
+    // HID has better compatibility on Windows due to driver issues for WebUSB for the Nano X. On other
+    // platforms however, WebUSB is preferable for multiple reasons (see transport-comparison.md).
     // TODO this situation needs to be re-evaluated once WebHID is stable
     const isWindows = /Win/.test(window.navigator.platform); // see https://stackoverflow.com/a/38241481
     if (isWindows) {
@@ -53,7 +45,7 @@ export function autoDetectTransportTypeToUse(): TransportType | null {
         transportTypesByPreference = [TransportType.WEB_USB, TransportType.WEB_HID];
     }
     // U2F as legacy fallback. The others are preferred as U2F can time out and causes native Windows security popups
-    // in Windows and additionally Firefox internal popups in Firefox on all platforms.
+    // in Windows and additionally Firefox internal popups in Firefox on all platforms (see transport-comparison.md).
     transportTypesByPreference.push(TransportType.U2F);
     return transportTypesByPreference.find(isSupported) || null;
 }

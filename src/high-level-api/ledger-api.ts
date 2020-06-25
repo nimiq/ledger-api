@@ -1,81 +1,3 @@
-// Some notes about the behaviour of the ledger:
-// - The ledger only supports one call at a time.
-// - If the browser doesn't support U2F, an exception gets thrown ("U2F browser support is needed for Ledger")
-// - The browsers U2F API has a timeout after which the call fails in the browser. The timeout is about 30s.
-// - Previously, a "timeout" exception got thrown on u2f timeouts, but now it's generic "U2F DEVICE_INELIGIBLE" in
-//   Chrome and "U2F OTHER_ERROR" in Firefox.
-// - The Nimiq Ledger App avoids timeouts by keeping the call alive via a heartbeat when the Ledger is connected and the
-//   app opened. However when the Ledger is not connected or gets disconnected, timeouts still occur.
-// - If the ledger is locked while the nimiq app (or another app throwing that same exception) was running, an exception
-//   gets thrown. The error code for this was 0x6982 before and got translated to a "dongle locked" error, but this
-//   seems to have changed. Get public key / address requests now throw a 0x6804 UNKNOWN_ERROR; other requests don't
-//   throw and just stay pending until unlocked. No exception gets thrown when the Ledger is locked on the dashboard or
-//   locked when just being connected. getAppConfiguration can be called even when the app is locked.
-// - If the ledger is busy with another call it throws an exception that it is busy. The ledger API however only knows,
-//   if the ledger is busy by another call from this same page (and same API instance?).
-// - If we make another call while the other call is still ongoing and the ledger not detected as being busy, the
-//   heartbeat breaks and a timeout occurs.
-// - Requests that were cancelled via request.cancel() are not actually cancelled on the ledger and keep the ledger
-//   busy until the request times out or the user confirms/declines.
-//
-// Notes about app versions < 1.4.3 (?) or older firmwares:
-// - If the ledger locks during a signTransaction request and the "dongle locked" exception gets thrown after some while
-//   and the user then unlocks the ledger again, the request data is gone or not displayed (amount, recipient, fee,
-//   network, extra data etc). If the user then rejects/confirms, the ledger freezes and can not be unfrozen. This did
-//   not occur with this api, as we replaced that call after unlock. That behavior has now been removed though, as it's
-//   not relevant for newer versions anymore.
-//
-// Notes about app versions < 1.4.1 / 1.4.0:
-// - App versions < 1.4.0 are incompatible with Chrome 72+, see https://github.com/LedgerHQ/ledgerjs/issues/306.
-// - App versions < 1.4.1 are incompatible with Chrome 72-73
-//
-// Notes about app versions < 1.3.1:
-// - Versions < 1.3.1 did not have a heartbeat to avoid timeouts
-// - For requests with display on the ledger, the ledger keeps displaying the request even if it timed out. When the
-//   user confirms or declines that request after the timeout the ledger ignores that and freezes on second press.
-// - After a request timed out, it is possible to send a new request to the ledger essentially replacing the old
-//   request. If the ledger is still displaying the UI from the previous timed out request and the new request also has
-//   a UI, the old UI also gets replaced. The animation of the new request starts at the beginning.
-// - Although a previous request can be replaced immediately after the timeout exception (no device busy exception gets
-//   thrown and the UI gets replaced), the buttons still seem to be assigned to the previous request if there is no
-//   wait time between the requests. Wait time <1s is too short. Wait times between 1s and 1.5s behave strange as the
-//   old request doesn't get replaced at all. 1.5s seems to be reliable. At that time, the signTransaction UI also
-//   forms a nice loop with the replaced UI.
-// - If the user confirms or declines during the wait time nothing happens (or freeze at second button press) which
-//   is a bad user experience but there is nothing we can do about it.
-// - If the ledger froze, it gets unfrozen by sending a new request. If the request has a UI, the UI gets displayed,
-//   otherwise the Nimiq app gets displayed. If the user confirms the new request, the app afterwards behaves normal.
-//   If he declines the request though, any request afterwards seems to time out and the nimiq ledger app needs to be
-//   restarted. This is a corner case that is not covered in this api.
-//
-// Notes about old Firefox versions:
-// - Old Firefox implementation of U2F (when enabled in about:config) did not seem to be compatible with ledger and
-//   threw "U2F DEVICE_INELIGIBLE". Previously, we translated that error into the "not supported" error, but the current
-//   api doesn't do so anymore as the current Firefox version is compatible and DEVICE_INELIGIBLE gets now thrown
-//   on timeouts (see above).
-
-
-// The following flows should be tested if changing this code:
-// - ledger not connected yet
-// - ledger connected
-// - ledger was connected but relocked
-// - ledger connected but in another app
-// - ledger connected but with old app version
-// - connect timed out
-// - request timed out
-// - user approved action on Ledger
-// - user denied action on Ledger
-// - user cancel in UI
-// - user cancel and immediately make another request
-// - ledger already handling another request (from another tab)
-
-// tslint:disable-next-line:max-line-length
-// TODO: move to own repository:
-// - change implementation to be flow typed and integrate with ledger provided flow libraries directly.
-// - use an appropriate ledger transport library (u2f, WebAuthn, WebUSB, WebBluetooth) depending on platform
-// - Also, the verification and address computation in ledgerjs should be done by Nimiq's crypto methods instead of
-//   unnecessarily bundling tweetnacl and blakejs.
-
 import LowLevelApi from '../low-level-api/low-level-api';
 import Observable, { EventListener } from '../lib/observable';
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
@@ -642,10 +564,11 @@ export default class LedgerApi {
                             && !isTimeout && !isLocked && !isConnectedToDashboard) {
                             console.warn('Unknown Ledger Error', e);
                         }
-                        // Wait a little when replacing a previous request (see notes at top).
+                        // Wait a little when replacing a previous U2F request (see transport-comparison.md).
                         const waitTime = isTimeout ? LedgerApi.WAIT_TIME_AFTER_TIMEOUT
-                            // If the API tells us that the ledger is busy (see notes at top) use a longer wait time to
-                            // reduce the chance that we hit unfortunate 1.5s window after timeout of cancelled call
+                            // If the API tells us that the ledger is busy (see transport-comparison.md) use a longer
+                            // wait time to reduce the chance that we hit unfortunate 1.5s window after timeout of
+                            // cancelled call
                             : message.indexOf('busy') !== -1 ? 4 * LedgerApi.WAIT_TIME_AFTER_TIMEOUT
                                 // For other exceptions wait a little to avoid busy endless loop for some exceptions.
                                 : LedgerApi.WAIT_TIME_AFTER_ERROR;
@@ -675,7 +598,6 @@ export default class LedgerApi {
         // connect repeatedly until success via _callLedger which uses the private _connect under the hood. Also this
         // method is not publicly exposed to avoid that it could be invoked multiple times in parallel which the ledger
         // requests called here do not allow. Additionally, this method exposes the low level api which is private.
-        // If the Ledger is already connected and the library already loaded, the call typically takes < 500ms.
         if (LedgerApi._connectionAborted) {
             // When the connection was aborted, don't retry connecting until a manual connection is requested.
             throw new Error('Connection aborted');
@@ -684,12 +606,13 @@ export default class LedgerApi {
             const nimiqPromise = this._loadNimiq();
             const api = await LedgerApi._initializeLowLevelApi();
             if (!LedgerApi._currentlyConnectedWalletId) {
-                // Not connected yet.
+                // Not connected yet. Connecting a pre-authorized device via WebUSB, WebHID or WebBLE takes <300ms.
+                // Connecting via U2F takes <1s.
                 LedgerApi._setState(StateType.CONNECTING);
                 // To check whether the connection to Nimiq app is established and to calculate the walletId. Set
                 // validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger
-                // app, see notes at top. Using getPublicKey and not getAppConfiguration, as other apps also respond to
-                // getAppConfiguration (for example the Ethereum app).
+                // app, see transport-comparison.md. Using getPublicKey and not getAppConfiguration, as other apps also
+                // respond to getAppConfiguration (for example the Ethereum app).
                 const { publicKey: firstAddressPubKeyBytes } = await api.getPublicKey(
                     LedgerApi.getBip32PathForKeyId(0),
                     false, // validate
