@@ -4,6 +4,7 @@ export enum TransportType {
     WEB_HID = 'web-hid',
     WEB_USB = 'web-usb',
     WEB_BLE = 'web-ble',
+    WEB_AUTHN = 'web-authn',
     U2F = 'u2f',
 }
 
@@ -19,6 +20,8 @@ export function isSupported(transportType?: TransportType): boolean {
             return 'usb' in window.navigator && typeof window.navigator.usb.getDevices === 'function';
         case TransportType.WEB_BLE:
             return 'bluetooth' in window.navigator;
+        case TransportType.WEB_AUTHN:
+            return !!navigator.credentials;
         case TransportType.U2F:
             // Note that Chrome, Opera and Edge use an internal, hidden cryptotoken extension to handle u2f
             // (https://github.com/google/u2f-ref-code/blob/master/u2f-gae-demo/war/js/u2f-api.js) which does not
@@ -44,6 +47,10 @@ export function autoDetectTransportTypeToUse(): TransportType | null {
     } else {
         transportTypesByPreference = [TransportType.WEB_USB, TransportType.WEB_HID];
     }
+    // WebAuthn as preferred fallback, as compared to U2F better browser support and less quirky / not deprecated and
+    // works better with Nano X. But causes a popup in Chrome which U2F does not. In Firefox has same popup as U2F and
+    // in Windows also triggers Window's native security popup (see transport-comparison.md).
+    transportTypesByPreference.push(TransportType.WEB_AUTHN);
     // U2F as legacy fallback. The others are preferred as U2F can time out and causes native Windows security popups
     // in Windows and additionally Firefox internal popups in Firefox on all platforms (see transport-comparison.md).
     transportTypesByPreference.push(TransportType.U2F);
@@ -51,9 +58,9 @@ export function autoDetectTransportTypeToUse(): TransportType | null {
 }
 
 /**
- * Create a new transport to a connected Ledger device. All transport types but U2F must be invoked on user interaction.
- * If an already known device is connected, a transport instance to that device is established. Otherwise, a browser
- * popup with a selector is opened.
+ * Create a new transport to a connected Ledger device. All transport types but U2F and WebAuthn must be invoked on user
+ * interaction. If an already known device is connected, a transport instance to that device is established. Otherwise,
+ * a browser popup with a selector is opened.
  * @param transportType
  */
 export async function createTransport(transportType: TransportType): Promise<Transport> {
@@ -64,6 +71,8 @@ export async function createTransport(transportType: TransportType): Promise<Tra
             return (await import('@ledgerhq/hw-transport-webusb')).default.create();
         case TransportType.WEB_BLE:
             return (await import('@ledgerhq/hw-transport-web-ble')).default.create();
+        case TransportType.WEB_AUTHN:
+            return (await import('@ledgerhq/hw-transport-webauthn')).default.create();
         case TransportType.U2F:
             return (await import('@ledgerhq/hw-transport-u2f')).default.create();
         default:

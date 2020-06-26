@@ -1,6 +1,7 @@
 import TransportWebUsb from '@ledgerhq/hw-transport-webusb';
 import TransportWebHid from '@ledgerhq/hw-transport-webhid';
 import TransportWebBle from '@ledgerhq/hw-transport-web-ble';
+import TransportWebAuthn from '@ledgerhq/hw-transport-webauthn';
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
 import { listen as onLog } from '@ledgerhq/logs';
 import { loadNimiqCore } from '../lib/load-nimiq';
@@ -66,6 +67,10 @@ window.addEventListener('load', () => {
                 <label>
                     <input type="radio" name="transport-selector" value="${TransportType.WEB_BLE}">
                     WebBle
+                </label>
+                <label>
+                    <input type="radio" name="transport-selector" value="${TransportType.WEB_AUTHN}">
+                    WebAuthn
                 </label>
                 <label>
                     <input type="radio" name="transport-selector" value="${TransportType.U2F}">
@@ -235,6 +240,9 @@ window.addEventListener('load', () => {
                         break;
                     case TransportType.WEB_BLE:
                         window._transport = await TransportWebBle.create();
+                        break;
+                    case TransportType.WEB_AUTHN:
+                        window._transport = await TransportWebAuthn.create();
                         break;
                     default:
                         window._transport = await TransportU2F.create();

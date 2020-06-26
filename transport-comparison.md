@@ -110,6 +110,36 @@ Specific characteristics:
   between. The permission is only valid until the device is disconnected or the page reloaded.
 - Pairing in Android Chrome did not work for me.
 
+## WebAuthentication
+
+See https://caniuse.com/#feat=webauthn for browser support.
+
+General characteristics:
+- Can run without user activation / user interaction and requires no permission / device selection.
+- Shows a browser popup, also for Chrome, different to U2F.
+- As WebAuthn is initially for short lived authentications, WebAuthn requests timeout after ~30s but the Ledger firmware
+  / app implements a heartbeat to try to mitigate timeouts. Other than for U2F this works reliably, including on Chrome
+  and for Nano X. On the dashboard, the heartbeat does not seem to be active.
+- The WebAuthn api can not reliably detect whether a device is (still) connected.
+- The WebAuthn api can not detect whether a connected device is a Nano S or Nano X.
+- Having U2F/WebAuthn enabled is bad for the user's privacy as addresses can be fetched without requiring any
+  permission. We should disable U2F support in our app in the future.
+
+Special characteristics:
+- Causes native Windows security popups in Windows 10. These have to be ignored without clicking cancel on them.
+- In Chrome, when a timeout occurs, execution continues only after the popup is closed, i.e. it only retries after the
+  popup gets closed.
+- Although Chrome for Android and Firefox for Android both support WebAuthn according to caniuse.com they do not seem to
+  be compatible with this api
+- For the Ledger Nano S the request can already be initiated while the Ledger is not connected yet, not unlocked yet or
+  the Nimiq app not open yet. The request gets correctly picked up by the device once the app is open.
+- The Ledger Nano X only processes the request if it is already in the Nimiq app before the request is initiated.
+- After a request was sent the Nano X before the app was opened, the Nano X needs to be restarted to be able to process
+  a WebAuthn request again. Just re-opening the app is not sufficient.
+- Due to the heartbeat U2F is heavy on the call stack and might crash the Ledger app according to Ledger, but this has
+  not been observed yet in our app.
+- Can not connect to a Ledger if two are attached at the same time.
+
 ## U2F
 
 Legacy implementation that depends on deprecated Fido U2F API. See https://caniuse.com/#feat=u2f for browser support.
@@ -119,12 +149,12 @@ General characteristics:
 - As U2F is initially for short lived authentications, U2F requests timeout after ~30s but the Ledger firmware / app
   implements a heartbeat to try to mitigate timeouts.
 - The U2F api can not reliably detect whether a device is (still) connected.
-- The U2F api can not detect whether a Nano S or Nano X is connected.
+- The U2F api can not detect whether a connected device is a Nano S or Nano X.
 - Having U2F enabled is bad for the user's privacy as addresses can be fetched without requiring any permission. We
   should disable U2F support in our app in the future.
 
 Special characteristics:
-- Causes native Windows security popups in Windows 10. These have to be ignore without clicking cancel on them.
+- Causes native Windows security popups in Windows 10. These have to be ignored without clicking cancel on them.
 - Causes Firefox internal popup in Firefox which should also be ignored.
 - Although Firefox for Android supports U2F according to caniuse.com it does not seem to be compatible with this api.
 - The heartbeat does not mitigate timeouts on newer versions of Chrome anymore. On Firefox it does work though. But also
@@ -146,6 +176,7 @@ Special characteristics:
   be restarted to be able to process an U2F request again. Just re-opening the app is not sufficient.
 - Due to the heartbeat U2F is heavy on the call stack and might crash the Ledger app according to Ledger, but this has
   not been observed yet in our app.
+- Can not connect to a Ledger if two are attached at the same time.
 
 ## Previous U2F results for old versions
 

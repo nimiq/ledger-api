@@ -537,13 +537,19 @@ export default class LedgerApi {
                     } catch (e) {
                         console.debug(e);
                         const message = (e.message || e || '').toLowerCase();
-                        const isTimeout = /timeout|u2f device_ineligible|u2f other_error/i.test(message);
+                        // "timeout" used to happen for u2f, it's "device_ineligible" or "other_error" now (see
+                        // transport-comparison.md). "timed out" is for Chrome WebAuthn timeout; "denied permission" for
+                        // Firefox WebAuthn timeout.
+                        const isTimeout = /timeout|timed out|denied permission|u2f device_ineligible|u2f other_error/i
+                            .test(message);
                         const isLocked = /locked|0x6804/i.test(message);
                         const isConnectedToDashboard = /incorrect length/i.test(message);
-                        if (LedgerApi._transportType === TransportType.U2F || isLocked) {
-                            // For u2f we don't get notified about disconnects therefore clear connection on every
-                            // exception. When locked clear connection for all transport types as user might unlock with
-                            // a different PIN for another wallet.
+                        if (LedgerApi._transportType === TransportType.U2F
+                            || LedgerApi._transportType === TransportType.WEB_AUTHN
+                            || isLocked) {
+                            // For u2f / webauthn we don't get notified about disconnects therefore clear connection on
+                            // every exception. When locked clear connection for all transport types as user might
+                            // unlock with a different PIN for another wallet.
                             LedgerApi._currentlyConnectedWalletId = null;
                         }
                         if (isTimeout || isConnectedToDashboard) canCancelDirectly = true;
@@ -581,7 +587,8 @@ export default class LedgerApi {
             /* eslint-enable no-await-in-loop, no-async-promise-executor */
         } finally {
             LedgerApi._currentRequest = null;
-            if (LedgerApi._transportType === TransportType.U2F) {
+            if (LedgerApi._transportType === TransportType.U2F
+                || LedgerApi._transportType === TransportType.WEB_AUTHN) {
                 LedgerApi._currentlyConnectedWalletId = null; // reset as we don't note when Ledger gets disconnected
             }
             const errorType = LedgerApi.currentState.error ? LedgerApi.currentState.error.type : null;
@@ -607,7 +614,7 @@ export default class LedgerApi {
             const api = await LedgerApi._initializeLowLevelApi();
             if (!LedgerApi._currentlyConnectedWalletId) {
                 // Not connected yet. Connecting a pre-authorized device via WebUSB, WebHID or WebBLE takes <300ms.
-                // Connecting via U2F takes <1s.
+                // Connecting via WebAuthn or U2F takes <1s.
                 LedgerApi._setState(StateType.CONNECTING);
                 // To check whether the connection to Nimiq app is established and to calculate the walletId. Set
                 // validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger
@@ -689,17 +696,18 @@ export default class LedgerApi {
                 const message = (e.message || e).toLowerCase();
                 if (/no device selected|access denied|cancelled the requestdevice/i.test(message)) {
                     if (LedgerApi._transportType === TransportType.WEB_USB) {
-                        // Fallback to u2f as the user might not have been able to select his device due to the Nano X
+                        // Use a fallback as the user might not have been able to select his device due to the Nano X
                         // currently not being discoverable via WebUSB in Windows.
-                        // Not using setTransportType to bypass the simplified u2f support check (see
-                        // transport-utils.ts) which reports missing u2f support on browsers that use an internal
-                        // cryptotoken extension. Should u2f really not be supported, the appropriate exception gets
-                        // triggered on transport creation.
-                        // This fallback also temporarily servers users which have not updated their udev rules yet.
+                        // This fallback also temporarily serves Linux users which have not updated their udev rules.
                         // TODO the fallback is just temporary and to be removed once WebUSB with Nano X works on
                         //  Windows or WebHID is more broadly available.
-                        console.warn('LedgerApi: switching to u2f as fallback');
-                        LedgerApi._transportType = TransportType.U2F;
+                        const fallback = [TransportType.WEB_AUTHN, TransportType.U2F].find(isSupported);
+                        if (!fallback) {
+                            LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT,
+                                'Ledger not supported by browser or support not enabled.');
+                        }
+                        console.warn(`LedgerApi: switching to ${fallback} as fallback`);
+                        LedgerApi.setTransportType(fallback!);
                     } else {
                         LedgerApi._connectionAborted = true;
                         LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
