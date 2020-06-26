@@ -1,5 +1,5 @@
 import { B as Buffer } from './lazy-chunk-buffer.es.js';
-import { T as Transport, d as lib_2, e as lib_79, f as lib_26, g as lib_80, h as lib_24, i as lib_27 } from './lazy-chunk-index.es.js';
+import { T as Transport, b as lib_2, d as index_cjs_24, e as index_cjs_76, f as index_cjs_23, g as index_cjs_80, h as index_cjs_77 } from './lazy-chunk-index.es.js';
 import { a as hidFraming } from './lazy-chunk-hid-framing.es.js';
 import { a as lib_6, b as lib_4 } from './lazy-chunk-index.es2.js';
 
@@ -63,7 +63,6 @@ class TransportWebUSB extends Transport {
       const blocks = framing.makeBlocks(apdu);
 
       for (let i = 0; i < blocks.length; i++) {
-        lib_2("hid-frame", "=> " + blocks[i].toString("hex"));
         await this.device.transferOut(endpointNumber, blocks[i]);
       } // Read...
 
@@ -74,7 +73,6 @@ class TransportWebUSB extends Transport {
       while (!(result = framing.getReducedResult(acc))) {
         const r = await this.device.transferIn(endpointNumber, packetSize);
         const buffer = Buffer.from(r.data.buffer);
-        lib_2("hid-frame", "<= " + buffer.toString("hex"));
         acc = framing.reduceResponse(acc, buffer);
       }
 
@@ -84,7 +82,7 @@ class TransportWebUSB extends Transport {
       if (e && e.message && e.message.includes("disconnected")) {
         this._emitDisconnect(e);
 
-        throw new lib_79(e.message);
+        throw new index_cjs_24(e.message);
       }
 
       throw e;
@@ -134,7 +132,7 @@ class TransportWebUSB extends Transport {
     }) => alternates.some(a => a.interfaceClass === 255));
 
     if (!iface) {
-      throw new lib_26("No WebUSB interface found for your Ledger device. Please upgrade firmware or contact techsupport.");
+      throw new index_cjs_76("No WebUSB interface found for your Ledger device. Please upgrade firmware or contact techsupport.");
     }
 
     const interfaceNumber = iface.interfaceNumber;
@@ -143,7 +141,7 @@ class TransportWebUSB extends Transport {
       await device.claimInterface(interfaceNumber);
     } catch (e) {
       await device.close();
-      throw new lib_26(e.message);
+      throw new index_cjs_76(e.message);
     }
 
     const transport = new TransportWebUSB(device, interfaceNumber);
@@ -153,7 +151,7 @@ class TransportWebUSB extends Transport {
         // $FlowFixMe
         navigator.usb.removeEventListener("disconnect", onDisconnect);
 
-        transport._emitDisconnect(new lib_80());
+        transport._emitDisconnect(new index_cjs_23());
       }
     }; // $FlowFixMe
 
@@ -198,9 +196,9 @@ TransportWebUSB.listen = observer => {
     }
   }, error => {
     if (window.DOMException && error instanceof window.DOMException && error.code === 18) {
-      observer.error(new lib_24(error.message));
+      observer.error(new index_cjs_80(error.message));
     } else {
-      observer.error(new lib_27(error.message));
+      observer.error(new index_cjs_77(error.message));
     }
   });
 

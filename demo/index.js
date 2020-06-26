@@ -1,5 +1,5 @@
 import LowLevelApi from '../low-level-api/low-level-api.es.js';
-import HighLevelApi, { TransportType } from '../high-level-api/ledger-api.es.js';
+import HighLevelApi, { TransportType, EventType } from '../high-level-api/ledger-api.es.js';
 
 var global$1 = (typeof global !== "undefined" ? global :
   typeof self !== "undefined" ? self :
@@ -2453,588 +2453,507 @@ function getCjsExportFromNamespace (n) {
 	return n && n['default'] || n;
 }
 
-var helpers = createCommonjsModule(function (module, exports) {
+var index_cjs = createCommonjsModule(function (module, exports) {
 
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.serializeError = exports.deserializeError = exports.createCustomErrorClass = exports.addCustomErrorDeserializer = void 0;
+Object.defineProperty(exports, '__esModule', { value: true });
 
 /* eslint-disable no-continue */
-
 /* eslint-disable no-param-reassign */
-
 /* eslint-disable no-prototype-builtins */
-const errorClasses = {};
-const deserializers = {};
-
-const addCustomErrorDeserializer = (name, deserializer) => {
-  deserializers[name] = deserializer;
+var errorClasses = {};
+var deserializers = {};
+var addCustomErrorDeserializer = function (name, deserializer) {
+    deserializers[name] = deserializer;
 };
-
-exports.addCustomErrorDeserializer = addCustomErrorDeserializer;
-
-const createCustomErrorClass = name => {
-  const C = function CustomError(message, fields) {
-    Object.assign(this, fields);
-    this.name = name;
-    this.message = message || name;
-    this.stack = new Error().stack;
-  }; // $FlowFixMe
-
-
-  C.prototype = new Error();
-  errorClasses[name] = C; // $FlowFixMe we can't easily type a subset of Error for now...
-
-  return C;
-}; // inspired from https://github.com/programble/errio/blob/master/index.js
-
-
-exports.createCustomErrorClass = createCustomErrorClass;
-
-const deserializeError = object => {
-  if (typeof object === "object" && object) {
-    try {
-      // $FlowFixMe FIXME HACK
-      const msg = JSON.parse(object.message);
-
-      if (msg.message && msg.name) {
-        object = msg;
-      }
-    } catch (e) {// nothing
-    }
-
-    let error;
-
-    if (typeof object.name === "string") {
-      const {
-        name
-      } = object;
-      const des = deserializers[name];
-
-      if (des) {
-        error = des(object);
-      } else {
-        let constructor = name === "Error" ? Error : errorClasses[name];
-
-        if (!constructor) {
-          console.warn("deserializing an unknown class '" + name + "'");
-          constructor = createCustomErrorClass(name);
-        }
-
-        error = Object.create(constructor.prototype);
-
+var createCustomErrorClass = function (name) {
+    var C = function CustomError(message, fields) {
+        Object.assign(this, fields);
+        this.name = name;
+        this.message = message || name;
+        this.stack = new Error().stack;
+    };
+    C.prototype = new Error();
+    errorClasses[name] = C;
+    return C;
+};
+// inspired from https://github.com/programble/errio/blob/master/index.js
+var deserializeError = function (object) {
+    if (typeof object === "object" && object) {
         try {
-          for (const prop in object) {
-            if (object.hasOwnProperty(prop)) {
-              error[prop] = object[prop];
+            // $FlowFixMe FIXME HACK
+            var msg = JSON.parse(object.message);
+            if (msg.message && msg.name) {
+                object = msg;
             }
-          }
-        } catch (e) {// sometimes setting a property can fail (e.g. .name)
         }
-      }
-    } else {
-      error = new Error(object.message);
+        catch (e) {
+            // nothing
+        }
+        var error = void 0;
+        if (typeof object.name === "string") {
+            var name_1 = object.name;
+            var des = deserializers[name_1];
+            if (des) {
+                error = des(object);
+            }
+            else {
+                var constructor = name_1 === "Error" ? Error : errorClasses[name_1];
+                if (!constructor) {
+                    console.warn("deserializing an unknown class '" + name_1 + "'");
+                    constructor = createCustomErrorClass(name_1);
+                }
+                error = Object.create(constructor.prototype);
+                try {
+                    for (var prop in object) {
+                        if (object.hasOwnProperty(prop)) {
+                            error[prop] = object[prop];
+                        }
+                    }
+                }
+                catch (e) {
+                    // sometimes setting a property can fail (e.g. .name)
+                }
+            }
+        }
+        else {
+            error = new Error(object.message);
+        }
+        if (!error.stack && Error.captureStackTrace) {
+            Error.captureStackTrace(error, deserializeError);
+        }
+        return error;
     }
-
-    if (!error.stack && Error.captureStackTrace) {
-      Error.captureStackTrace(error, deserializeError);
+    return new Error(String(object));
+};
+// inspired from https://github.com/sindresorhus/serialize-error/blob/master/index.js
+var serializeError = function (value) {
+    if (!value)
+        return value;
+    if (typeof value === "object") {
+        return destroyCircular(value, []);
     }
-
-    return error;
-  }
-
-  return new Error(String(object));
-}; // inspired from https://github.com/sindresorhus/serialize-error/blob/master/index.js
-
-
-exports.deserializeError = deserializeError;
-
-const serializeError = value => {
-  if (!value) return value;
-
-  if (typeof value === "object") {
-    return destroyCircular(value, []);
-  }
-
-  if (typeof value === "function") {
-    return `[Function: ${value.name || "anonymous"}]`;
-  }
-
-  return value;
-}; // https://www.npmjs.com/package/destroy-circular
-
-
-exports.serializeError = serializeError;
-
-function destroyCircular(from, seen) {
-  const to = {};
-  seen.push(from);
-
-  for (const key of Object.keys(from)) {
-    const value = from[key];
-
     if (typeof value === "function") {
-      continue;
+        return "[Function: " + (value.name || "anonymous") + "]";
     }
-
-    if (!value || typeof value !== "object") {
-      to[key] = value;
-      continue;
+    return value;
+};
+// https://www.npmjs.com/package/destroy-circular
+function destroyCircular(from, seen) {
+    var to = {};
+    seen.push(from);
+    for (var _i = 0, _a = Object.keys(from); _i < _a.length; _i++) {
+        var key = _a[_i];
+        var value = from[key];
+        if (typeof value === "function") {
+            continue;
+        }
+        if (!value || typeof value !== "object") {
+            to[key] = value;
+            continue;
+        }
+        if (seen.indexOf(from[key]) === -1) {
+            to[key] = destroyCircular(from[key], seen.slice(0));
+            continue;
+        }
+        to[key] = "[Circular]";
     }
-
-    if (seen.indexOf(from[key]) === -1) {
-      to[key] = destroyCircular(from[key], seen.slice(0));
-      continue;
+    if (typeof from.name === "string") {
+        to.name = from.name;
     }
-
-    to[key] = "[Circular]";
-  }
-
-  if (typeof from.name === "string") {
-    to.name = from.name;
-  }
-
-  if (typeof from.message === "string") {
-    to.message = from.message;
-  }
-
-  if (typeof from.stack === "string") {
-    to.stack = from.stack;
-  }
-
-  return to;
+    if (typeof from.message === "string") {
+        to.message = from.message;
+    }
+    if (typeof from.stack === "string") {
+        to.stack = from.stack;
+    }
+    return to;
 }
 
-});
-
-unwrapExports(helpers);
-var helpers_1 = helpers.serializeError;
-var helpers_2 = helpers.deserializeError;
-var helpers_3 = helpers.createCustomErrorClass;
-var helpers_4 = helpers.addCustomErrorDeserializer;
-
-var lib = createCommonjsModule(function (module, exports) {
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.TransportError = TransportError;
-exports.getAltStatusMessage = getAltStatusMessage;
-exports.TransportStatusError = TransportStatusError;
-Object.defineProperty(exports, "serializeError", {
-  enumerable: true,
-  get: function () {
-    return helpers.serializeError;
-  }
-});
-Object.defineProperty(exports, "deserializeError", {
-  enumerable: true,
-  get: function () {
-    return helpers.deserializeError;
-  }
-});
-Object.defineProperty(exports, "createCustomErrorClass", {
-  enumerable: true,
-  get: function () {
-    return helpers.createCustomErrorClass;
-  }
-});
-Object.defineProperty(exports, "addCustomErrorDeserializer", {
-  enumerable: true,
-  get: function () {
-    return helpers.addCustomErrorDeserializer;
-  }
-});
-exports.StatusCodes = exports.DBNotReset = exports.DBWrongPassword = exports.NoDBPathGiven = exports.FirmwareOrAppUpdateRequired = exports.LedgerAPI5xx = exports.LedgerAPI4xx = exports.GenuineCheckFailed = exports.PairingFailed = exports.SyncError = exports.FeeTooHigh = exports.FeeRequired = exports.FeeNotLoaded = exports.CantScanQRCode = exports.ETHAddressNonEIP = exports.WrongAppForCurrency = exports.WrongDeviceForAccount = exports.WebsocketConnectionFailed = exports.WebsocketConnectionError = exports.DeviceShouldStayInApp = exports.TransportWebUSBGestureRequired = exports.TransportRaceCondition = exports.TransportInterfaceNotAvailable = exports.TransportOpenUserCancelled = exports.UserRefusedOnDevice = exports.UserRefusedAllowManager = exports.UserRefusedFirmwareUpdate = exports.UserRefusedAddress = exports.UserRefusedDeviceNameChange = exports.UpdateYourApp = exports.UpdateIncorrectSig = exports.UpdateIncorrectHash = exports.UpdateFetchFileFail = exports.UnavailableTezosOriginatedAccountSend = exports.UnavailableTezosOriginatedAccountReceive = exports.RecipientRequired = exports.MCUNotGenuineToDashboard = exports.UnexpectedBootloader = exports.TimeoutTagged = exports.RecommendUndelegation = exports.RecommendSubAccountsToEmpty = exports.PasswordIncorrectError = exports.PasswordsDontMatchError = exports.GasLessThanEstimate = exports.NotSupportedLegacyAddress = exports.NotEnoughGas = exports.NoAccessToCamera = exports.NotEnoughBalanceBecauseDestinationNotCreated = exports.NotEnoughSpendableBalance = exports.NotEnoughBalanceInParentAccount = exports.NotEnoughBalanceToDelegate = exports.NotEnoughBalance = exports.NoAddressesFound = exports.NetworkDown = exports.ManagerUninstallBTCDep = exports.ManagerNotEnoughSpaceError = exports.ManagerFirmwareNotEnoughSpaceError = exports.ManagerDeviceLockedError = exports.ManagerAppDepUninstallRequired = exports.ManagerAppDepInstallRequired = exports.ManagerAppRelyOnBTCError = exports.ManagerAppAlreadyInstalledError = exports.LedgerAPINotAvailable = exports.LedgerAPIErrorWithMessage = exports.LedgerAPIError = exports.UnknownMCU = exports.LatestMCUInstalledError = exports.InvalidAddressBecauseDestinationIsAlsoSource = exports.InvalidAddress = exports.InvalidXRPTag = exports.HardResetFail = exports.FirmwareNotRecognized = exports.FeeEstimationFailed = exports.EthAppPleaseEnableContractData = exports.EnpointConfigError = exports.DisconnectedDeviceDuringOperation = exports.DisconnectedDevice = exports.DeviceSocketNoBulkStatus = exports.DeviceSocketFail = exports.DeviceNameInvalid = exports.DeviceHalted = exports.DeviceInOSUExpected = exports.DeviceOnDashboardUnexpected = exports.DeviceOnDashboardExpected = exports.DeviceNotGenuineError = exports.DeviceGenuineSocketEarlyClose = exports.DeviceAppVerifyNotSupported = exports.CurrencyNotSupported = exports.CashAddrNotSupported = exports.CantOpenDevice = exports.BtcUnmatchedApp = exports.BluetoothRequired = exports.AmountRequired = exports.AccountNotSupported = exports.AccountNameRequiredError = void 0;
-
-
-
-const AccountNameRequiredError = (0, helpers.createCustomErrorClass)("AccountNameRequired");
-exports.AccountNameRequiredError = AccountNameRequiredError;
-const AccountNotSupported = (0, helpers.createCustomErrorClass)("AccountNotSupported");
-exports.AccountNotSupported = AccountNotSupported;
-const AmountRequired = (0, helpers.createCustomErrorClass)("AmountRequired");
-exports.AmountRequired = AmountRequired;
-const BluetoothRequired = (0, helpers.createCustomErrorClass)("BluetoothRequired");
-exports.BluetoothRequired = BluetoothRequired;
-const BtcUnmatchedApp = (0, helpers.createCustomErrorClass)("BtcUnmatchedApp");
-exports.BtcUnmatchedApp = BtcUnmatchedApp;
-const CantOpenDevice = (0, helpers.createCustomErrorClass)("CantOpenDevice");
-exports.CantOpenDevice = CantOpenDevice;
-const CashAddrNotSupported = (0, helpers.createCustomErrorClass)("CashAddrNotSupported");
-exports.CashAddrNotSupported = CashAddrNotSupported;
-const CurrencyNotSupported = (0, helpers.createCustomErrorClass)("CurrencyNotSupported");
-exports.CurrencyNotSupported = CurrencyNotSupported;
-const DeviceAppVerifyNotSupported = (0, helpers.createCustomErrorClass)("DeviceAppVerifyNotSupported");
-exports.DeviceAppVerifyNotSupported = DeviceAppVerifyNotSupported;
-const DeviceGenuineSocketEarlyClose = (0, helpers.createCustomErrorClass)("DeviceGenuineSocketEarlyClose");
-exports.DeviceGenuineSocketEarlyClose = DeviceGenuineSocketEarlyClose;
-const DeviceNotGenuineError = (0, helpers.createCustomErrorClass)("DeviceNotGenuine");
-exports.DeviceNotGenuineError = DeviceNotGenuineError;
-const DeviceOnDashboardExpected = (0, helpers.createCustomErrorClass)("DeviceOnDashboardExpected");
-exports.DeviceOnDashboardExpected = DeviceOnDashboardExpected;
-const DeviceOnDashboardUnexpected = (0, helpers.createCustomErrorClass)("DeviceOnDashboardUnexpected");
-exports.DeviceOnDashboardUnexpected = DeviceOnDashboardUnexpected;
-const DeviceInOSUExpected = (0, helpers.createCustomErrorClass)("DeviceInOSUExpected");
-exports.DeviceInOSUExpected = DeviceInOSUExpected;
-const DeviceHalted = (0, helpers.createCustomErrorClass)("DeviceHalted");
-exports.DeviceHalted = DeviceHalted;
-const DeviceNameInvalid = (0, helpers.createCustomErrorClass)("DeviceNameInvalid");
-exports.DeviceNameInvalid = DeviceNameInvalid;
-const DeviceSocketFail = (0, helpers.createCustomErrorClass)("DeviceSocketFail");
-exports.DeviceSocketFail = DeviceSocketFail;
-const DeviceSocketNoBulkStatus = (0, helpers.createCustomErrorClass)("DeviceSocketNoBulkStatus");
-exports.DeviceSocketNoBulkStatus = DeviceSocketNoBulkStatus;
-const DisconnectedDevice = (0, helpers.createCustomErrorClass)("DisconnectedDevice");
-exports.DisconnectedDevice = DisconnectedDevice;
-const DisconnectedDeviceDuringOperation = (0, helpers.createCustomErrorClass)("DisconnectedDeviceDuringOperation");
-exports.DisconnectedDeviceDuringOperation = DisconnectedDeviceDuringOperation;
-const EnpointConfigError = (0, helpers.createCustomErrorClass)("EnpointConfig");
-exports.EnpointConfigError = EnpointConfigError;
-const EthAppPleaseEnableContractData = (0, helpers.createCustomErrorClass)("EthAppPleaseEnableContractData");
-exports.EthAppPleaseEnableContractData = EthAppPleaseEnableContractData;
-const FeeEstimationFailed = (0, helpers.createCustomErrorClass)("FeeEstimationFailed");
-exports.FeeEstimationFailed = FeeEstimationFailed;
-const FirmwareNotRecognized = (0, helpers.createCustomErrorClass)("FirmwareNotRecognized");
-exports.FirmwareNotRecognized = FirmwareNotRecognized;
-const HardResetFail = (0, helpers.createCustomErrorClass)("HardResetFail");
-exports.HardResetFail = HardResetFail;
-const InvalidXRPTag = (0, helpers.createCustomErrorClass)("InvalidXRPTag");
-exports.InvalidXRPTag = InvalidXRPTag;
-const InvalidAddress = (0, helpers.createCustomErrorClass)("InvalidAddress");
-exports.InvalidAddress = InvalidAddress;
-const InvalidAddressBecauseDestinationIsAlsoSource = (0, helpers.createCustomErrorClass)("InvalidAddressBecauseDestinationIsAlsoSource");
-exports.InvalidAddressBecauseDestinationIsAlsoSource = InvalidAddressBecauseDestinationIsAlsoSource;
-const LatestMCUInstalledError = (0, helpers.createCustomErrorClass)("LatestMCUInstalledError");
-exports.LatestMCUInstalledError = LatestMCUInstalledError;
-const UnknownMCU = (0, helpers.createCustomErrorClass)("UnknownMCU");
-exports.UnknownMCU = UnknownMCU;
-const LedgerAPIError = (0, helpers.createCustomErrorClass)("LedgerAPIError");
-exports.LedgerAPIError = LedgerAPIError;
-const LedgerAPIErrorWithMessage = (0, helpers.createCustomErrorClass)("LedgerAPIErrorWithMessage");
-exports.LedgerAPIErrorWithMessage = LedgerAPIErrorWithMessage;
-const LedgerAPINotAvailable = (0, helpers.createCustomErrorClass)("LedgerAPINotAvailable");
-exports.LedgerAPINotAvailable = LedgerAPINotAvailable;
-const ManagerAppAlreadyInstalledError = (0, helpers.createCustomErrorClass)("ManagerAppAlreadyInstalled");
-exports.ManagerAppAlreadyInstalledError = ManagerAppAlreadyInstalledError;
-const ManagerAppRelyOnBTCError = (0, helpers.createCustomErrorClass)("ManagerAppRelyOnBTC");
-exports.ManagerAppRelyOnBTCError = ManagerAppRelyOnBTCError;
-const ManagerAppDepInstallRequired = (0, helpers.createCustomErrorClass)("ManagerAppDepInstallRequired");
-exports.ManagerAppDepInstallRequired = ManagerAppDepInstallRequired;
-const ManagerAppDepUninstallRequired = (0, helpers.createCustomErrorClass)("ManagerAppDepUninstallRequired");
-exports.ManagerAppDepUninstallRequired = ManagerAppDepUninstallRequired;
-const ManagerDeviceLockedError = (0, helpers.createCustomErrorClass)("ManagerDeviceLocked");
-exports.ManagerDeviceLockedError = ManagerDeviceLockedError;
-const ManagerFirmwareNotEnoughSpaceError = (0, helpers.createCustomErrorClass)("ManagerFirmwareNotEnoughSpace");
-exports.ManagerFirmwareNotEnoughSpaceError = ManagerFirmwareNotEnoughSpaceError;
-const ManagerNotEnoughSpaceError = (0, helpers.createCustomErrorClass)("ManagerNotEnoughSpace");
-exports.ManagerNotEnoughSpaceError = ManagerNotEnoughSpaceError;
-const ManagerUninstallBTCDep = (0, helpers.createCustomErrorClass)("ManagerUninstallBTCDep");
-exports.ManagerUninstallBTCDep = ManagerUninstallBTCDep;
-const NetworkDown = (0, helpers.createCustomErrorClass)("NetworkDown");
-exports.NetworkDown = NetworkDown;
-const NoAddressesFound = (0, helpers.createCustomErrorClass)("NoAddressesFound");
-exports.NoAddressesFound = NoAddressesFound;
-const NotEnoughBalance = (0, helpers.createCustomErrorClass)("NotEnoughBalance");
-exports.NotEnoughBalance = NotEnoughBalance;
-const NotEnoughBalanceToDelegate = (0, helpers.createCustomErrorClass)("NotEnoughBalanceToDelegate");
-exports.NotEnoughBalanceToDelegate = NotEnoughBalanceToDelegate;
-const NotEnoughBalanceInParentAccount = (0, helpers.createCustomErrorClass)("NotEnoughBalanceInParentAccount");
-exports.NotEnoughBalanceInParentAccount = NotEnoughBalanceInParentAccount;
-const NotEnoughSpendableBalance = (0, helpers.createCustomErrorClass)("NotEnoughSpendableBalance");
-exports.NotEnoughSpendableBalance = NotEnoughSpendableBalance;
-const NotEnoughBalanceBecauseDestinationNotCreated = (0, helpers.createCustomErrorClass)("NotEnoughBalanceBecauseDestinationNotCreated");
-exports.NotEnoughBalanceBecauseDestinationNotCreated = NotEnoughBalanceBecauseDestinationNotCreated;
-const NoAccessToCamera = (0, helpers.createCustomErrorClass)("NoAccessToCamera");
-exports.NoAccessToCamera = NoAccessToCamera;
-const NotEnoughGas = (0, helpers.createCustomErrorClass)("NotEnoughGas");
-exports.NotEnoughGas = NotEnoughGas;
-const NotSupportedLegacyAddress = (0, helpers.createCustomErrorClass)("NotSupportedLegacyAddress");
-exports.NotSupportedLegacyAddress = NotSupportedLegacyAddress;
-const GasLessThanEstimate = (0, helpers.createCustomErrorClass)("GasLessThanEstimate");
-exports.GasLessThanEstimate = GasLessThanEstimate;
-const PasswordsDontMatchError = (0, helpers.createCustomErrorClass)("PasswordsDontMatch");
-exports.PasswordsDontMatchError = PasswordsDontMatchError;
-const PasswordIncorrectError = (0, helpers.createCustomErrorClass)("PasswordIncorrect");
-exports.PasswordIncorrectError = PasswordIncorrectError;
-const RecommendSubAccountsToEmpty = (0, helpers.createCustomErrorClass)("RecommendSubAccountsToEmpty");
-exports.RecommendSubAccountsToEmpty = RecommendSubAccountsToEmpty;
-const RecommendUndelegation = (0, helpers.createCustomErrorClass)("RecommendUndelegation");
-exports.RecommendUndelegation = RecommendUndelegation;
-const TimeoutTagged = (0, helpers.createCustomErrorClass)("TimeoutTagged");
-exports.TimeoutTagged = TimeoutTagged;
-const UnexpectedBootloader = (0, helpers.createCustomErrorClass)("UnexpectedBootloader");
-exports.UnexpectedBootloader = UnexpectedBootloader;
-const MCUNotGenuineToDashboard = (0, helpers.createCustomErrorClass)("MCUNotGenuineToDashboard");
-exports.MCUNotGenuineToDashboard = MCUNotGenuineToDashboard;
-const RecipientRequired = (0, helpers.createCustomErrorClass)("RecipientRequired");
-exports.RecipientRequired = RecipientRequired;
-const UnavailableTezosOriginatedAccountReceive = (0, helpers.createCustomErrorClass)("UnavailableTezosOriginatedAccountReceive");
-exports.UnavailableTezosOriginatedAccountReceive = UnavailableTezosOriginatedAccountReceive;
-const UnavailableTezosOriginatedAccountSend = (0, helpers.createCustomErrorClass)("UnavailableTezosOriginatedAccountSend");
-exports.UnavailableTezosOriginatedAccountSend = UnavailableTezosOriginatedAccountSend;
-const UpdateFetchFileFail = (0, helpers.createCustomErrorClass)("UpdateFetchFileFail");
-exports.UpdateFetchFileFail = UpdateFetchFileFail;
-const UpdateIncorrectHash = (0, helpers.createCustomErrorClass)("UpdateIncorrectHash");
-exports.UpdateIncorrectHash = UpdateIncorrectHash;
-const UpdateIncorrectSig = (0, helpers.createCustomErrorClass)("UpdateIncorrectSig");
-exports.UpdateIncorrectSig = UpdateIncorrectSig;
-const UpdateYourApp = (0, helpers.createCustomErrorClass)("UpdateYourApp");
-exports.UpdateYourApp = UpdateYourApp;
-const UserRefusedDeviceNameChange = (0, helpers.createCustomErrorClass)("UserRefusedDeviceNameChange");
-exports.UserRefusedDeviceNameChange = UserRefusedDeviceNameChange;
-const UserRefusedAddress = (0, helpers.createCustomErrorClass)("UserRefusedAddress");
-exports.UserRefusedAddress = UserRefusedAddress;
-const UserRefusedFirmwareUpdate = (0, helpers.createCustomErrorClass)("UserRefusedFirmwareUpdate");
-exports.UserRefusedFirmwareUpdate = UserRefusedFirmwareUpdate;
-const UserRefusedAllowManager = (0, helpers.createCustomErrorClass)("UserRefusedAllowManager");
-exports.UserRefusedAllowManager = UserRefusedAllowManager;
-const UserRefusedOnDevice = (0, helpers.createCustomErrorClass)("UserRefusedOnDevice"); // TODO rename because it's just for transaction refusal
-
-exports.UserRefusedOnDevice = UserRefusedOnDevice;
-const TransportOpenUserCancelled = (0, helpers.createCustomErrorClass)("TransportOpenUserCancelled");
-exports.TransportOpenUserCancelled = TransportOpenUserCancelled;
-const TransportInterfaceNotAvailable = (0, helpers.createCustomErrorClass)("TransportInterfaceNotAvailable");
-exports.TransportInterfaceNotAvailable = TransportInterfaceNotAvailable;
-const TransportRaceCondition = (0, helpers.createCustomErrorClass)("TransportRaceCondition");
-exports.TransportRaceCondition = TransportRaceCondition;
-const TransportWebUSBGestureRequired = (0, helpers.createCustomErrorClass)("TransportWebUSBGestureRequired");
-exports.TransportWebUSBGestureRequired = TransportWebUSBGestureRequired;
-const DeviceShouldStayInApp = (0, helpers.createCustomErrorClass)("DeviceShouldStayInApp");
-exports.DeviceShouldStayInApp = DeviceShouldStayInApp;
-const WebsocketConnectionError = (0, helpers.createCustomErrorClass)("WebsocketConnectionError");
-exports.WebsocketConnectionError = WebsocketConnectionError;
-const WebsocketConnectionFailed = (0, helpers.createCustomErrorClass)("WebsocketConnectionFailed");
-exports.WebsocketConnectionFailed = WebsocketConnectionFailed;
-const WrongDeviceForAccount = (0, helpers.createCustomErrorClass)("WrongDeviceForAccount");
-exports.WrongDeviceForAccount = WrongDeviceForAccount;
-const WrongAppForCurrency = (0, helpers.createCustomErrorClass)("WrongAppForCurrency");
-exports.WrongAppForCurrency = WrongAppForCurrency;
-const ETHAddressNonEIP = (0, helpers.createCustomErrorClass)("ETHAddressNonEIP");
-exports.ETHAddressNonEIP = ETHAddressNonEIP;
-const CantScanQRCode = (0, helpers.createCustomErrorClass)("CantScanQRCode");
-exports.CantScanQRCode = CantScanQRCode;
-const FeeNotLoaded = (0, helpers.createCustomErrorClass)("FeeNotLoaded");
-exports.FeeNotLoaded = FeeNotLoaded;
-const FeeRequired = (0, helpers.createCustomErrorClass)("FeeRequired");
-exports.FeeRequired = FeeRequired;
-const FeeTooHigh = (0, helpers.createCustomErrorClass)("FeeTooHigh");
-exports.FeeTooHigh = FeeTooHigh;
-const SyncError = (0, helpers.createCustomErrorClass)("SyncError");
-exports.SyncError = SyncError;
-const PairingFailed = (0, helpers.createCustomErrorClass)("PairingFailed");
-exports.PairingFailed = PairingFailed;
-const GenuineCheckFailed = (0, helpers.createCustomErrorClass)("GenuineCheckFailed");
-exports.GenuineCheckFailed = GenuineCheckFailed;
-const LedgerAPI4xx = (0, helpers.createCustomErrorClass)("LedgerAPI4xx");
-exports.LedgerAPI4xx = LedgerAPI4xx;
-const LedgerAPI5xx = (0, helpers.createCustomErrorClass)("LedgerAPI5xx");
-exports.LedgerAPI5xx = LedgerAPI5xx;
-const FirmwareOrAppUpdateRequired = (0, helpers.createCustomErrorClass)("FirmwareOrAppUpdateRequired"); // db stuff, no need to translate
-
-exports.FirmwareOrAppUpdateRequired = FirmwareOrAppUpdateRequired;
-const NoDBPathGiven = (0, helpers.createCustomErrorClass)("NoDBPathGiven");
-exports.NoDBPathGiven = NoDBPathGiven;
-const DBWrongPassword = (0, helpers.createCustomErrorClass)("DBWrongPassword");
-exports.DBWrongPassword = DBWrongPassword;
-const DBNotReset = (0, helpers.createCustomErrorClass)("DBNotReset");
+var AccountNameRequiredError = createCustomErrorClass("AccountNameRequired");
+var AccountNotSupported = createCustomErrorClass("AccountNotSupported");
+var AmountRequired = createCustomErrorClass("AmountRequired");
+var BluetoothRequired = createCustomErrorClass("BluetoothRequired");
+var BtcUnmatchedApp = createCustomErrorClass("BtcUnmatchedApp");
+var CantOpenDevice = createCustomErrorClass("CantOpenDevice");
+var CashAddrNotSupported = createCustomErrorClass("CashAddrNotSupported");
+var CurrencyNotSupported = createCustomErrorClass("CurrencyNotSupported");
+var DeviceAppVerifyNotSupported = createCustomErrorClass("DeviceAppVerifyNotSupported");
+var DeviceGenuineSocketEarlyClose = createCustomErrorClass("DeviceGenuineSocketEarlyClose");
+var DeviceNotGenuineError = createCustomErrorClass("DeviceNotGenuine");
+var DeviceOnDashboardExpected = createCustomErrorClass("DeviceOnDashboardExpected");
+var DeviceOnDashboardUnexpected = createCustomErrorClass("DeviceOnDashboardUnexpected");
+var DeviceInOSUExpected = createCustomErrorClass("DeviceInOSUExpected");
+var DeviceHalted = createCustomErrorClass("DeviceHalted");
+var DeviceNameInvalid = createCustomErrorClass("DeviceNameInvalid");
+var DeviceSocketFail = createCustomErrorClass("DeviceSocketFail");
+var DeviceSocketNoBulkStatus = createCustomErrorClass("DeviceSocketNoBulkStatus");
+var DisconnectedDevice = createCustomErrorClass("DisconnectedDevice");
+var DisconnectedDeviceDuringOperation = createCustomErrorClass("DisconnectedDeviceDuringOperation");
+var EnpointConfigError = createCustomErrorClass("EnpointConfig");
+var EthAppPleaseEnableContractData = createCustomErrorClass("EthAppPleaseEnableContractData");
+var FeeEstimationFailed = createCustomErrorClass("FeeEstimationFailed");
+var FirmwareNotRecognized = createCustomErrorClass("FirmwareNotRecognized");
+var HardResetFail = createCustomErrorClass("HardResetFail");
+var InvalidXRPTag = createCustomErrorClass("InvalidXRPTag");
+var InvalidAddress = createCustomErrorClass("InvalidAddress");
+var InvalidAddressBecauseDestinationIsAlsoSource = createCustomErrorClass("InvalidAddressBecauseDestinationIsAlsoSource");
+var LatestMCUInstalledError = createCustomErrorClass("LatestMCUInstalledError");
+var UnknownMCU = createCustomErrorClass("UnknownMCU");
+var LedgerAPIError = createCustomErrorClass("LedgerAPIError");
+var LedgerAPIErrorWithMessage = createCustomErrorClass("LedgerAPIErrorWithMessage");
+var LedgerAPINotAvailable = createCustomErrorClass("LedgerAPINotAvailable");
+var ManagerAppAlreadyInstalledError = createCustomErrorClass("ManagerAppAlreadyInstalled");
+var ManagerAppRelyOnBTCError = createCustomErrorClass("ManagerAppRelyOnBTC");
+var ManagerAppDepInstallRequired = createCustomErrorClass("ManagerAppDepInstallRequired");
+var ManagerAppDepUninstallRequired = createCustomErrorClass("ManagerAppDepUninstallRequired");
+var ManagerDeviceLockedError = createCustomErrorClass("ManagerDeviceLocked");
+var ManagerFirmwareNotEnoughSpaceError = createCustomErrorClass("ManagerFirmwareNotEnoughSpace");
+var ManagerNotEnoughSpaceError = createCustomErrorClass("ManagerNotEnoughSpace");
+var ManagerUninstallBTCDep = createCustomErrorClass("ManagerUninstallBTCDep");
+var NetworkDown = createCustomErrorClass("NetworkDown");
+var NoAddressesFound = createCustomErrorClass("NoAddressesFound");
+var NotEnoughBalance = createCustomErrorClass("NotEnoughBalance");
+var NotEnoughBalanceToDelegate = createCustomErrorClass("NotEnoughBalanceToDelegate");
+var NotEnoughBalanceInParentAccount = createCustomErrorClass("NotEnoughBalanceInParentAccount");
+var NotEnoughSpendableBalance = createCustomErrorClass("NotEnoughSpendableBalance");
+var NotEnoughBalanceBecauseDestinationNotCreated = createCustomErrorClass("NotEnoughBalanceBecauseDestinationNotCreated");
+var NoAccessToCamera = createCustomErrorClass("NoAccessToCamera");
+var NotEnoughGas = createCustomErrorClass("NotEnoughGas");
+var NotSupportedLegacyAddress = createCustomErrorClass("NotSupportedLegacyAddress");
+var GasLessThanEstimate = createCustomErrorClass("GasLessThanEstimate");
+var PasswordsDontMatchError = createCustomErrorClass("PasswordsDontMatch");
+var PasswordIncorrectError = createCustomErrorClass("PasswordIncorrect");
+var RecommendSubAccountsToEmpty = createCustomErrorClass("RecommendSubAccountsToEmpty");
+var RecommendUndelegation = createCustomErrorClass("RecommendUndelegation");
+var TimeoutTagged = createCustomErrorClass("TimeoutTagged");
+var UnexpectedBootloader = createCustomErrorClass("UnexpectedBootloader");
+var MCUNotGenuineToDashboard = createCustomErrorClass("MCUNotGenuineToDashboard");
+var RecipientRequired = createCustomErrorClass("RecipientRequired");
+var UnavailableTezosOriginatedAccountReceive = createCustomErrorClass("UnavailableTezosOriginatedAccountReceive");
+var UnavailableTezosOriginatedAccountSend = createCustomErrorClass("UnavailableTezosOriginatedAccountSend");
+var UpdateFetchFileFail = createCustomErrorClass("UpdateFetchFileFail");
+var UpdateIncorrectHash = createCustomErrorClass("UpdateIncorrectHash");
+var UpdateIncorrectSig = createCustomErrorClass("UpdateIncorrectSig");
+var UpdateYourApp = createCustomErrorClass("UpdateYourApp");
+var UserRefusedDeviceNameChange = createCustomErrorClass("UserRefusedDeviceNameChange");
+var UserRefusedAddress = createCustomErrorClass("UserRefusedAddress");
+var UserRefusedFirmwareUpdate = createCustomErrorClass("UserRefusedFirmwareUpdate");
+var UserRefusedAllowManager = createCustomErrorClass("UserRefusedAllowManager");
+var UserRefusedOnDevice = createCustomErrorClass("UserRefusedOnDevice"); // TODO rename because it's just for transaction refusal
+var TransportOpenUserCancelled = createCustomErrorClass("TransportOpenUserCancelled");
+var TransportInterfaceNotAvailable = createCustomErrorClass("TransportInterfaceNotAvailable");
+var TransportRaceCondition = createCustomErrorClass("TransportRaceCondition");
+var TransportWebUSBGestureRequired = createCustomErrorClass("TransportWebUSBGestureRequired");
+var DeviceShouldStayInApp = createCustomErrorClass("DeviceShouldStayInApp");
+var WebsocketConnectionError = createCustomErrorClass("WebsocketConnectionError");
+var WebsocketConnectionFailed = createCustomErrorClass("WebsocketConnectionFailed");
+var WrongDeviceForAccount = createCustomErrorClass("WrongDeviceForAccount");
+var WrongAppForCurrency = createCustomErrorClass("WrongAppForCurrency");
+var ETHAddressNonEIP = createCustomErrorClass("ETHAddressNonEIP");
+var CantScanQRCode = createCustomErrorClass("CantScanQRCode");
+var FeeNotLoaded = createCustomErrorClass("FeeNotLoaded");
+var FeeRequired = createCustomErrorClass("FeeRequired");
+var FeeTooHigh = createCustomErrorClass("FeeTooHigh");
+var SyncError = createCustomErrorClass("SyncError");
+var PairingFailed = createCustomErrorClass("PairingFailed");
+var GenuineCheckFailed = createCustomErrorClass("GenuineCheckFailed");
+var LedgerAPI4xx = createCustomErrorClass("LedgerAPI4xx");
+var LedgerAPI5xx = createCustomErrorClass("LedgerAPI5xx");
+var FirmwareOrAppUpdateRequired = createCustomErrorClass("FirmwareOrAppUpdateRequired");
+// db stuff, no need to translate
+var NoDBPathGiven = createCustomErrorClass("NoDBPathGiven");
+var DBWrongPassword = createCustomErrorClass("DBWrongPassword");
+var DBNotReset = createCustomErrorClass("DBNotReset");
 /**
  * TransportError is used for any generic transport errors.
  * e.g. Error thrown when data received by exchanges are incorrect or if exchanged failed to communicate with the device for various reason.
  */
-
-exports.DBNotReset = DBNotReset;
-
 function TransportError(message, id) {
-  this.name = "TransportError";
-  this.message = message;
-  this.stack = new Error().stack;
-  this.id = id;
-} //$FlowFixMe
-
-
+    this.name = "TransportError";
+    this.message = message;
+    this.stack = new Error().stack;
+    this.id = id;
+}
 TransportError.prototype = new Error();
-(0, helpers.addCustomErrorDeserializer)("TransportError", e => new TransportError(e.message, e.id));
-const StatusCodes = {
-  PIN_REMAINING_ATTEMPTS: 0x63c0,
-  INCORRECT_LENGTH: 0x6700,
-  COMMAND_INCOMPATIBLE_FILE_STRUCTURE: 0x6981,
-  SECURITY_STATUS_NOT_SATISFIED: 0x6982,
-  CONDITIONS_OF_USE_NOT_SATISFIED: 0x6985,
-  INCORRECT_DATA: 0x6a80,
-  NOT_ENOUGH_MEMORY_SPACE: 0x6a84,
-  REFERENCED_DATA_NOT_FOUND: 0x6a88,
-  FILE_ALREADY_EXISTS: 0x6a89,
-  INCORRECT_P1_P2: 0x6b00,
-  INS_NOT_SUPPORTED: 0x6d00,
-  CLA_NOT_SUPPORTED: 0x6e00,
-  TECHNICAL_PROBLEM: 0x6f00,
-  OK: 0x9000,
-  MEMORY_PROBLEM: 0x9240,
-  NO_EF_SELECTED: 0x9400,
-  INVALID_OFFSET: 0x9402,
-  FILE_NOT_FOUND: 0x9404,
-  INCONSISTENT_FILE: 0x9408,
-  ALGORITHM_NOT_SUPPORTED: 0x9484,
-  INVALID_KCV: 0x9485,
-  CODE_NOT_INITIALIZED: 0x9802,
-  ACCESS_CONDITION_NOT_FULFILLED: 0x9804,
-  CONTRADICTION_SECRET_CODE_STATUS: 0x9808,
-  CONTRADICTION_INVALIDATION: 0x9810,
-  CODE_BLOCKED: 0x9840,
-  MAX_VALUE_REACHED: 0x9850,
-  GP_AUTH_FAILED: 0x6300,
-  LICENSING: 0x6f42,
-  HALTED: 0x6faa
+addCustomErrorDeserializer("TransportError", function (e) { return new TransportError(e.message, e.id); });
+var StatusCodes = {
+    PIN_REMAINING_ATTEMPTS: 0x63c0,
+    INCORRECT_LENGTH: 0x6700,
+    MISSING_CRITICAL_PARAMETER: 0x6800,
+    COMMAND_INCOMPATIBLE_FILE_STRUCTURE: 0x6981,
+    SECURITY_STATUS_NOT_SATISFIED: 0x6982,
+    CONDITIONS_OF_USE_NOT_SATISFIED: 0x6985,
+    INCORRECT_DATA: 0x6a80,
+    NOT_ENOUGH_MEMORY_SPACE: 0x6a84,
+    REFERENCED_DATA_NOT_FOUND: 0x6a88,
+    FILE_ALREADY_EXISTS: 0x6a89,
+    INCORRECT_P1_P2: 0x6b00,
+    INS_NOT_SUPPORTED: 0x6d00,
+    CLA_NOT_SUPPORTED: 0x6e00,
+    TECHNICAL_PROBLEM: 0x6f00,
+    OK: 0x9000,
+    MEMORY_PROBLEM: 0x9240,
+    NO_EF_SELECTED: 0x9400,
+    INVALID_OFFSET: 0x9402,
+    FILE_NOT_FOUND: 0x9404,
+    INCONSISTENT_FILE: 0x9408,
+    ALGORITHM_NOT_SUPPORTED: 0x9484,
+    INVALID_KCV: 0x9485,
+    CODE_NOT_INITIALIZED: 0x9802,
+    ACCESS_CONDITION_NOT_FULFILLED: 0x9804,
+    CONTRADICTION_SECRET_CODE_STATUS: 0x9808,
+    CONTRADICTION_INVALIDATION: 0x9810,
+    CODE_BLOCKED: 0x9840,
+    MAX_VALUE_REACHED: 0x9850,
+    GP_AUTH_FAILED: 0x6300,
+    LICENSING: 0x6f42,
+    HALTED: 0x6faa,
 };
-exports.StatusCodes = StatusCodes;
-
 function getAltStatusMessage(code) {
-  switch (code) {
-    // improve text of most common errors
-    case 0x6700:
-      return "Incorrect length";
-
-    case 0x6982:
-      return "Security not satisfied (dongle locked or have invalid access rights)";
-
-    case 0x6985:
-      return "Condition of use not satisfied (denied by the user?)";
-
-    case 0x6a80:
-      return "Invalid data received";
-
-    case 0x6b00:
-      return "Invalid parameter received";
-  }
-
-  if (0x6f00 <= code && code <= 0x6fff) {
-    return "Internal error, please report";
-  }
+    switch (code) {
+        // improve text of most common errors
+        case 0x6700:
+            return "Incorrect length";
+        case 0x6800:
+            return "Missing critical parameter";
+        case 0x6982:
+            return "Security not satisfied (dongle locked or have invalid access rights)";
+        case 0x6985:
+            return "Condition of use not satisfied (denied by the user?)";
+        case 0x6a80:
+            return "Invalid data received";
+        case 0x6b00:
+            return "Invalid parameter received";
+    }
+    if (0x6f00 <= code && code <= 0x6fff) {
+        return "Internal error, please report";
+    }
 }
 /**
  * Error thrown when a device returned a non success status.
  * the error.statusCode is one of the `StatusCodes` exported by this library.
  */
-
-
 function TransportStatusError(statusCode) {
-  this.name = "TransportStatusError";
-  const statusText = Object.keys(StatusCodes).find(k => StatusCodes[k] === statusCode) || "UNKNOWN_ERROR";
-  const smsg = getAltStatusMessage(statusCode) || statusText;
-  const statusCodeStr = statusCode.toString(16);
-  this.message = `Ledger device: ${smsg} (0x${statusCodeStr})`;
-  this.stack = new Error().stack;
-  this.statusCode = statusCode;
-  this.statusText = statusText;
-} //$FlowFixMe
-
-
+    this.name = "TransportStatusError";
+    var statusText = Object.keys(StatusCodes).find(function (k) { return StatusCodes[k] === statusCode; }) ||
+        "UNKNOWN_ERROR";
+    var smsg = getAltStatusMessage(statusCode) || statusText;
+    var statusCodeStr = statusCode.toString(16);
+    this.message = "Ledger device: " + smsg + " (0x" + statusCodeStr + ")";
+    this.stack = new Error().stack;
+    this.statusCode = statusCode;
+    this.statusText = statusText;
+}
 TransportStatusError.prototype = new Error();
-(0, helpers.addCustomErrorDeserializer)("TransportStatusError", e => new TransportStatusError(e.statusCode));
+addCustomErrorDeserializer("TransportStatusError", function (e) { return new TransportStatusError(e.statusCode); });
 
+exports.AccountNameRequiredError = AccountNameRequiredError;
+exports.AccountNotSupported = AccountNotSupported;
+exports.AmountRequired = AmountRequired;
+exports.BluetoothRequired = BluetoothRequired;
+exports.BtcUnmatchedApp = BtcUnmatchedApp;
+exports.CantOpenDevice = CantOpenDevice;
+exports.CantScanQRCode = CantScanQRCode;
+exports.CashAddrNotSupported = CashAddrNotSupported;
+exports.CurrencyNotSupported = CurrencyNotSupported;
+exports.DBNotReset = DBNotReset;
+exports.DBWrongPassword = DBWrongPassword;
+exports.DeviceAppVerifyNotSupported = DeviceAppVerifyNotSupported;
+exports.DeviceGenuineSocketEarlyClose = DeviceGenuineSocketEarlyClose;
+exports.DeviceHalted = DeviceHalted;
+exports.DeviceInOSUExpected = DeviceInOSUExpected;
+exports.DeviceNameInvalid = DeviceNameInvalid;
+exports.DeviceNotGenuineError = DeviceNotGenuineError;
+exports.DeviceOnDashboardExpected = DeviceOnDashboardExpected;
+exports.DeviceOnDashboardUnexpected = DeviceOnDashboardUnexpected;
+exports.DeviceShouldStayInApp = DeviceShouldStayInApp;
+exports.DeviceSocketFail = DeviceSocketFail;
+exports.DeviceSocketNoBulkStatus = DeviceSocketNoBulkStatus;
+exports.DisconnectedDevice = DisconnectedDevice;
+exports.DisconnectedDeviceDuringOperation = DisconnectedDeviceDuringOperation;
+exports.ETHAddressNonEIP = ETHAddressNonEIP;
+exports.EnpointConfigError = EnpointConfigError;
+exports.EthAppPleaseEnableContractData = EthAppPleaseEnableContractData;
+exports.FeeEstimationFailed = FeeEstimationFailed;
+exports.FeeNotLoaded = FeeNotLoaded;
+exports.FeeRequired = FeeRequired;
+exports.FeeTooHigh = FeeTooHigh;
+exports.FirmwareNotRecognized = FirmwareNotRecognized;
+exports.FirmwareOrAppUpdateRequired = FirmwareOrAppUpdateRequired;
+exports.GasLessThanEstimate = GasLessThanEstimate;
+exports.GenuineCheckFailed = GenuineCheckFailed;
+exports.HardResetFail = HardResetFail;
+exports.InvalidAddress = InvalidAddress;
+exports.InvalidAddressBecauseDestinationIsAlsoSource = InvalidAddressBecauseDestinationIsAlsoSource;
+exports.InvalidXRPTag = InvalidXRPTag;
+exports.LatestMCUInstalledError = LatestMCUInstalledError;
+exports.LedgerAPI4xx = LedgerAPI4xx;
+exports.LedgerAPI5xx = LedgerAPI5xx;
+exports.LedgerAPIError = LedgerAPIError;
+exports.LedgerAPIErrorWithMessage = LedgerAPIErrorWithMessage;
+exports.LedgerAPINotAvailable = LedgerAPINotAvailable;
+exports.MCUNotGenuineToDashboard = MCUNotGenuineToDashboard;
+exports.ManagerAppAlreadyInstalledError = ManagerAppAlreadyInstalledError;
+exports.ManagerAppDepInstallRequired = ManagerAppDepInstallRequired;
+exports.ManagerAppDepUninstallRequired = ManagerAppDepUninstallRequired;
+exports.ManagerAppRelyOnBTCError = ManagerAppRelyOnBTCError;
+exports.ManagerDeviceLockedError = ManagerDeviceLockedError;
+exports.ManagerFirmwareNotEnoughSpaceError = ManagerFirmwareNotEnoughSpaceError;
+exports.ManagerNotEnoughSpaceError = ManagerNotEnoughSpaceError;
+exports.ManagerUninstallBTCDep = ManagerUninstallBTCDep;
+exports.NetworkDown = NetworkDown;
+exports.NoAccessToCamera = NoAccessToCamera;
+exports.NoAddressesFound = NoAddressesFound;
+exports.NoDBPathGiven = NoDBPathGiven;
+exports.NotEnoughBalance = NotEnoughBalance;
+exports.NotEnoughBalanceBecauseDestinationNotCreated = NotEnoughBalanceBecauseDestinationNotCreated;
+exports.NotEnoughBalanceInParentAccount = NotEnoughBalanceInParentAccount;
+exports.NotEnoughBalanceToDelegate = NotEnoughBalanceToDelegate;
+exports.NotEnoughGas = NotEnoughGas;
+exports.NotEnoughSpendableBalance = NotEnoughSpendableBalance;
+exports.NotSupportedLegacyAddress = NotSupportedLegacyAddress;
+exports.PairingFailed = PairingFailed;
+exports.PasswordIncorrectError = PasswordIncorrectError;
+exports.PasswordsDontMatchError = PasswordsDontMatchError;
+exports.RecipientRequired = RecipientRequired;
+exports.RecommendSubAccountsToEmpty = RecommendSubAccountsToEmpty;
+exports.RecommendUndelegation = RecommendUndelegation;
+exports.StatusCodes = StatusCodes;
+exports.SyncError = SyncError;
+exports.TimeoutTagged = TimeoutTagged;
+exports.TransportError = TransportError;
+exports.TransportInterfaceNotAvailable = TransportInterfaceNotAvailable;
+exports.TransportOpenUserCancelled = TransportOpenUserCancelled;
+exports.TransportRaceCondition = TransportRaceCondition;
+exports.TransportStatusError = TransportStatusError;
+exports.TransportWebUSBGestureRequired = TransportWebUSBGestureRequired;
+exports.UnavailableTezosOriginatedAccountReceive = UnavailableTezosOriginatedAccountReceive;
+exports.UnavailableTezosOriginatedAccountSend = UnavailableTezosOriginatedAccountSend;
+exports.UnexpectedBootloader = UnexpectedBootloader;
+exports.UnknownMCU = UnknownMCU;
+exports.UpdateFetchFileFail = UpdateFetchFileFail;
+exports.UpdateIncorrectHash = UpdateIncorrectHash;
+exports.UpdateIncorrectSig = UpdateIncorrectSig;
+exports.UpdateYourApp = UpdateYourApp;
+exports.UserRefusedAddress = UserRefusedAddress;
+exports.UserRefusedAllowManager = UserRefusedAllowManager;
+exports.UserRefusedDeviceNameChange = UserRefusedDeviceNameChange;
+exports.UserRefusedFirmwareUpdate = UserRefusedFirmwareUpdate;
+exports.UserRefusedOnDevice = UserRefusedOnDevice;
+exports.WebsocketConnectionError = WebsocketConnectionError;
+exports.WebsocketConnectionFailed = WebsocketConnectionFailed;
+exports.WrongAppForCurrency = WrongAppForCurrency;
+exports.WrongDeviceForAccount = WrongDeviceForAccount;
+exports.addCustomErrorDeserializer = addCustomErrorDeserializer;
+exports.createCustomErrorClass = createCustomErrorClass;
+exports.deserializeError = deserializeError;
+exports.getAltStatusMessage = getAltStatusMessage;
+exports.serializeError = serializeError;
 });
 
-unwrapExports(lib);
-var lib_1 = lib.TransportError;
-var lib_2 = lib.getAltStatusMessage;
-var lib_3 = lib.TransportStatusError;
-var lib_4 = lib.StatusCodes;
-var lib_5 = lib.DBNotReset;
-var lib_6 = lib.DBWrongPassword;
-var lib_7 = lib.NoDBPathGiven;
-var lib_8 = lib.FirmwareOrAppUpdateRequired;
-var lib_9 = lib.LedgerAPI5xx;
-var lib_10 = lib.LedgerAPI4xx;
-var lib_11 = lib.GenuineCheckFailed;
-var lib_12 = lib.PairingFailed;
-var lib_13 = lib.SyncError;
-var lib_14 = lib.FeeTooHigh;
-var lib_15 = lib.FeeRequired;
-var lib_16 = lib.FeeNotLoaded;
-var lib_17 = lib.CantScanQRCode;
-var lib_18 = lib.ETHAddressNonEIP;
-var lib_19 = lib.WrongAppForCurrency;
-var lib_20 = lib.WrongDeviceForAccount;
-var lib_21 = lib.WebsocketConnectionFailed;
-var lib_22 = lib.WebsocketConnectionError;
-var lib_23 = lib.DeviceShouldStayInApp;
-var lib_24 = lib.TransportWebUSBGestureRequired;
-var lib_25 = lib.TransportRaceCondition;
-var lib_26 = lib.TransportInterfaceNotAvailable;
-var lib_27 = lib.TransportOpenUserCancelled;
-var lib_28 = lib.UserRefusedOnDevice;
-var lib_29 = lib.UserRefusedAllowManager;
-var lib_30 = lib.UserRefusedFirmwareUpdate;
-var lib_31 = lib.UserRefusedAddress;
-var lib_32 = lib.UserRefusedDeviceNameChange;
-var lib_33 = lib.UpdateYourApp;
-var lib_34 = lib.UpdateIncorrectSig;
-var lib_35 = lib.UpdateIncorrectHash;
-var lib_36 = lib.UpdateFetchFileFail;
-var lib_37 = lib.UnavailableTezosOriginatedAccountSend;
-var lib_38 = lib.UnavailableTezosOriginatedAccountReceive;
-var lib_39 = lib.RecipientRequired;
-var lib_40 = lib.MCUNotGenuineToDashboard;
-var lib_41 = lib.UnexpectedBootloader;
-var lib_42 = lib.TimeoutTagged;
-var lib_43 = lib.RecommendUndelegation;
-var lib_44 = lib.RecommendSubAccountsToEmpty;
-var lib_45 = lib.PasswordIncorrectError;
-var lib_46 = lib.PasswordsDontMatchError;
-var lib_47 = lib.GasLessThanEstimate;
-var lib_48 = lib.NotSupportedLegacyAddress;
-var lib_49 = lib.NotEnoughGas;
-var lib_50 = lib.NoAccessToCamera;
-var lib_51 = lib.NotEnoughBalanceBecauseDestinationNotCreated;
-var lib_52 = lib.NotEnoughSpendableBalance;
-var lib_53 = lib.NotEnoughBalanceInParentAccount;
-var lib_54 = lib.NotEnoughBalanceToDelegate;
-var lib_55 = lib.NotEnoughBalance;
-var lib_56 = lib.NoAddressesFound;
-var lib_57 = lib.NetworkDown;
-var lib_58 = lib.ManagerUninstallBTCDep;
-var lib_59 = lib.ManagerNotEnoughSpaceError;
-var lib_60 = lib.ManagerFirmwareNotEnoughSpaceError;
-var lib_61 = lib.ManagerDeviceLockedError;
-var lib_62 = lib.ManagerAppDepUninstallRequired;
-var lib_63 = lib.ManagerAppDepInstallRequired;
-var lib_64 = lib.ManagerAppRelyOnBTCError;
-var lib_65 = lib.ManagerAppAlreadyInstalledError;
-var lib_66 = lib.LedgerAPINotAvailable;
-var lib_67 = lib.LedgerAPIErrorWithMessage;
-var lib_68 = lib.LedgerAPIError;
-var lib_69 = lib.UnknownMCU;
-var lib_70 = lib.LatestMCUInstalledError;
-var lib_71 = lib.InvalidAddressBecauseDestinationIsAlsoSource;
-var lib_72 = lib.InvalidAddress;
-var lib_73 = lib.InvalidXRPTag;
-var lib_74 = lib.HardResetFail;
-var lib_75 = lib.FirmwareNotRecognized;
-var lib_76 = lib.FeeEstimationFailed;
-var lib_77 = lib.EthAppPleaseEnableContractData;
-var lib_78 = lib.EnpointConfigError;
-var lib_79 = lib.DisconnectedDeviceDuringOperation;
-var lib_80 = lib.DisconnectedDevice;
-var lib_81 = lib.DeviceSocketNoBulkStatus;
-var lib_82 = lib.DeviceSocketFail;
-var lib_83 = lib.DeviceNameInvalid;
-var lib_84 = lib.DeviceHalted;
-var lib_85 = lib.DeviceInOSUExpected;
-var lib_86 = lib.DeviceOnDashboardUnexpected;
-var lib_87 = lib.DeviceOnDashboardExpected;
-var lib_88 = lib.DeviceNotGenuineError;
-var lib_89 = lib.DeviceGenuineSocketEarlyClose;
-var lib_90 = lib.DeviceAppVerifyNotSupported;
-var lib_91 = lib.CurrencyNotSupported;
-var lib_92 = lib.CashAddrNotSupported;
-var lib_93 = lib.CantOpenDevice;
-var lib_94 = lib.BtcUnmatchedApp;
-var lib_95 = lib.BluetoothRequired;
-var lib_96 = lib.AmountRequired;
-var lib_97 = lib.AccountNotSupported;
-var lib_98 = lib.AccountNameRequiredError;
+unwrapExports(index_cjs);
+var index_cjs_1 = index_cjs.AccountNameRequiredError;
+var index_cjs_2 = index_cjs.AccountNotSupported;
+var index_cjs_3 = index_cjs.AmountRequired;
+var index_cjs_4 = index_cjs.BluetoothRequired;
+var index_cjs_5 = index_cjs.BtcUnmatchedApp;
+var index_cjs_6 = index_cjs.CantOpenDevice;
+var index_cjs_7 = index_cjs.CantScanQRCode;
+var index_cjs_8 = index_cjs.CashAddrNotSupported;
+var index_cjs_9 = index_cjs.CurrencyNotSupported;
+var index_cjs_10 = index_cjs.DBNotReset;
+var index_cjs_11 = index_cjs.DBWrongPassword;
+var index_cjs_12 = index_cjs.DeviceAppVerifyNotSupported;
+var index_cjs_13 = index_cjs.DeviceGenuineSocketEarlyClose;
+var index_cjs_14 = index_cjs.DeviceHalted;
+var index_cjs_15 = index_cjs.DeviceInOSUExpected;
+var index_cjs_16 = index_cjs.DeviceNameInvalid;
+var index_cjs_17 = index_cjs.DeviceNotGenuineError;
+var index_cjs_18 = index_cjs.DeviceOnDashboardExpected;
+var index_cjs_19 = index_cjs.DeviceOnDashboardUnexpected;
+var index_cjs_20 = index_cjs.DeviceShouldStayInApp;
+var index_cjs_21 = index_cjs.DeviceSocketFail;
+var index_cjs_22 = index_cjs.DeviceSocketNoBulkStatus;
+var index_cjs_23 = index_cjs.DisconnectedDevice;
+var index_cjs_24 = index_cjs.DisconnectedDeviceDuringOperation;
+var index_cjs_25 = index_cjs.ETHAddressNonEIP;
+var index_cjs_26 = index_cjs.EnpointConfigError;
+var index_cjs_27 = index_cjs.EthAppPleaseEnableContractData;
+var index_cjs_28 = index_cjs.FeeEstimationFailed;
+var index_cjs_29 = index_cjs.FeeNotLoaded;
+var index_cjs_30 = index_cjs.FeeRequired;
+var index_cjs_31 = index_cjs.FeeTooHigh;
+var index_cjs_32 = index_cjs.FirmwareNotRecognized;
+var index_cjs_33 = index_cjs.FirmwareOrAppUpdateRequired;
+var index_cjs_34 = index_cjs.GasLessThanEstimate;
+var index_cjs_35 = index_cjs.GenuineCheckFailed;
+var index_cjs_36 = index_cjs.HardResetFail;
+var index_cjs_37 = index_cjs.InvalidAddress;
+var index_cjs_38 = index_cjs.InvalidAddressBecauseDestinationIsAlsoSource;
+var index_cjs_39 = index_cjs.InvalidXRPTag;
+var index_cjs_40 = index_cjs.LatestMCUInstalledError;
+var index_cjs_41 = index_cjs.LedgerAPI4xx;
+var index_cjs_42 = index_cjs.LedgerAPI5xx;
+var index_cjs_43 = index_cjs.LedgerAPIError;
+var index_cjs_44 = index_cjs.LedgerAPIErrorWithMessage;
+var index_cjs_45 = index_cjs.LedgerAPINotAvailable;
+var index_cjs_46 = index_cjs.MCUNotGenuineToDashboard;
+var index_cjs_47 = index_cjs.ManagerAppAlreadyInstalledError;
+var index_cjs_48 = index_cjs.ManagerAppDepInstallRequired;
+var index_cjs_49 = index_cjs.ManagerAppDepUninstallRequired;
+var index_cjs_50 = index_cjs.ManagerAppRelyOnBTCError;
+var index_cjs_51 = index_cjs.ManagerDeviceLockedError;
+var index_cjs_52 = index_cjs.ManagerFirmwareNotEnoughSpaceError;
+var index_cjs_53 = index_cjs.ManagerNotEnoughSpaceError;
+var index_cjs_54 = index_cjs.ManagerUninstallBTCDep;
+var index_cjs_55 = index_cjs.NetworkDown;
+var index_cjs_56 = index_cjs.NoAccessToCamera;
+var index_cjs_57 = index_cjs.NoAddressesFound;
+var index_cjs_58 = index_cjs.NoDBPathGiven;
+var index_cjs_59 = index_cjs.NotEnoughBalance;
+var index_cjs_60 = index_cjs.NotEnoughBalanceBecauseDestinationNotCreated;
+var index_cjs_61 = index_cjs.NotEnoughBalanceInParentAccount;
+var index_cjs_62 = index_cjs.NotEnoughBalanceToDelegate;
+var index_cjs_63 = index_cjs.NotEnoughGas;
+var index_cjs_64 = index_cjs.NotEnoughSpendableBalance;
+var index_cjs_65 = index_cjs.NotSupportedLegacyAddress;
+var index_cjs_66 = index_cjs.PairingFailed;
+var index_cjs_67 = index_cjs.PasswordIncorrectError;
+var index_cjs_68 = index_cjs.PasswordsDontMatchError;
+var index_cjs_69 = index_cjs.RecipientRequired;
+var index_cjs_70 = index_cjs.RecommendSubAccountsToEmpty;
+var index_cjs_71 = index_cjs.RecommendUndelegation;
+var index_cjs_72 = index_cjs.StatusCodes;
+var index_cjs_73 = index_cjs.SyncError;
+var index_cjs_74 = index_cjs.TimeoutTagged;
+var index_cjs_75 = index_cjs.TransportError;
+var index_cjs_76 = index_cjs.TransportInterfaceNotAvailable;
+var index_cjs_77 = index_cjs.TransportOpenUserCancelled;
+var index_cjs_78 = index_cjs.TransportRaceCondition;
+var index_cjs_79 = index_cjs.TransportStatusError;
+var index_cjs_80 = index_cjs.TransportWebUSBGestureRequired;
+var index_cjs_81 = index_cjs.UnavailableTezosOriginatedAccountReceive;
+var index_cjs_82 = index_cjs.UnavailableTezosOriginatedAccountSend;
+var index_cjs_83 = index_cjs.UnexpectedBootloader;
+var index_cjs_84 = index_cjs.UnknownMCU;
+var index_cjs_85 = index_cjs.UpdateFetchFileFail;
+var index_cjs_86 = index_cjs.UpdateIncorrectHash;
+var index_cjs_87 = index_cjs.UpdateIncorrectSig;
+var index_cjs_88 = index_cjs.UpdateYourApp;
+var index_cjs_89 = index_cjs.UserRefusedAddress;
+var index_cjs_90 = index_cjs.UserRefusedAllowManager;
+var index_cjs_91 = index_cjs.UserRefusedDeviceNameChange;
+var index_cjs_92 = index_cjs.UserRefusedFirmwareUpdate;
+var index_cjs_93 = index_cjs.UserRefusedOnDevice;
+var index_cjs_94 = index_cjs.WebsocketConnectionError;
+var index_cjs_95 = index_cjs.WebsocketConnectionFailed;
+var index_cjs_96 = index_cjs.WrongAppForCurrency;
+var index_cjs_97 = index_cjs.WrongDeviceForAccount;
+var index_cjs_98 = index_cjs.addCustomErrorDeserializer;
+var index_cjs_99 = index_cjs.createCustomErrorClass;
+var index_cjs_100 = index_cjs.deserializeError;
+var index_cjs_101 = index_cjs.getAltStatusMessage;
+var index_cjs_102 = index_cjs.serializeError;
 
 /**
  */
@@ -3048,18 +2967,19 @@ class Transport {
   constructor() {
     this.exchangeTimeout = 30000;
     this.unresponsiveTimeout = 15000;
+    this.deviceModel = null;
     this._events = new EventEmitter();
 
-    this.send = async (cla, ins, p1, p2, data = Buffer.alloc(0), statusList = [lib_4.OK]) => {
+    this.send = async (cla, ins, p1, p2, data = Buffer.alloc(0), statusList = [index_cjs_72.OK]) => {
       if (data.length >= 256) {
-        throw new lib_1("data.length exceed 256 bytes limit. Got: " + data.length, "DataLengthTooBig");
+        throw new index_cjs_75("data.length exceed 256 bytes limit. Got: " + data.length, "DataLengthTooBig");
       }
 
       const response = await this.exchange(Buffer.concat([Buffer.from([cla, ins, p1, p2]), Buffer.from([data.length]), data]));
       const sw = response.readUInt16BE(response.length - 2);
 
       if (!statusList.some(s => s === sw)) {
-        throw new lib_3(sw);
+        throw new index_cjs_79(sw);
       }
 
       return response;
@@ -3069,7 +2989,7 @@ class Transport {
 
     this.exchangeAtomicImpl = async f => {
       if (this.exchangeBusyPromise) {
-        throw new lib_25("An action was already pending on the Ledger device. Please deny or reconnect.");
+        throw new index_cjs_78("An action was already pending on the Ledger device. Please deny or reconnect.");
       }
 
       let resolveBusy;
@@ -3210,13 +3130,13 @@ class Transport {
           if (listenTimeoutId) clearTimeout(listenTimeoutId);
 
           if (!found) {
-            reject(new lib_1(this.ErrorMessage_NoDeviceFound, "NoDeviceFound"));
+            reject(new index_cjs_75(this.ErrorMessage_NoDeviceFound, "NoDeviceFound"));
           }
         }
       });
       const listenTimeoutId = listenTimeout ? setTimeout(() => {
         sub.unsubscribe();
-        reject(new lib_1(this.ErrorMessage_ListenTimeout, "ListenTimeout"));
+        reject(new index_cjs_75(this.ErrorMessage_ListenTimeout, "ListenTimeout"));
       }, listenTimeout) : null;
     });
   }
@@ -3234,7 +3154,7 @@ class Transport {
       } = this;
 
       if (_appAPIlock) {
-        return Promise.reject(new lib_1("Ledger Device is busy (lock " + _appAPIlock + ")", "TransportLocked"));
+        return Promise.reject(new index_cjs_75("Ledger Device is busy (lock " + _appAPIlock + ")", "TransportLocked"));
       }
 
       try {
@@ -3257,10 +3177,10 @@ Transport.ErrorMessage_NoDeviceFound = "No Ledger device found";
 
 var Transport$1 = /*#__PURE__*/Object.freeze({
   __proto__: null,
-  TransportError: lib_1,
-  TransportStatusError: lib_3,
-  StatusCodes: lib_4,
-  getAltStatusMessage: lib_2,
+  TransportError: index_cjs_75,
+  TransportStatusError: index_cjs_79,
+  StatusCodes: index_cjs_72,
+  getAltStatusMessage: index_cjs_101,
   'default': Transport
 });
 
@@ -3320,15 +3240,15 @@ const createHIDframing = (channel, packetSize) => {
       } = acc || initialAcc;
 
       if (chunk.readUInt16BE(0) !== channel) {
-        throw new lib.TransportError("Invalid channel", "InvalidChannel");
+        throw new index_cjs.TransportError("Invalid channel", "InvalidChannel");
       }
 
       if (chunk.readUInt8(2) !== Tag) {
-        throw new lib.TransportError("Invalid tag", "InvalidTag");
+        throw new index_cjs.TransportError("Invalid tag", "InvalidTag");
       }
 
       if (chunk.readUInt16BE(3) !== sequence) {
-        throw new lib.TransportError("Invalid sequence", "InvalidSequence");
+        throw new index_cjs.TransportError("Invalid sequence", "InvalidSequence");
       }
 
       if (!acc) {
@@ -3366,7 +3286,7 @@ exports.default = _default;
 
 var hidFraming$1 = unwrapExports(hidFraming);
 
-var lib$1 = createCommonjsModule(function (module, exports) {
+var lib = createCommonjsModule(function (module, exports) {
 
 Object.defineProperty(exports, "__esModule", {
   value: true
@@ -3532,20 +3452,20 @@ exports.getInfosForServiceUuid = getInfosForServiceUuid;
 
 });
 
-unwrapExports(lib$1);
-var lib_1$1 = lib$1.getInfosForServiceUuid;
-var lib_2$1 = lib$1.getBluetoothServiceUuids;
-var lib_3$1 = lib$1.identifyProductName;
-var lib_4$1 = lib$1.identifyUSBProductId;
-var lib_5$1 = lib$1.getDeviceModel;
-var lib_6$1 = lib$1.ledgerUSBVendorId;
-var lib_7$1 = lib$1.IIWebUSB;
-var lib_8$1 = lib$1.IICCID;
-var lib_9$1 = lib$1.IIU2F;
-var lib_10$1 = lib$1.IIKeyboardHID;
-var lib_11$1 = lib$1.IIGenericHID;
+unwrapExports(lib);
+var lib_1 = lib.getInfosForServiceUuid;
+var lib_2 = lib.getBluetoothServiceUuids;
+var lib_3 = lib.identifyProductName;
+var lib_4 = lib.identifyUSBProductId;
+var lib_5 = lib.getDeviceModel;
+var lib_6 = lib.ledgerUSBVendorId;
+var lib_7 = lib.IIWebUSB;
+var lib_8 = lib.IICCID;
+var lib_9 = lib.IIU2F;
+var lib_10 = lib.IIKeyboardHID;
+var lib_11 = lib.IIGenericHID;
 
-var lib$2 = createCommonjsModule(function (module, exports) {
+var lib$1 = createCommonjsModule(function (module, exports) {
 
 Object.defineProperty(exports, "__esModule", {
   value: true
@@ -3608,16 +3528,18 @@ function dispatch(log) {
 } // for debug purpose
 
 
-commonjsGlobal.__ledgerLogsListen = listen;
+if (typeof window !== "undefined") {
+  window.__ledgerLogsListen = listen;
+}
 
 });
 
-unwrapExports(lib$2);
-var lib_1$2 = lib$2.listen;
-var lib_2$2 = lib$2.log;
+unwrapExports(lib$1);
+var lib_1$1 = lib$1.listen;
+var lib_2$1 = lib$1.log;
 
 const ledgerDevices = [{
-  vendorId: lib_6$1
+  vendorId: lib_6
 }];
 async function requestLedgerDevice() {
   // $FlowFixMe
@@ -3629,7 +3551,7 @@ async function requestLedgerDevice() {
 async function getLedgerDevices() {
   // $FlowFixMe
   const devices = await navigator.usb.getDevices();
-  return devices.filter(d => d.vendorId === lib_6$1);
+  return devices.filter(d => d.vendorId === lib_6);
 }
 async function getFirstLedgerDevice() {
   const existingDevices = await getLedgerDevices();
@@ -3670,13 +3592,12 @@ class TransportWebUSB extends Transport {
         channel,
         packetSize
       } = this;
-      lib_2$2("apdu", "=> " + apdu.toString("hex"));
+      lib_2$1("apdu", "=> " + apdu.toString("hex"));
       const framing = hidFraming$1(channel, packetSize); // Write...
 
       const blocks = framing.makeBlocks(apdu);
 
       for (let i = 0; i < blocks.length; i++) {
-        lib_2$2("hid-frame", "=> " + blocks[i].toString("hex"));
         await this.device.transferOut(endpointNumber, blocks[i]);
       } // Read...
 
@@ -3687,17 +3608,16 @@ class TransportWebUSB extends Transport {
       while (!(result = framing.getReducedResult(acc))) {
         const r = await this.device.transferIn(endpointNumber, packetSize);
         const buffer = Buffer.from(r.data.buffer);
-        lib_2$2("hid-frame", "<= " + buffer.toString("hex"));
         acc = framing.reduceResponse(acc, buffer);
       }
 
-      lib_2$2("apdu", "<= " + result.toString("hex"));
+      lib_2$1("apdu", "<= " + result.toString("hex"));
       return result;
     }).catch(e => {
       if (e && e.message && e.message.includes("disconnected")) {
         this._emitDisconnect(e);
 
-        throw new lib_79(e.message);
+        throw new index_cjs_24(e.message);
       }
 
       throw e;
@@ -3705,7 +3625,7 @@ class TransportWebUSB extends Transport {
 
     this.device = device;
     this.interfaceNumber = interfaceNumber;
-    this.deviceModel = lib_4$1(device.productId);
+    this.deviceModel = lib_4(device.productId);
   }
   /**
    * Check if WebUSB transport is supported.
@@ -3747,7 +3667,7 @@ class TransportWebUSB extends Transport {
     }) => alternates.some(a => a.interfaceClass === 255));
 
     if (!iface) {
-      throw new lib_26("No WebUSB interface found for your Ledger device. Please upgrade firmware or contact techsupport.");
+      throw new index_cjs_76("No WebUSB interface found for your Ledger device. Please upgrade firmware or contact techsupport.");
     }
 
     const interfaceNumber = iface.interfaceNumber;
@@ -3756,7 +3676,7 @@ class TransportWebUSB extends Transport {
       await device.claimInterface(interfaceNumber);
     } catch (e) {
       await device.close();
-      throw new lib_26(e.message);
+      throw new index_cjs_76(e.message);
     }
 
     const transport = new TransportWebUSB(device, interfaceNumber);
@@ -3766,7 +3686,7 @@ class TransportWebUSB extends Transport {
         // $FlowFixMe
         navigator.usb.removeEventListener("disconnect", onDisconnect);
 
-        transport._emitDisconnect(new lib_80());
+        transport._emitDisconnect(new index_cjs_23());
       }
     }; // $FlowFixMe
 
@@ -3801,7 +3721,7 @@ TransportWebUSB.listen = observer => {
   let unsubscribed = false;
   getFirstLedgerDevice().then(device => {
     if (!unsubscribed) {
-      const deviceModel = lib_4$1(device.productId);
+      const deviceModel = lib_4(device.productId);
       observer.next({
         type: "add",
         descriptor: device,
@@ -3811,9 +3731,9 @@ TransportWebUSB.listen = observer => {
     }
   }, error => {
     if (window.DOMException && error instanceof window.DOMException && error.code === 18) {
-      observer.error(new lib_24(error.message));
+      observer.error(new index_cjs_80(error.message));
     } else {
-      observer.error(new lib_27(error.message));
+      observer.error(new index_cjs_77(error.message));
     }
   });
 
@@ -3848,7 +3768,7 @@ var _hidFraming = _interopRequireDefault(hidFraming);
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 const ledgerDevices = [{
-  vendorId: lib$1.ledgerUSBVendorId
+  vendorId: lib.ledgerUSBVendorId
 }];
 
 const isSupported = () => Promise.resolve(!!(commonjsGlobal.navigator && commonjsGlobal.navigator.hid));
@@ -3858,7 +3778,7 @@ const getHID = () => {
   const {
     hid
   } = navigator;
-  if (!hid) throw new lib.TransportError("navigator.hid is not supported", "HIDNotSupported");
+  if (!hid) throw new index_cjs.TransportError("navigator.hid is not supported", "HIDNotSupported");
   return hid;
 };
 
@@ -3872,7 +3792,7 @@ async function requestLedgerDevices() {
 
 async function getLedgerDevices() {
   const devices = await getHID().getDevices();
-  return devices.filter(d => d.vendorId === lib$1.ledgerUSBVendorId);
+  return devices.filter(d => d.vendorId === lib.ledgerUSBVendorId);
 }
 
 async function getFirstLedgerDevice() {
@@ -3934,13 +3854,12 @@ class TransportWebHID extends _hwTransport.default {
         channel,
         packetSize
       } = this;
-      (0, lib$2.log)("apdu", "=> " + apdu.toString("hex"));
+      (0, lib$1.log)("apdu", "=> " + apdu.toString("hex"));
       const framing = (0, _hidFraming.default)(channel, packetSize); // Write...
 
       const blocks = framing.makeBlocks(apdu);
 
       for (let i = 0; i < blocks.length; i++) {
-        (0, lib$2.log)("hid-frame", "=> " + blocks[i].toString("hex"));
         await this.device.sendReport(0, blocks[i]);
       } // Read...
 
@@ -3950,24 +3869,23 @@ class TransportWebHID extends _hwTransport.default {
 
       while (!(result = framing.getReducedResult(acc))) {
         const buffer = await this.read();
-        (0, lib$2.log)("hid-frame", "<= " + buffer.toString("hex"));
         acc = framing.reduceResponse(acc, buffer);
       }
 
-      (0, lib$2.log)("apdu", "<= " + result.toString("hex"));
+      (0, lib$1.log)("apdu", "<= " + result.toString("hex"));
       return result;
     }).catch(e => {
       if (e && e.message && e.message.includes("write")) {
         this._emitDisconnect(e);
 
-        throw new lib.DisconnectedDeviceDuringOperation(e.message);
+        throw new index_cjs.DisconnectedDeviceDuringOperation(e.message);
       }
 
       throw e;
     });
 
     this.device = device;
-    this.deviceModel = (0, lib$1.identifyUSBProductId)(device.productId);
+    this.deviceModel = (0, lib.identifyUSBProductId)(device.productId);
     device.addEventListener("inputreport", this.onInputReport);
   }
 
@@ -4001,7 +3919,7 @@ class TransportWebHID extends _hwTransport.default {
       if (device === e.device) {
         getHID().removeEventListener("disconnect", onDisconnect);
 
-        transport._emitDisconnect(new lib.DisconnectedDevice());
+        transport._emitDisconnect(new index_cjs.DisconnectedDevice());
       }
     };
 
@@ -4035,8 +3953,10 @@ TransportWebHID.list = getLedgerDevices;
 TransportWebHID.listen = observer => {
   let unsubscribed = false;
   getFirstLedgerDevice().then(device => {
-    if (!unsubscribed) {
-      const deviceModel = (0, lib$1.identifyUSBProductId)(device.productId);
+    if (!device) {
+      observer.error(new index_cjs.TransportOpenUserCancelled("Access denied to use Ledger device"));
+    } else if (!unsubscribed) {
+      const deviceModel = (0, lib.identifyUSBProductId)(device.productId);
       observer.next({
         type: "add",
         descriptor: device,
@@ -4045,7 +3965,7 @@ TransportWebHID.listen = observer => {
       observer.complete();
     }
   }, error => {
-    observer.error(new lib.TransportOpenUserCancelled(error.message));
+    observer.error(new index_cjs.TransportOpenUserCancelled(error.message));
   });
 
   function unsubscribe() {
@@ -4062,18 +3982,18 @@ TransportWebHID.listen = observer => {
 var TransportWebHid = unwrapExports(TransportWebHID_1);
 
 /*! *****************************************************************************
-Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use
-this file except in compliance with the License. You may obtain a copy of the
-License at http://www.apache.org/licenses/LICENSE-2.0
+Copyright (c) Microsoft Corporation.
 
-THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
-WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
-MERCHANTABLITY OR NON-INFRINGEMENT.
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted.
 
-See the Apache Version 2.0 License for specific language governing permissions
-and limitations under the License.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
 ***************************************************************************** */
 /* global Reflect, Promise */
 
@@ -4553,9 +4473,11 @@ function toSubscriber(nextOrObserver, error, complete) {
 var observable = /*@__PURE__*/ (function () { return typeof Symbol === 'function' && Symbol.observable || '@@observable'; })();
 
 /** PURE_IMPORTS_START  PURE_IMPORTS_END */
-function noop() { }
+function identity(x) {
+    return x;
+}
 
-/** PURE_IMPORTS_START _noop PURE_IMPORTS_END */
+/** PURE_IMPORTS_START _identity PURE_IMPORTS_END */
 function pipe() {
     var fns = [];
     for (var _i = 0; _i < arguments.length; _i++) {
@@ -4564,8 +4486,8 @@ function pipe() {
     return pipeFromArray(fns);
 }
 function pipeFromArray(fns) {
-    if (!fns) {
-        return noop;
+    if (fns.length === 0) {
+        return identity;
     }
     if (fns.length === 1) {
         return fns[0];
@@ -6095,9 +6017,7 @@ var VirtualAction = /*@__PURE__*/ (function (_super) {
 }(AsyncAction));
 
 /** PURE_IMPORTS_START  PURE_IMPORTS_END */
-function identity(x) {
-    return x;
-}
+function noop() { }
 
 /** PURE_IMPORTS_START _Observable PURE_IMPORTS_END */
 function isObservable(obj) {
@@ -7852,13 +7772,13 @@ const sendAPDU = (write, apdu, mtuSize) => {
       o.complete();
     }, e => {
       terminated = true;
-      (0, lib$2.log)("ble-error", "sendAPDU failure " + String(e));
+      (0, lib$1.log)("ble-error", "sendAPDU failure " + String(e));
       o.error(e);
     });
 
     const unsubscribe = () => {
       if (!terminated) {
-        (0, lib$2.log)("ble-verbose", "sendAPDU interruption");
+        (0, lib$1.log)("ble-verbose", "sendAPDU interruption");
         terminated = true;
       }
     };
@@ -7895,11 +7815,11 @@ const receiveAPDU = rawStream => _rxjs.Observable.create(o => {
   let notifiedData = Buffer.alloc(0);
   const sub = rawStream.subscribe({
     complete: () => {
-      o.error(new lib.DisconnectedDevice());
+      o.error(new index_cjs.DisconnectedDevice());
       sub.unsubscribe();
     },
     error: e => {
-      (0, lib$2.log)("ble-error", "in receiveAPDU " + String(e));
+      (0, lib$1.log)("ble-error", "in receiveAPDU " + String(e));
       o.error(e);
       sub.unsubscribe();
     },
@@ -7909,12 +7829,12 @@ const receiveAPDU = rawStream => _rxjs.Observable.create(o => {
       let data = value.slice(3);
 
       if (tag !== TagId) {
-        o.error(new lib.TransportError("Invalid tag " + tag.toString(16), "InvalidTag"));
+        o.error(new index_cjs.TransportError("Invalid tag " + tag.toString(16), "InvalidTag"));
         return;
       }
 
       if (notifiedIndex !== index) {
-        o.error(new lib.TransportError("BLE: Invalid sequence number. discontinued chunk. Received " + index + " but expected " + notifiedIndex, "InvalidSequence"));
+        o.error(new index_cjs.TransportError("BLE: Invalid sequence number. discontinued chunk. Received " + index + " but expected " + notifiedIndex, "InvalidSequence"));
         return;
       }
 
@@ -7927,7 +7847,7 @@ const receiveAPDU = rawStream => _rxjs.Observable.create(o => {
       notifiedData = Buffer.concat([notifiedData, data]);
 
       if (notifiedData.length > notifiedDataLength) {
-        o.error(new lib.TransportError("BLE: received too much data. discontinued chunk. Received " + notifiedData.length + " but expected " + notifiedDataLength, "BLETooMuchData"));
+        o.error(new index_cjs.TransportError("BLE: received too much data. discontinued chunk. Received " + notifiedData.length + " but expected " + notifiedDataLength, "BLETooMuchData"));
         return;
       }
 
@@ -12290,7 +12210,7 @@ exports.monitorCharacteristic = void 0;
 
 
 const monitorCharacteristic = characteristic => _rxjs.Observable.create(o => {
-  (0, lib$2.log)("ble-verbose", "start monitor " + characteristic.uuid);
+  (0, lib$1.log)("ble-verbose", "start monitor " + characteristic.uuid);
 
   function onCharacteristicValueChanged(event) {
     const characteristic = event.target;
@@ -12304,7 +12224,7 @@ const monitorCharacteristic = characteristic => _rxjs.Observable.create(o => {
     characteristic.addEventListener("characteristicvaluechanged", onCharacteristicValueChanged);
   });
   return () => {
-    (0, lib$2.log)("ble-verbose", "end monitor " + characteristic.uuid);
+    (0, lib$1.log)("ble-verbose", "end monitor " + characteristic.uuid);
     characteristic.stopNotifications();
   };
 });
@@ -12382,7 +12302,7 @@ const availability = () => _rxjs.Observable.create(observer => {
 const transportsCache = {};
 
 const requestDeviceParam = () => ({
-  filters: (0, lib$1.getBluetoothServiceUuids)().map(uuid => ({
+  filters: (0, lib.getBluetoothServiceUuids)().map(uuid => ({
     services: [uuid]
   }))
 });
@@ -12391,7 +12311,7 @@ const retrieveService = async device => {
   if (!device.gatt) throw new Error("bluetooth gatt not found");
   const [service] = await device.gatt.getPrimaryServices();
   if (!service) throw new Error("bluetooth service not found");
-  const infos = (0, lib$1.getInfosForServiceUuid)(service.uuid);
+  const infos = (0, lib.getInfosForServiceUuid)(service.uuid);
   if (!infos) throw new Error("bluetooth service infos not found");
   return [service, infos];
 };
@@ -12401,7 +12321,7 @@ async function open(deviceOrId, needsReconnect) {
 
   if (typeof deviceOrId === "string") {
     if (transportsCache[deviceOrId]) {
-      (0, lib$2.log)("ble-verbose", "Transport in cache, using that.");
+      (0, lib$1.log)("ble-verbose", "Transport in cache, using that.");
       return transportsCache[deviceOrId];
     }
 
@@ -12413,7 +12333,7 @@ async function open(deviceOrId, needsReconnect) {
   }
 
   if (!device.gatt.connected) {
-    (0, lib$2.log)("ble-verbose", "not connected. connecting...");
+    (0, lib$1.log)("ble-verbose", "not connected. connecting...");
     await device.gatt.connect();
   }
 
@@ -12425,13 +12345,13 @@ async function open(deviceOrId, needsReconnect) {
   } = infos;
   const [writeC, notifyC] = await Promise.all([service.getCharacteristic(writeUuid), service.getCharacteristic(notifyUuid)]);
   const notifyObservable = (0, monitorCharacteristic_1.monitorCharacteristic)(notifyC).pipe((0, _operators.tap)(value => {
-    (0, lib$2.log)("ble-frame", "<= " + value.toString("hex"));
+    (0, lib$1.log)("ble-frame", "<= " + value.toString("hex"));
   }), (0, _operators.share)());
   const notif = notifyObservable.subscribe();
   const transport = new BluetoothTransport(device, writeC, notifyObservable, deviceModel);
 
   if (!device.gatt.connected) {
-    throw new lib.DisconnectedDevice();
+    throw new index_cjs.DisconnectedDevice();
   } // eslint-disable-next-line require-atomic-updates
 
 
@@ -12443,7 +12363,7 @@ async function open(deviceOrId, needsReconnect) {
     transport.notYetDisconnected = false;
     notif.unsubscribe();
     device.removeEventListener("gattserverdisconnected", onDisconnect);
-    (0, lib$2.log)("ble-verbose", `BleTransport(${transport.id}) disconnected`);
+    (0, lib$1.log)("ble-verbose", `BleTransport(${transport.id}) disconnected`);
     transport.emit("disconnect", e);
   };
 
@@ -12493,7 +12413,7 @@ class BluetoothTransport extends _hwTransport.default {
    * On this web implementation, it only emits ONE device, the one that was selected in the UI (if any).
    */
   static listen(observer) {
-    (0, lib$2.log)("ble-verbose", "listen...");
+    (0, lib$1.log)("ble-verbose", "listen...");
     let unsubscribed;
     const bluetooth = requiresBluetooth();
     bluetooth.requestDevice(requestDeviceParam()).then(async device => {
@@ -12505,7 +12425,7 @@ class BluetoothTransport extends _hwTransport.default {
         observer.complete();
       }
     }, error => {
-      observer.error(new lib.TransportOpenUserCancelled(error.message));
+      observer.error(new index_cjs.TransportOpenUserCancelled(error.message));
     });
 
     function unsubscribe() {
@@ -12542,13 +12462,13 @@ class BluetoothTransport extends _hwTransport.default {
     this.exchange = apdu => this.exchangeAtomicImpl(async () => {
       try {
         const msgIn = apdu.toString("hex");
-        (0, lib$2.log)("apdu", `=> ${msgIn}`);
+        (0, lib$1.log)("apdu", `=> ${msgIn}`);
         const data = await (0, _rxjs.merge)(this.notifyObservable.pipe(receiveAPDU_1.receiveAPDU), (0, sendAPDU_1.sendAPDU)(this.write, apdu, this.mtuSize)).toPromise();
         const msgOut = data.toString("hex");
-        (0, lib$2.log)("apdu", `<= ${msgOut}`);
+        (0, lib$1.log)("apdu", `<= ${msgOut}`);
         return data;
       } catch (e) {
-        (0, lib$2.log)("ble-error", "exchange got " + String(e));
+        (0, lib$1.log)("ble-error", "exchange got " + String(e));
 
         if (this.notYetDisconnected) {
           // in such case we will always disconnect because something is bad.
@@ -12560,7 +12480,7 @@ class BluetoothTransport extends _hwTransport.default {
     });
 
     this.write = async buffer => {
-      (0, lib$2.log)("ble-frame", "=> " + buffer.toString("hex"));
+      (0, lib$1.log)("ble-frame", "=> " + buffer.toString("hex"));
       await this.writeCharacteristic.writeValue(buffer);
     };
 
@@ -12569,7 +12489,7 @@ class BluetoothTransport extends _hwTransport.default {
     this.writeCharacteristic = writeCharacteristic;
     this.notifyObservable = notifyObservable;
     this.deviceModel = deviceModel;
-    (0, lib$2.log)("ble-verbose", `BleTransport(${String(this.id)}) new instance`);
+    (0, lib$1.log)("ble-verbose", `BleTransport(${String(this.id)}) new instance`);
   }
 
   async inferMTU() {
@@ -12578,7 +12498,7 @@ class BluetoothTransport extends _hwTransport.default {
       try {
         mtu = (await (0, _rxjs.merge)(this.notifyObservable.pipe((0, _operators.first)(buffer => buffer.readUInt8(0) === 0x08), (0, _operators.map)(buffer => buffer.readUInt8(5))), (0, _rxjs.defer)(() => (0, _rxjs.from)(this.write(Buffer.from([0x08, 0, 0, 0, 0])))).pipe((0, _operators.ignoreElements)())).toPromise()) + 3;
       } catch (e) {
-        (0, lib$2.log)("ble-error", "inferMTU got " + String(e));
+        (0, lib$1.log)("ble-error", "inferMTU got " + String(e));
         this.device.gatt.disconnect();
         throw e;
       }
@@ -12586,7 +12506,7 @@ class BluetoothTransport extends _hwTransport.default {
 
     if (mtu > 23) {
       const mtuSize = mtu - 3;
-      (0, lib$2.log)("ble-verbose", `BleTransport(${String(this.id)}) mtu set to ${String(mtuSize)}`);
+      (0, lib$1.log)("ble-verbose", `BleTransport(${String(this.id)}) mtu set to ${String(mtuSize)}`);
       this.mtuSize = mtuSize;
     }
 
@@ -12618,7 +12538,7 @@ BluetoothTransport.observeAvailability = observer => availability.subscribe(obse
 BluetoothTransport.list = () => Promise.resolve([]);
 
 BluetoothTransport.disconnect = async id => {
-  (0, lib$2.log)("ble-verbose", `user disconnect(${id})`);
+  (0, lib$1.log)("ble-verbose", `user disconnect(${id})`);
   const transport = transportsCache[id];
 
   if (transport) {
@@ -13260,7 +13180,7 @@ var u2fApi_1 = u2fApi$1.sign;
 var u2fApi_2 = u2fApi$1.isSupported;
 
 function wrapU2FTransportError(originalError, message, id) {
-  const err = new lib_1(message, id); // $FlowFixMe
+  const err = new index_cjs_75(message, id); // $FlowFixMe
 
   err.originalError = originalError;
   return err;
@@ -13291,7 +13211,7 @@ function attemptExchange(apdu, timeoutMillis, scrambleKey, unwrap) {
     challenge: webSafe64(challenge.toString("base64")),
     appId: location.origin
   };
-  lib_2$2("apdu", "=> " + apdu.toString("hex"));
+  lib_2$1("apdu", "=> " + apdu.toString("hex"));
   return u2fApi_1(signRequest, timeoutMillis / 1000).then(response => {
     const {
       signatureData
@@ -13307,7 +13227,7 @@ function attemptExchange(apdu, timeoutMillis, scrambleKey, unwrap) {
         result = data.slice(5);
       }
 
-      lib_2$2("apdu", "<= " + result.toString("hex"));
+      lib_2$1("apdu", "<= " + result.toString("hex"));
       return result;
     } else {
       throw response;
@@ -13417,7 +13337,7 @@ TransportU2F.listen = observer => {
       });
       observer.complete();
     } else {
-      observer.error(new lib_1("U2F browser support is needed for Ledger. " + "Please use Chrome, Opera or Firefox with a U2F extension. " + "Also make sure you're on an HTTPS connection", "U2FNotSupported"));
+      observer.error(new index_cjs_75("U2F browser support is needed for Ledger. " + "Please use Chrome, Opera or Firefox with a U2F extension. " + "Also make sure you're on an HTTPS connection", "U2FNotSupported"));
     }
   });
   return {
@@ -13427,7 +13347,8 @@ TransportU2F.listen = observer => {
   };
 };
 
-const coreBasePath = 'https://cdn.nimiq.com/latest/';
+// Use jsdelivr instead of nimiq cdn to avoid getting blocked by ad blockers.
+const coreBasePath = 'https://cdn.jsdelivr.net/npm/@nimiq/core-web/';
 let nimiqCorePromise = null;
 /**
  * Lazy-load the Nimiq core api from the cdn server if it's not loaded yet.
@@ -13477,11 +13398,17 @@ window.addEventListener('load', () => {
     document.body.innerHTML = `
         <h1 class="nq-h1">Nimiq Ledger Api Demos</h1>
 
-        <section class="nq-text">
+        <section class="nq-text center">
             Status: <span id="status" class="mono"></span>
+            <div class="show-${ApiType.HIGH_LEVEL}">
+                Api state: <span id="high-level-api-state" class="mono"></span>
+            </div>
+            <div class="show-${ApiType.HIGH_LEVEL}">
+                Last api event: <span id="high-level-api-last-event" class="mono"></span>
+            </div>
         </section>
         
-        <section class="nq-text" style="text-align: center">
+        <section class="nq-text center">
             <div id="api-selector" class="selector">
                 <label>
                     <input type="radio" name="api-selector" value="${ApiType.HIGH_LEVEL}" checked>
@@ -13517,6 +13444,9 @@ window.addEventListener('load', () => {
             <div>
                 <button class="nq-button-s" id="connect-button">Connect</button>
                 <button class="nq-button-s" id="disconnect-button">Disconnect</button>
+                <button class="nq-button-s show-${ApiType.HIGH_LEVEL}" id="high-level-api-cancel-button">
+                    Cancel Request
+                </button>
             </div>
         </section>
 
@@ -13525,7 +13455,7 @@ window.addEventListener('load', () => {
             <div class="nq-card-body">
                 <input class="nq-input" id="bip32-path-public-key-input" value="44'/242'/0'/0'">
                 <button class="nq-button-s" id="get-public-key-button">Get Public Key</button>
-                <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="confirm-public-key-button">
+                <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="low-level-api-confirm-public-key-button">
                     Confirm Public Key
                 </button>
                 <br>
@@ -13560,6 +13490,10 @@ window.addEventListener('load', () => {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
+            }
+            
+            .center {
+                text-align: center;
             }
             
             .selector {
@@ -13597,14 +13531,17 @@ window.addEventListener('load', () => {
         </style>
     `;
     const $status = document.getElementById('status');
+    const $highLevelApiState = document.getElementById('high-level-api-state');
+    const $highLevelApiLastEvent = document.getElementById('high-level-api-last-event');
     const $apiSelector = document.getElementById('api-selector');
     const $transportSelector = document.getElementById('transport-selector');
     const $noUserInteractionCheckbox = document.getElementById('no-user-interaction-checkbox');
     const $connectButton = document.getElementById('connect-button');
     const $disconnectButton = document.getElementById('disconnect-button');
+    const $highLevelApiCancelButton = document.getElementById('high-level-api-cancel-button');
     const $bip32PathPublicKeyInput = document.getElementById('bip32-path-public-key-input');
     const $getPublicKeyButton = document.getElementById('get-public-key-button');
-    const $confirmPublicKeyButton = document.getElementById('confirm-public-key-button');
+    const $lowLevelApiConfirmPublicKeyButton = document.getElementById('low-level-api-confirm-public-key-button');
     const $publicKey = document.getElementById('public-key');
     const $bip32PathAddressInput = document.getElementById('bip32-path-address-input');
     const $getAddressButton = document.getElementById('get-address-button');
@@ -13639,12 +13576,14 @@ window.addEventListener('load', () => {
             return window._api;
         try {
             disableSelector($apiSelector);
-            lib_1$2((logEntry) => console.log('Log:', logEntry));
             displayStatus('Creating Api');
             const apiType = $apiSelector.querySelector(':checked').value;
             const transportType = $transportSelector.querySelector(':checked').value;
             if (apiType === ApiType.LOW_LEVEL) {
                 disableSelector($transportSelector);
+                // Note that for the high-level api, the ledger log does not work as the logger in the demo is a
+                // different instance than the one in the lazy loaded transports.
+                lib_1$1((logEntry) => console.log('%cLog:', 'color: teal', logEntry));
                 switch (transportType) {
                     case TransportType.WEB_USB:
                         // Automatically creates a transport with a connected known device or opens a browser popup to
@@ -13665,6 +13604,22 @@ window.addEventListener('load', () => {
             }
             else {
                 window._api = HighLevelApi;
+                window._api.on(EventType.STATE_CHANGE, (state) => {
+                    console.log('%cState change', 'color: teal', state);
+                    $highLevelApiState.textContent = `${state.type}${state.error ? `: ${state.error.type}` : ''}`;
+                });
+                window._api.on(EventType.CONNECTED, (walletId) => {
+                    console.log(`%cConnected to wallet ${walletId}`, 'color: teal');
+                    $highLevelApiLastEvent.textContent = `Connected to wallet ${walletId}`;
+                });
+                window._api.on(EventType.REQUEST_SUCCESSFUL, (...args) => {
+                    console.log('%cRequest successful', 'color: teal', ...args);
+                    $highLevelApiLastEvent.textContent = 'Request successful';
+                });
+                window._api.on(EventType.REQUEST_CANCELLED, (...args) => {
+                    console.log('%cRequest cancelled', 'color: teal', ...args);
+                    $highLevelApiLastEvent.textContent = 'Request cancelled';
+                });
                 window._api.setTransportType(transportType);
                 $transportSelector.addEventListener('change', (e) => {
                     const input = e.target;
@@ -13707,6 +13662,12 @@ window.addEventListener('load', () => {
             await window._api.disconnect();
         }
         displayStatus('Api disconnected');
+    }
+    async function cancelRequest() {
+        if (!window._api || window._api instanceof LowLevelApi || !window._api.currentRequest)
+            return;
+        displayStatus('Cancelling request');
+        window._api.currentRequest.cancel();
     }
     async function getPublicKey(confirm) {
         if ($noUserInteractionCheckbox.checked)
@@ -13809,8 +13770,9 @@ window.addEventListener('load', () => {
         $apiSelector.addEventListener('change', switchApi);
         $connectButton.addEventListener('click', connect);
         $disconnectButton.addEventListener('click', disconnect);
+        $highLevelApiCancelButton.addEventListener('click', cancelRequest);
         $getPublicKeyButton.addEventListener('click', () => getPublicKey(false));
-        $confirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
+        $lowLevelApiConfirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
         $getAddressButton.addEventListener('click', () => getAddress(false));
         $confirmAddressButton.addEventListener('click', () => getAddress(true));
         $signTxButton.addEventListener('click', signTransaction);

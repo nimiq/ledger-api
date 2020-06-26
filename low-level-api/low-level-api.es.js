@@ -1,4 +1,5 @@
-const coreBasePath = 'https://cdn.nimiq.com/latest/';
+// Use jsdelivr instead of nimiq cdn to avoid getting blocked by ad blockers.
+const coreBasePath = 'https://cdn.jsdelivr.net/npm/@nimiq/core-web/';
 let nimiqCorePromise = null;
 /**
  * Lazy-load the Nimiq core api from the cdn server if it's not loaded yet.
@@ -144,7 +145,7 @@ class LowLevelApi {
      * @param path - A path in BIP 32 format.
      * @param boolValidate - Optionally enable key pair validation.
      * @param boolDisplay - Optionally display the address on the ledger.
-     * @returns An object with the address
+     * @returns An object with the address.
      * @example
      * nim.getAddress("44'/242'/0'/0'").then(o => o.address)
      */
@@ -161,7 +162,7 @@ class LowLevelApi {
      * @param path - A path in BIP 32 format.
      * @param boolValidate - Optionally enable key pair validation.
      * @param boolDisplay - Optionally display the corresponding address on the ledger.
-     * @returns An object with the publicKey
+     * @returns An object with the publicKey.
      * @example
      * nim.getPublicKey("44'/242'/0'/0'").then(o => o.publicKey)
      */
@@ -196,7 +197,7 @@ class LowLevelApi {
      * Sign a Nimiq transaction.
      * @param path - A path in BIP 32 format.
      * @param txContent - Transaction content in serialized form.
-     * @returns An object with the signature
+     * @returns An object with the signature.
      * @example
      * nim.signTransaction("44'/242'/0'/0'", signatureBase).then(o => o.signature)
      */

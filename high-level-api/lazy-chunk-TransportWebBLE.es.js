@@ -1,20 +1,20 @@
 import { B as Buffer } from './lazy-chunk-buffer.es.js';
-import { c as createCommonjsModule, u as unwrapExports, l as lib, a as lib$1, T as Transport } from './lazy-chunk-index.es.js';
-import { l as lib$2 } from './lazy-chunk-index.es2.js';
+import { c as createCommonjsModule, u as unwrapExports, l as lib, i as index_cjs, T as Transport } from './lazy-chunk-index.es.js';
+import { l as lib$1 } from './lazy-chunk-index.es2.js';
 
 /*! *****************************************************************************
-Copyright (c) Microsoft Corporation. All rights reserved.
-Licensed under the Apache License, Version 2.0 (the "License"); you may not use
-this file except in compliance with the License. You may obtain a copy of the
-License at http://www.apache.org/licenses/LICENSE-2.0
+Copyright (c) Microsoft Corporation.
 
-THIS CODE IS PROVIDED ON AN *AS IS* BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-KIND, EITHER EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION ANY IMPLIED
-WARRANTIES OR CONDITIONS OF TITLE, FITNESS FOR A PARTICULAR PURPOSE,
-MERCHANTABLITY OR NON-INFRINGEMENT.
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted.
 
-See the Apache Version 2.0 License for specific language governing permissions
-and limitations under the License.
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
 ***************************************************************************** */
 /* global Reflect, Promise */
 
@@ -494,9 +494,11 @@ function toSubscriber(nextOrObserver, error, complete) {
 var observable = /*@__PURE__*/ (function () { return typeof Symbol === 'function' && Symbol.observable || '@@observable'; })();
 
 /** PURE_IMPORTS_START  PURE_IMPORTS_END */
-function noop() { }
+function identity(x) {
+    return x;
+}
 
-/** PURE_IMPORTS_START _noop PURE_IMPORTS_END */
+/** PURE_IMPORTS_START _identity PURE_IMPORTS_END */
 function pipe() {
     var fns = [];
     for (var _i = 0; _i < arguments.length; _i++) {
@@ -505,8 +507,8 @@ function pipe() {
     return pipeFromArray(fns);
 }
 function pipeFromArray(fns) {
-    if (!fns) {
-        return noop;
+    if (fns.length === 0) {
+        return identity;
     }
     if (fns.length === 1) {
         return fns[0];
@@ -2036,9 +2038,7 @@ var VirtualAction = /*@__PURE__*/ (function (_super) {
 }(AsyncAction));
 
 /** PURE_IMPORTS_START  PURE_IMPORTS_END */
-function identity(x) {
-    return x;
-}
+function noop() { }
 
 /** PURE_IMPORTS_START _Observable PURE_IMPORTS_END */
 function isObservable(obj) {
@@ -3834,7 +3834,7 @@ const receiveAPDU = rawStream => _esm5.Observable.create(o => {
   let notifiedData = Buffer.alloc(0);
   const sub = rawStream.subscribe({
     complete: () => {
-      o.error(new lib$1.DisconnectedDevice());
+      o.error(new index_cjs.DisconnectedDevice());
       sub.unsubscribe();
     },
     error: e => {
@@ -3848,12 +3848,12 @@ const receiveAPDU = rawStream => _esm5.Observable.create(o => {
       let data = value.slice(3);
 
       if (tag !== TagId) {
-        o.error(new lib$1.TransportError("Invalid tag " + tag.toString(16), "InvalidTag"));
+        o.error(new index_cjs.TransportError("Invalid tag " + tag.toString(16), "InvalidTag"));
         return;
       }
 
       if (notifiedIndex !== index) {
-        o.error(new lib$1.TransportError("BLE: Invalid sequence number. discontinued chunk. Received " + index + " but expected " + notifiedIndex, "InvalidSequence"));
+        o.error(new index_cjs.TransportError("BLE: Invalid sequence number. discontinued chunk. Received " + index + " but expected " + notifiedIndex, "InvalidSequence"));
         return;
       }
 
@@ -3866,7 +3866,7 @@ const receiveAPDU = rawStream => _esm5.Observable.create(o => {
       notifiedData = Buffer.concat([notifiedData, data]);
 
       if (notifiedData.length > notifiedDataLength) {
-        o.error(new lib$1.TransportError("BLE: received too much data. discontinued chunk. Received " + notifiedData.length + " but expected " + notifiedDataLength, "BLETooMuchData"));
+        o.error(new index_cjs.TransportError("BLE: received too much data. discontinued chunk. Received " + notifiedData.length + " but expected " + notifiedDataLength, "BLETooMuchData"));
         return;
       }
 
@@ -8319,7 +8319,7 @@ const availability = () => _esm5.Observable.create(observer => {
 const transportsCache = {};
 
 const requestDeviceParam = () => ({
-  filters: (0, lib$2.getBluetoothServiceUuids)().map(uuid => ({
+  filters: (0, lib$1.getBluetoothServiceUuids)().map(uuid => ({
     services: [uuid]
   }))
 });
@@ -8328,7 +8328,7 @@ const retrieveService = async device => {
   if (!device.gatt) throw new Error("bluetooth gatt not found");
   const [service] = await device.gatt.getPrimaryServices();
   if (!service) throw new Error("bluetooth service not found");
-  const infos = (0, lib$2.getInfosForServiceUuid)(service.uuid);
+  const infos = (0, lib$1.getInfosForServiceUuid)(service.uuid);
   if (!infos) throw new Error("bluetooth service infos not found");
   return [service, infos];
 };
@@ -8368,7 +8368,7 @@ async function open(deviceOrId, needsReconnect) {
   const transport = new BluetoothTransport(device, writeC, notifyObservable, deviceModel);
 
   if (!device.gatt.connected) {
-    throw new lib$1.DisconnectedDevice();
+    throw new index_cjs.DisconnectedDevice();
   } // eslint-disable-next-line require-atomic-updates
 
 
@@ -8442,7 +8442,7 @@ class BluetoothTransport extends _hwTransport.default {
         observer.complete();
       }
     }, error => {
-      observer.error(new lib$1.TransportOpenUserCancelled(error.message));
+      observer.error(new index_cjs.TransportOpenUserCancelled(error.message));
     });
 
     function unsubscribe() {

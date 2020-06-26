@@ -1,5 +1,5 @@
 import { B as Buffer } from './lazy-chunk-buffer.es.js';
-import { u as unwrapExports, c as createCommonjsModule, l as lib$1, a as lib$2, T as Transport, b as commonjsGlobal } from './lazy-chunk-index.es.js';
+import { u as unwrapExports, c as createCommonjsModule, l as lib$1, i as index_cjs, T as Transport, a as commonjsGlobal } from './lazy-chunk-index.es.js';
 import { h as hidFraming } from './lazy-chunk-hid-framing.es.js';
 import { l as lib } from './lazy-chunk-index.es2.js';
 
@@ -33,7 +33,7 @@ const getHID = () => {
   const {
     hid
   } = navigator;
-  if (!hid) throw new lib$2.TransportError("navigator.hid is not supported", "HIDNotSupported");
+  if (!hid) throw new index_cjs.TransportError("navigator.hid is not supported", "HIDNotSupported");
   return hid;
 };
 
@@ -115,7 +115,6 @@ class TransportWebHID extends _hwTransport.default {
       const blocks = framing.makeBlocks(apdu);
 
       for (let i = 0; i < blocks.length; i++) {
-        (0, lib$1.log)("hid-frame", "=> " + blocks[i].toString("hex"));
         await this.device.sendReport(0, blocks[i]);
       } // Read...
 
@@ -125,7 +124,6 @@ class TransportWebHID extends _hwTransport.default {
 
       while (!(result = framing.getReducedResult(acc))) {
         const buffer = await this.read();
-        (0, lib$1.log)("hid-frame", "<= " + buffer.toString("hex"));
         acc = framing.reduceResponse(acc, buffer);
       }
 
@@ -135,7 +133,7 @@ class TransportWebHID extends _hwTransport.default {
       if (e && e.message && e.message.includes("write")) {
         this._emitDisconnect(e);
 
-        throw new lib$2.DisconnectedDeviceDuringOperation(e.message);
+        throw new index_cjs.DisconnectedDeviceDuringOperation(e.message);
       }
 
       throw e;
@@ -176,7 +174,7 @@ class TransportWebHID extends _hwTransport.default {
       if (device === e.device) {
         getHID().removeEventListener("disconnect", onDisconnect);
 
-        transport._emitDisconnect(new lib$2.DisconnectedDevice());
+        transport._emitDisconnect(new index_cjs.DisconnectedDevice());
       }
     };
 
@@ -210,7 +208,9 @@ TransportWebHID.list = getLedgerDevices;
 TransportWebHID.listen = observer => {
   let unsubscribed = false;
   getFirstLedgerDevice().then(device => {
-    if (!unsubscribed) {
+    if (!device) {
+      observer.error(new index_cjs.TransportOpenUserCancelled("Access denied to use Ledger device"));
+    } else if (!unsubscribed) {
       const deviceModel = (0, lib.identifyUSBProductId)(device.productId);
       observer.next({
         type: "add",
@@ -220,7 +220,7 @@ TransportWebHID.listen = observer => {
       observer.complete();
     }
   }, error => {
-    observer.error(new lib$2.TransportOpenUserCancelled(error.message));
+    observer.error(new index_cjs.TransportOpenUserCancelled(error.message));
   });
 
   function unsubscribe() {

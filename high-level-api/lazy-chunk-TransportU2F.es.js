@@ -1,5 +1,5 @@
 import { B as Buffer } from './lazy-chunk-buffer.es.js';
-import { b as commonjsGlobal, T as Transport, d as lib_2, j as lib_1 } from './lazy-chunk-index.es.js';
+import { a as commonjsGlobal, T as Transport, b as lib_2, j as index_cjs_75 } from './lazy-chunk-index.es.js';
 
 // Copyright 2014 Google Inc. All rights reserved
 
@@ -631,7 +631,7 @@ var u2fApi_1 = u2fApi$1.sign;
 var u2fApi_2 = u2fApi$1.isSupported;
 
 function wrapU2FTransportError(originalError, message, id) {
-  const err = new lib_1(message, id); // $FlowFixMe
+  const err = new index_cjs_75(message, id); // $FlowFixMe
 
   err.originalError = originalError;
   return err;
@@ -788,7 +788,7 @@ TransportU2F.listen = observer => {
       });
       observer.complete();
     } else {
-      observer.error(new lib_1("U2F browser support is needed for Ledger. " + "Please use Chrome, Opera or Firefox with a U2F extension. " + "Also make sure you're on an HTTPS connection", "U2FNotSupported"));
+      observer.error(new index_cjs_75("U2F browser support is needed for Ledger. " + "Please use Chrome, Opera or Firefox with a U2F extension. " + "Also make sure you're on an HTTPS connection", "U2FNotSupported"));
     }
   });
   return {

@@ -1,5 +1,5 @@
 import { B as Buffer } from './lazy-chunk-buffer.es.js';
-import { u as unwrapExports, c as createCommonjsModule, a as lib } from './lazy-chunk-index.es.js';
+import { u as unwrapExports, c as createCommonjsModule, i as index_cjs } from './lazy-chunk-index.es.js';
 
 var hidFraming = createCommonjsModule(function (module, exports) {
 
@@ -57,15 +57,15 @@ const createHIDframing = (channel, packetSize) => {
       } = acc || initialAcc;
 
       if (chunk.readUInt16BE(0) !== channel) {
-        throw new lib.TransportError("Invalid channel", "InvalidChannel");
+        throw new index_cjs.TransportError("Invalid channel", "InvalidChannel");
       }
 
       if (chunk.readUInt8(2) !== Tag) {
-        throw new lib.TransportError("Invalid tag", "InvalidTag");
+        throw new index_cjs.TransportError("Invalid tag", "InvalidTag");
       }
 
       if (chunk.readUInt16BE(3) !== sequence) {
-        throw new lib.TransportError("Invalid sequence", "InvalidSequence");
+        throw new index_cjs.TransportError("Invalid sequence", "InvalidSequence");
       }
 
       if (!acc) {

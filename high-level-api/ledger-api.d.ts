@@ -78,6 +78,7 @@ export default class LedgerApi {
      * Manually connect to a Ledger. Typically, this is not required as all requests establish a connection themselves.
      * However, if that connection fails due to a required user interaction / user gesture, you can manually connect in
      * the context of a user interaction, for example a click.
+     * @returns Whether connecting to the Ledger succeeded.
      */
     static connect(): Promise<boolean>;
     /**
@@ -95,21 +96,73 @@ export default class LedgerApi {
      * If currently a request to the ledger is in process, this call does not require an additional
      * request to the Ledger. Thus, if you want to know the walletId in conjunction with another
      * request, try to call this method after initiating the other request but before it finishes.
+     *
+     * @returns The walletId of the currently connected ledger as base 64.
      */
     static getWalletId(): Promise<string>;
     static on(eventType: EventType, listener: EventListener): void;
     static off(eventType: EventType, listener: EventListener): void;
     static once(eventType: EventType, listener: EventListener): void;
+    /**
+     * Convert an address's index / keyId to the full Nimiq bip32 path.
+     * @param keyId - The address's index.
+     * @returns The full bip32 path.
+     */
     static getBip32PathForKeyId(keyId: number): string;
+    /**
+     * Extract an address's index / keyId from its bip32 path.
+     * @param path - The address's bip32 path.
+     * @returns The address's index or null if the provided path is not a valid Nimiq key bip32 path.
+     */
     static getKeyIdForBip32Path(path: string): number | null;
+    /**
+     * Derive addresses for given bip32 key paths.
+     * @param pathsToDerive - The paths for which to derive addresses.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The derived addresses and their corresponding key paths.
+     */
     static deriveAddresses(pathsToDerive: Iterable<string>, walletId?: string): Promise<Array<{
         address: string;
         keyPath: string;
     }>>;
+    /**
+     * Get the public key for a given bip32 key path.
+     * @param keyPath - The path for which to derive the public key.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The derived public key.
+     */
     static getPublicKey(keyPath: string, walletId?: string): Promise<PublicKey>;
+    /**
+     * Get the address for a given bip32 key path.
+     * @param keyPath - The path for which to derive the address.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The derived address.
+     */
     static getAddress(keyPath: string, walletId?: string): Promise<string>;
+    /**
+     * Confirm that an address belongs to the connected Ledger and display the address to the user on the Ledger screen.
+     * @param userFriendlyAddress - The address to check.
+     * @param keyPath - The address's bip32 key path.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The confirmed address.
+     */
     static confirmAddress(userFriendlyAddress: string, keyPath: string, walletId?: string): Promise<string>;
+    /**
+     * Utility function that combines getAddress and confirmAddress to directly get a confirmed address.
+     * @param keyPath - The bip32 key path for which to get and confirm the address.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The confirmed address.
+     */
     static getConfirmedAddress(keyPath: string, walletId?: string): Promise<string>;
+    /**
+     * Sign a transaction for a signing key specified by its bip32 key path. Note that the signing key / corresponding
+     * address does not necessarily need to be the transaction's sender address for example for transactions sent from
+     * vesting contracts.
+     * @param transaction - Transaction details, see interface TransactionInfo.
+     * @param keyPath - The signing address's bip32 key path.
+     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
+     * @returns The signed transaction.
+     */
     static signTransaction(transaction: TransactionInfo, keyPath: string, walletId?: string): Promise<Transaction>;
     private static _transportType;
     private static _lowLevelApiPromise;
