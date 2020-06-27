@@ -300,6 +300,7 @@ var TransportType;
     TransportType["WEB_HID"] = "web-hid";
     TransportType["WEB_USB"] = "web-usb";
     TransportType["WEB_BLE"] = "web-ble";
+    TransportType["WEB_AUTHN"] = "web-authn";
     TransportType["U2F"] = "u2f";
 })(TransportType || (TransportType = {}));
 function isSupported(transportType) {
@@ -316,6 +317,8 @@ function isSupported(transportType) {
             return 'usb' in window.navigator && typeof window.navigator.usb.getDevices === 'function';
         case TransportType.WEB_BLE:
             return 'bluetooth' in window.navigator;
+        case TransportType.WEB_AUTHN:
+            return !!navigator.credentials;
         case TransportType.U2F:
             // Note that Chrome, Opera and Edge use an internal, hidden cryptotoken extension to handle u2f
             // (https://github.com/google/u2f-ref-code/blob/master/u2f-gae-demo/war/js/u2f-api.js) which does not
@@ -331,16 +334,8 @@ function isSupported(transportType) {
 function autoDetectTransportTypeToUse() {
     // Determine the best available transport type. Exclude WebBle as it's only suitable for Nano X.
     let transportTypesByPreference;
-    // HID has better compatibility on Windows due to driver issues for WebUSB for the Nano X (see
-    // https://github.com/LedgerHQ/ledgerjs/issues/456 and https://github.com/WICG/webusb/issues/143). On other
-    // platforms however, WebUSB is preferable for multiple reasons (Chrome):
-    // - Currently HID permission is only valid until device is disconnected while WebUSB remembers a granted
-    //   permission. This results in a device selection popup every time the Ledger is reconnected (or changes to
-    //   another app or the dashboard, where Ledger reports different device descriptors, i.e. appears as a
-    //   different device). This also requires a user gesture every time.
-    // - HID device selection popup does not update on changes, for example on switch from Ledger dashboard to app
-    //   or when Ledger gets connected.
-    // - HID does not emit disconnects immediately but only at next request.
+    // HID has better compatibility on Windows due to driver issues for WebUSB for the Nano X. On other
+    // platforms however, WebUSB is preferable for multiple reasons (see transport-comparison.md).
     // TODO this situation needs to be re-evaluated once WebHID is stable
     const isWindows = /Win/.test(window.navigator.platform); // see https://stackoverflow.com/a/38241481
     if (isWindows) {
@@ -349,15 +344,19 @@ function autoDetectTransportTypeToUse() {
     else {
         transportTypesByPreference = [TransportType.WEB_USB, TransportType.WEB_HID];
     }
+    // WebAuthn as preferred fallback, as compared to U2F better browser support and less quirky / not deprecated and
+    // works better with Nano X. But causes a popup in Chrome which U2F does not. In Firefox has same popup as U2F and
+    // in Windows also triggers Window's native security popup (see transport-comparison.md).
+    transportTypesByPreference.push(TransportType.WEB_AUTHN);
     // U2F as legacy fallback. The others are preferred as U2F can time out and causes native Windows security popups
-    // in Windows and additionally Firefox internal popups in Firefox on all platforms.
+    // in Windows and additionally Firefox internal popups in Firefox on all platforms (see transport-comparison.md).
     transportTypesByPreference.push(TransportType.U2F);
     return transportTypesByPreference.find(isSupported) || null;
 }
 /**
- * Create a new transport to a connected Ledger device. All transport types but U2F must be invoked on user interaction.
- * If an already known device is connected, a transport instance to that device is established. Otherwise, a browser
- * popup with a selector is opened.
+ * Create a new transport to a connected Ledger device. All transport types but U2F and WebAuthn must be invoked on user
+ * interaction. If an already known device is connected, a transport instance to that device is established. Otherwise,
+ * a browser popup with a selector is opened.
  * @param transportType
  */
 async function createTransport(transportType) {
@@ -368,6 +367,8 @@ async function createTransport(transportType) {
             return (await import('./lazy-chunk-TransportWebUSB.es.js')).default.create();
         case TransportType.WEB_BLE:
             return (await import('./lazy-chunk-TransportWebBLE.es.js')).default.create();
+        case TransportType.WEB_AUTHN:
+            return (await import('./lazy-chunk-TransportWebAuthn.es.js')).default.create();
         case TransportType.U2F:
             return (await import('./lazy-chunk-TransportU2F.es.js')).default.create();
         default:
@@ -400,6 +401,8 @@ let LedgerApiRequest = /** @class */ (() => {
             return this._call.call(this, api, this.params);
         }
         cancel() {
+            if (this._cancelled)
+                return;
             this._cancelled = true;
             this.fire(LedgerApiRequest.EVENT_CANCEL);
         }
@@ -415,7 +418,6 @@ let LedgerApiRequest = /** @class */ (() => {
     return LedgerApiRequest;
 })();
 
-// Some notes about the behaviour of the ledger:
 // events appear at a single point of time while states reflect the current state of the api for a timespan ranging
 // into the future. E.g. if a request was cancelled, a REQUEST_CANCELLED event gets thrown and the state changes to
 // IDLE. Errors trigger an error state (e.g. when app outdated) and thus are a state, not an event.
@@ -812,14 +814,24 @@ let LedgerApi = /** @class */ (() => {
                 LedgerApi._currentRequest = request;
                 /* eslint-disable no-await-in-loop, no-async-promise-executor */
                 return await new Promise(async (resolve, reject) => {
-                    let canCancelDirectly = false;
+                    let lastRequestCallTime = -1;
+                    let canCancelDirectly = true;
+                    let cancelFired = false;
                     request.on(LedgerApiRequest.EVENT_CANCEL, () => {
                         // If we can, reject the call right away. Otherwise just notify that the request was requested to be
                         // cancelled such that the user can cancel the call on the ledger.
-                        LedgerApi._setState(StateType.REQUEST_CANCELLING);
                         if (canCancelDirectly) {
-                            LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
+                            // Note that !!_currentlyConnectedWalletId is not an indicator that we can cancel directly, as
+                            // it's just an estimate and we might not actually be disconnected or the request might already
+                            // have been sent before disconnecting.
+                            if (!cancelFired) {
+                                LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
+                                cancelFired = true;
+                            }
                             reject(new Error('Request cancelled'));
+                        }
+                        else {
+                            LedgerApi._setState(StateType.REQUEST_CANCELLING);
                         }
                     });
                     while (!request.cancelled) {
@@ -827,9 +839,8 @@ let LedgerApi = /** @class */ (() => {
                             const api = await LedgerApi._connect(request.params.walletId);
                             if (request.cancelled)
                                 break;
-                            if (!request.cancelled) {
-                                LedgerApi._setState(StateType.REQUEST_PROCESSING);
-                            }
+                            LedgerApi._setState(StateType.REQUEST_PROCESSING);
+                            lastRequestCallTime = Date.now();
                             canCancelDirectly = false; // sending request which has to be resolved / cancelled by the Ledger
                             const result = await request.call(api);
                             if (request.cancelled)
@@ -841,21 +852,33 @@ let LedgerApi = /** @class */ (() => {
                         catch (e) {
                             console.debug(e);
                             const message = (e.message || e || '').toLowerCase();
-                            const isTimeout = /timeout|u2f device_ineligible|u2f other_error/i.test(message);
+                            // "timeout" used to happen for u2f, it's "device_ineligible" or "other_error" now (see
+                            // transport-comparison.md). "timed out" is for Chrome WebAuthn timeout; "denied permission" for
+                            // Firefox WebAuthn timeout.
+                            const isTimeout = /timeout|timed out|denied permission|u2f device_ineligible|u2f other_error/i
+                                .test(message);
                             const isLocked = /locked|0x6804/i.test(message);
                             const isConnectedToDashboard = /incorrect length/i.test(message);
-                            if (LedgerApi._transportType === TransportType.U2F || isLocked) {
-                                // For u2f we don't get notified about disconnects therefore clear connection on every
-                                // exception. When locked clear connection for all transport types as user might unlock with
-                                // a different PIN for another wallet.
+                            canCancelDirectly = canCancelDirectly || isTimeout || isConnectedToDashboard;
+                            if (LedgerApi._transportType === TransportType.U2F
+                                || LedgerApi._transportType === TransportType.WEB_AUTHN
+                                || isLocked) {
+                                // For u2f / webauthn we don't get notified about disconnects therefore clear connection on
+                                // every exception. When locked clear connection for all transport types as user might
+                                // unlock with a different PIN for another wallet.
                                 LedgerApi._currentlyConnectedWalletId = null;
                             }
-                            if (isTimeout || isConnectedToDashboard)
+                            // Test whether user cancelled call on ledger device or in WebAuthn / U2F browser popup
+                            if (message.indexOf('denied by the user') !== -1 // user rejected confirmAddress on device
+                                || message.indexOf('request was rejected') !== -1 // user rejected signTransaction on device
+                                || LedgerApi._isWebAuthnOrU2fCancellation(message, lastRequestCallTime)) {
+                                // Note that on _isWebAuthnOrU2fCancellation we can cancel directly and don't need the user
+                                // to cancel the request on the device as Ledger Nano S is now able to clean up old WebAuthn
+                                // and U2F requests and the the Nano X lets the Nimiq App crash anyways after the WebAuthn /
+                                // U2F host was lost.
                                 canCancelDirectly = true;
-                            // Test whether user cancelled call on ledger
-                            if (message.indexOf('denied by the user') !== -1 // user rejected confirmAddress
-                                || message.indexOf('request was rejected') !== -1) { // user rejected signTransaction
-                                break; // continue after loop
+                                request.cancel(); // in case the request was not marked as cancelled before
+                                break; // continue after loop where the actual cancellation happens
                             }
                             // Errors that should end the request
                             if ((LedgerApi.currentState.error
@@ -869,24 +892,29 @@ let LedgerApi = /** @class */ (() => {
                                 && !isTimeout && !isLocked && !isConnectedToDashboard) {
                                 console.warn('Unknown Ledger Error', e);
                             }
-                            // Wait a little when replacing a previous request (see notes at top).
+                            // Wait a little when replacing a previous U2F request (see transport-comparison.md).
                             const waitTime = isTimeout ? LedgerApi.WAIT_TIME_AFTER_TIMEOUT
-                                // If the API tells us that the ledger is busy (see notes at top) use a longer wait time to
-                                // reduce the chance that we hit unfortunate 1.5s window after timeout of cancelled call
+                                // If the API tells us that the ledger is busy (see transport-comparison.md) use a longer
+                                // wait time to reduce the chance that we hit unfortunate 1.5s window after timeout of
+                                // cancelled call
                                 : message.indexOf('busy') !== -1 ? 4 * LedgerApi.WAIT_TIME_AFTER_TIMEOUT
                                     // For other exceptions wait a little to avoid busy endless loop for some exceptions.
                                     : LedgerApi.WAIT_TIME_AFTER_ERROR;
                             await new Promise((resolve2) => setTimeout(resolve2, waitTime));
                         }
                     }
-                    LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
+                    if (!cancelFired) {
+                        LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
+                        cancelFired = true;
+                    }
                     reject(new Error('Request cancelled'));
                 });
                 /* eslint-enable no-await-in-loop, no-async-promise-executor */
             }
             finally {
                 LedgerApi._currentRequest = null;
-                if (LedgerApi._transportType === TransportType.U2F) {
+                if (LedgerApi._transportType === TransportType.U2F
+                    || LedgerApi._transportType === TransportType.WEB_AUTHN) {
                     LedgerApi._currentlyConnectedWalletId = null; // reset as we don't note when Ledger gets disconnected
                 }
                 const errorType = LedgerApi.currentState.error ? LedgerApi.currentState.error.type : null;
@@ -902,11 +930,13 @@ let LedgerApi = /** @class */ (() => {
             // connect repeatedly until success via _callLedger which uses the private _connect under the hood. Also this
             // method is not publicly exposed to avoid that it could be invoked multiple times in parallel which the ledger
             // requests called here do not allow. Additionally, this method exposes the low level api which is private.
-            // If the Ledger is already connected and the library already loaded, the call typically takes < 500ms.
+            // If the Ledger is already connected and the library already loaded, the call typically takes < 1.1s for U2F /
+            // webauthn and is about instant for other transports which do not reset the _currentlyConnectedWalletId.
             if (LedgerApi._connectionAborted) {
                 // When the connection was aborted, don't retry connecting until a manual connection is requested.
                 throw new Error('Connection aborted');
             }
+            const connectStart = Date.now();
             try {
                 const nimiqPromise = this._loadNimiq();
                 const api = await LedgerApi._initializeLowLevelApi();
@@ -915,8 +945,8 @@ let LedgerApi = /** @class */ (() => {
                     LedgerApi._setState(StateType.CONNECTING);
                     // To check whether the connection to Nimiq app is established and to calculate the walletId. Set
                     // validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger
-                    // app, see notes at top. Using getPublicKey and not getAppConfiguration, as other apps also respond to
-                    // getAppConfiguration (for example the Ethereum app).
+                    // app, see transport-comparison.md. Using getPublicKey and not getAppConfiguration, as other apps also
+                    // respond to getAppConfiguration (for example the Ethereum app).
                     const { publicKey: firstAddressPubKeyBytes } = await api.getPublicKey(LedgerApi.getBip32PathForKeyId(0), false, // validate
                     false);
                     const { version } = await api.getAppConfiguration();
@@ -948,6 +978,10 @@ let LedgerApi = /** @class */ (() => {
                 }
                 else if (message.indexOf('busy') !== -1) {
                     LedgerApi._throwError(ErrorType.LEDGER_BUSY, e);
+                }
+                else if (LedgerApi._isWebAuthnOrU2fCancellation(message, connectStart)) {
+                    LedgerApi._connectionAborted = true;
+                    LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
                 }
                 // Just rethrow the error and not fire an error state for _initializeDependencies errors which fires error
                 // states itself and for other errors (like timeout, dongle locked) that just keep the API retrying.
@@ -993,23 +1027,23 @@ let LedgerApi = /** @class */ (() => {
                 if (LedgerApi._transportType === transportType) {
                     LedgerApi._lowLevelApiPromise = null;
                     const message = (e.message || e).toLowerCase();
-                    if (/no device selected|access denied/i.test(message)) {
-                        if (LedgerApi._transportType === TransportType.WEB_HID) {
-                            LedgerApi._connectionAborted = true;
-                            LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
-                        }
-                        else {
-                            // Fallback to u2f as the user might not have been able to select his device due to the Nano X
+                    if (/no device selected|access denied|cancelled the requestdevice/i.test(message)) {
+                        if (LedgerApi._transportType === TransportType.WEB_USB) {
+                            // Use a fallback as the user might not have been able to select his device due to the Nano X
                             // currently not being discoverable via WebUSB in Windows.
-                            // Not using setTransportType to bypass the simplified u2f support check (see
-                            // transport-utils.ts) which reports missing u2f support on browsers that use an internal
-                            // cryptotoken extension. Should u2f really not be supported, the appropriate exception gets
-                            // triggered on transport creation.
-                            // This fallback also temporarily servers users which have not updated their udev rules yet.
+                            // This fallback also temporarily serves Linux users which have not updated their udev rules.
                             // TODO the fallback is just temporary and to be removed once WebUSB with Nano X works on
                             //  Windows or WebHID is more broadly available.
-                            console.warn('LedgerApi: switching to u2f as fallback');
-                            LedgerApi._transportType = TransportType.U2F;
+                            const fallback = [TransportType.WEB_AUTHN, TransportType.U2F].find(isSupported);
+                            if (!fallback) {
+                                LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT, 'Ledger not supported by browser or support not enabled.');
+                            }
+                            console.warn(`LedgerApi: switching to ${fallback} as fallback`);
+                            LedgerApi.setTransportType(fallback);
+                        }
+                        else {
+                            LedgerApi._connectionAborted = true;
+                            LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
                         }
                     }
                     else if (message.indexOf('user gesture') !== -1) {
@@ -1040,6 +1074,14 @@ let LedgerApi = /** @class */ (() => {
             catch (e) {
                 throw new Error(`Failed loading dependencies: ${e.message || e}`);
             }
+        }
+        static _isWebAuthnOrU2fCancellation(errorMessage, requestStart) {
+            // Try to detect a WebAuthn or U2F cancellation. In Firefox, we can detect a WebAuthn cancellation for the
+            // Firefox internal popup. However, Firefox U2F cancellations, Firefox WebAuthn cancellations via Window's
+            // native popup and Chrome WebAuthn cancellations are not distinguishable from timeouts, therefore we check
+            // how likely it is a timeout by the passed time since request start.
+            return /operation was aborted/i.test(errorMessage) // WebAuthn cancellation in Firefox internal popup
+                || (/timed out|denied permission|u2f other_error/i.test(errorMessage) && Date.now() - requestStart < 20000);
         }
         static _isAppVersionSupported(versionString) {
             const version = versionString.split('.').map((part) => parseInt(part, 10));

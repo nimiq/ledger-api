@@ -175,6 +175,7 @@ export default class LedgerApi {
     private static _connect;
     private static _initializeLowLevelApi;
     private static _loadNimiq;
+    private static _isWebAuthnOrU2fCancellation;
     private static _isAppVersionSupported;
     private static _setState;
     private static _throwError;
