@@ -47,6 +47,7 @@ export default class LedgerApiRequest<T> extends Observable {
     }
 
     public cancel(): void {
+        if (this._cancelled) return;
         this._cancelled = true;
         this.fire(LedgerApiRequest.EVENT_CANCEL);
     }

@@ -512,14 +512,22 @@ export default class LedgerApi {
             /* eslint-disable no-await-in-loop, no-async-promise-executor */
             return await new Promise<T>(async (resolve, reject) => {
                 let lastRequestCallTime = -1;
-                let canCancelDirectly = false;
+                let canCancelDirectly = true;
+                let cancelFired = false;
                 request.on(LedgerApiRequest.EVENT_CANCEL, () => {
                     // If we can, reject the call right away. Otherwise just notify that the request was requested to be
                     // cancelled such that the user can cancel the call on the ledger.
-                    LedgerApi._setState(StateType.REQUEST_CANCELLING);
                     if (canCancelDirectly) {
-                        LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
+                        // Note that !!_currentlyConnectedWalletId is not an indicator that we can cancel directly, as
+                        // it's just an estimate and we might not actually be disconnected or the request might already
+                        // have been sent before disconnecting.
+                        if (!cancelFired) {
+                            LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
+                            cancelFired = true;
+                        }
                         reject(new Error('Request cancelled'));
+                    } else {
+                        LedgerApi._setState(StateType.REQUEST_CANCELLING);
                     }
                 });
                 while (!request.cancelled) {
@@ -544,6 +552,7 @@ export default class LedgerApi {
                             .test(message);
                         const isLocked = /locked|0x6804/i.test(message);
                         const isConnectedToDashboard = /incorrect length/i.test(message);
+                        canCancelDirectly = canCancelDirectly || isTimeout || isConnectedToDashboard;
                         if (LedgerApi._transportType === TransportType.U2F
                             || LedgerApi._transportType === TransportType.WEB_AUTHN
                             || isLocked) {
@@ -552,12 +561,17 @@ export default class LedgerApi {
                             // unlock with a different PIN for another wallet.
                             LedgerApi._currentlyConnectedWalletId = null;
                         }
-                        if (isTimeout || isConnectedToDashboard) canCancelDirectly = true;
                         // Test whether user cancelled call on ledger device or in WebAuthn / U2F browser popup
                         if (message.indexOf('denied by the user') !== -1 // user rejected confirmAddress on device
                             || message.indexOf('request was rejected') !== -1 // user rejected signTransaction on device
                             || LedgerApi._isWebAuthnOrU2fCancellation(message, lastRequestCallTime)) {
-                            break; // continue after loop
+                            // Note that on _isWebAuthnOrU2fCancellation we can cancel directly and don't need the user
+                            // to cancel the request on the device as Ledger Nano S is now able to clean up old WebAuthn
+                            // and U2F requests and the the Nano X lets the Nimiq App crash anyways after the WebAuthn /
+                            // U2F host was lost.
+                            canCancelDirectly = true;
+                            request.cancel(); // in case the request was not marked as cancelled before
+                            break; // continue after loop where the actual cancellation happens
                         }
                         // Errors that should end the request
                         if ((LedgerApi.currentState.error
@@ -582,7 +596,10 @@ export default class LedgerApi {
                         await new Promise((resolve2) => setTimeout(resolve2, waitTime));
                     }
                 }
-                LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
+                if (!cancelFired) {
+                    LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
+                    cancelFired = true;
+                }
                 reject(new Error('Request cancelled'));
             });
             /* eslint-enable no-await-in-loop, no-async-promise-executor */

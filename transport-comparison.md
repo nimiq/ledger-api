@@ -134,6 +134,9 @@ Special characteristics:
 - For the Ledger Nano S the request can already be initiated while the Ledger is not connected yet, not unlocked yet or
   the Nimiq app not open yet. The request gets correctly picked up by the device once the app is open.
 - The Ledger Nano X only processes the request if it is already in the Nimiq app before the request is initiated.
+- The Nano S in the newer firmwares now seems to be able to clean up old U2F and WebAuthn requests, when a new request
+  is sent which means request cancellation on the device is not required anymore for U2F / WebAuthn before sending the
+  next request. The Nano X however does not have this cleanup behavior.
 - On lost connection to the host (e.g. by the user clicking cancel in the browser popup), the Nano X keeps the old
   request active and crashes the app when rejecting / confirming that request.
 - After a request was sent the Nano X before the app was opened or the Nimiq App crashed, the Nano X needs to be
@@ -168,6 +171,9 @@ Special characteristics:
 - The Ledger Nano S clears a timed-out request on the device on newer firmware. A new request can then be sent
   subsequently. This also means though that transaction signing requests with long data can not be displayed completely
   before timeout.
+- The Nano S in the newer firmwares now generally seems to be able to clean up old U2F and WebAuthn requests, when a new
+  request is sent which means request cancellation on the device is not required anymore for U2F / WebAuthn before
+  sending the next request. The Nano X however does not have this cleanup behavior.
 - On lost connection to the host (e.g. by the user clicking cancel in the browser popup), the Nano X keeps the old
   request active and crashes the app when rejecting / confirming that request.
 - The Ledger Nano X does not clear a timed-out request and the request is not replaceable. Instead the timed-out request
