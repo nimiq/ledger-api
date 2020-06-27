@@ -511,6 +511,7 @@ export default class LedgerApi {
             LedgerApi._currentRequest = request;
             /* eslint-disable no-await-in-loop, no-async-promise-executor */
             return await new Promise<T>(async (resolve, reject) => {
+                let lastRequestCallTime = -1;
                 let canCancelDirectly = false;
                 request.on(LedgerApiRequest.EVENT_CANCEL, () => {
                     // If we can, reject the call right away. Otherwise just notify that the request was requested to be
@@ -525,9 +526,8 @@ export default class LedgerApi {
                     try {
                         const api = await LedgerApi._connect(request.params.walletId);
                         if (request.cancelled) break;
-                        if (!request.cancelled) {
-                            LedgerApi._setState(StateType.REQUEST_PROCESSING);
-                        }
+                        LedgerApi._setState(StateType.REQUEST_PROCESSING);
+                        lastRequestCallTime = Date.now();
                         canCancelDirectly = false; // sending request which has to be resolved / cancelled by the Ledger
                         const result = await request.call(api);
                         if (request.cancelled) break;
@@ -553,9 +553,10 @@ export default class LedgerApi {
                             LedgerApi._currentlyConnectedWalletId = null;
                         }
                         if (isTimeout || isConnectedToDashboard) canCancelDirectly = true;
-                        // Test whether user cancelled call on ledger
-                        if (message.indexOf('denied by the user') !== -1 // user rejected confirmAddress
-                            || message.indexOf('request was rejected') !== -1) { // user rejected signTransaction
+                        // Test whether user cancelled call on ledger device or in WebAuthn / U2F browser popup
+                        if (message.indexOf('denied by the user') !== -1 // user rejected confirmAddress on device
+                            || message.indexOf('request was rejected') !== -1 // user rejected signTransaction on device
+                            || LedgerApi._isWebAuthnOrU2fCancellation(message, lastRequestCallTime)) {
                             break; // continue after loop
                         }
                         // Errors that should end the request
@@ -609,6 +610,7 @@ export default class LedgerApi {
             // When the connection was aborted, don't retry connecting until a manual connection is requested.
             throw new Error('Connection aborted');
         }
+        const connectStart = Date.now();
         try {
             const nimiqPromise = this._loadNimiq();
             const api = await LedgerApi._initializeLowLevelApi();
@@ -652,7 +654,11 @@ export default class LedgerApi {
                 LedgerApi._throwError(ErrorType.APP_OUTDATED, e);
             } else if (message.indexOf('busy') !== -1) {
                 LedgerApi._throwError(ErrorType.LEDGER_BUSY, e);
+            } else if (LedgerApi._isWebAuthnOrU2fCancellation(message, connectStart)) {
+                LedgerApi._connectionAborted = true;
+                LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
             }
+
             // Just rethrow the error and not fire an error state for _initializeDependencies errors which fires error
             // states itself and for other errors (like timeout, dongle locked) that just keep the API retrying.
             throw e;
@@ -740,6 +746,15 @@ export default class LedgerApi {
         } catch (e) {
             throw new Error(`Failed loading dependencies: ${e.message || e}`);
         }
+    }
+
+    private static _isWebAuthnOrU2fCancellation(errorMessage: string, requestStart: number) {
+        // Try to detect a WebAuthn or U2F cancellation. In Firefox, we can detect a WebAuthn cancellation for the
+        // Firefox internal popup. However, Firefox U2F cancellations, Firefox WebAuthn cancellations via Window's
+        // native popup and Chrome WebAuthn cancellations are not distinguishable from timeouts, therefore we check
+        // how likely it is a timeout by the passed time since request start.
+        return /operation was aborted/i.test(errorMessage) // WebAuthn cancellation in Firefox internal popup
+            || (/timed out|denied permission|u2f other_error/i.test(errorMessage) && Date.now() - requestStart < 20000);
     }
 
     private static _isAppVersionSupported(versionString: string): boolean {

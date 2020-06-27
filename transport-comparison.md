@@ -134,8 +134,11 @@ Special characteristics:
 - For the Ledger Nano S the request can already be initiated while the Ledger is not connected yet, not unlocked yet or
   the Nimiq app not open yet. The request gets correctly picked up by the device once the app is open.
 - The Ledger Nano X only processes the request if it is already in the Nimiq app before the request is initiated.
-- After a request was sent the Nano X before the app was opened, the Nano X needs to be restarted to be able to process
-  a WebAuthn request again. Just re-opening the app is not sufficient.
+- On lost connection to the host (e.g. by the user clicking cancel in the browser popup), the Nano X keeps the old
+  request active and crashes the app when rejecting / confirming that request.
+- After a request was sent the Nano X before the app was opened or the Nimiq App crashed, the Nano X needs to be
+  restarted to be able to process a WebAuthn request again. Just re-opening the app does not seem to be sufficient, at
+  least if the new request requires a UI or is the same request?
 - Due to the heartbeat U2F is heavy on the call stack and might crash the Ledger app according to Ledger, but this has
   not been observed yet in our app.
 - Can not connect to a Ledger if two are attached at the same time.
@@ -165,6 +168,8 @@ Special characteristics:
 - The Ledger Nano S clears a timed-out request on the device on newer firmware. A new request can then be sent
   subsequently. This also means though that transaction signing requests with long data can not be displayed completely
   before timeout.
+- On lost connection to the host (e.g. by the user clicking cancel in the browser popup), the Nano X keeps the old
+  request active and crashes the app when rejecting / confirming that request.
 - The Ledger Nano X does not clear a timed-out request and the request is not replaceable. Instead the timed-out request
   stays active on the Nano X and the Nimiq app freezes once the request is confirmed / rejected.
 - For the Ledger Nano S the request can already be initiated while the Ledger is not connected yet, not unlocked yet or
@@ -172,8 +177,9 @@ Special characteristics:
 - The Ledger Nano X only processes the request if it is already in the Nimiq app before the request is initiated.
 - If a U2F request is not responded to fairly quickly on the Nano X, it shows up a second time with the second one
   crashing the app on approval / rejection.
-- After a request timed-out on the Nano X or was sent before the app was opened or crashed the app, the Nano X needs to
-  be restarted to be able to process an U2F request again. Just re-opening the app is not sufficient.
+- After a request timed-out on the Nano X or was sent the Nano X before the app was opened or if the Nimiq App crashed,
+  the Nano X needs to be restarted to be able to process a WebAuthn request again. Just re-opening the app does not seem
+  to be sufficient, at least if the new request requires a UI or is the same request?
 - Due to the heartbeat U2F is heavy on the call stack and might crash the Ledger app according to Ledger, but this has
   not been observed yet in our app.
 - Can not connect to a Ledger if two are attached at the same time.
