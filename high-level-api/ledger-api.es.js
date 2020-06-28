@@ -354,23 +354,21 @@ function autoDetectTransportTypeToUse() {
     return transportTypesByPreference.find(isSupported) || null;
 }
 /**
- * Create a new transport to a connected Ledger device. All transport types but U2F and WebAuthn must be invoked on user
- * interaction. If an already known device is connected, a transport instance to that device is established. Otherwise,
- * a browser popup with a selector is opened.
+ * Lazy load the library for a transport type.
  * @param transportType
  */
-async function createTransport(transportType) {
+async function loadTransportLibrary(transportType) {
     switch (transportType) {
         case TransportType.WEB_HID:
-            return (await import('./lazy-chunk-TransportWebHID.es.js')).default.create();
+            return (await import('./lazy-chunk-TransportWebHID.es.js')).default;
         case TransportType.WEB_USB:
-            return (await import('./lazy-chunk-TransportWebUSB.es.js')).default.create();
+            return (await import('./lazy-chunk-TransportWebUSB.es.js')).default;
         case TransportType.WEB_BLE:
-            return (await import('./lazy-chunk-TransportWebBLE.es.js')).default.create();
+            return (await import('./lazy-chunk-TransportWebBLE.es.js')).default;
         case TransportType.WEB_AUTHN:
-            return (await import('./lazy-chunk-TransportWebAuthn.es.js')).default.create();
+            return (await import('./lazy-chunk-TransportWebAuthn.es.js')).default;
         case TransportType.U2F:
-            return (await import('./lazy-chunk-TransportU2F.es.js')).default.create();
+            return (await import('./lazy-chunk-TransportU2F.es.js')).default;
         default:
             throw new Error(`Unknown transport type ${transportType}`);
     }
@@ -930,150 +928,158 @@ let LedgerApi = /** @class */ (() => {
             // connect repeatedly until success via _callLedger which uses the private _connect under the hood. Also this
             // method is not publicly exposed to avoid that it could be invoked multiple times in parallel which the ledger
             // requests called here do not allow. Additionally, this method exposes the low level api which is private.
-            // If the Ledger is already connected and the library already loaded, the call typically takes < 1.1s for U2F /
-            // webauthn and is about instant for other transports which do not reset the _currentlyConnectedWalletId.
             if (LedgerApi._connectionAborted) {
                 // When the connection was aborted, don't retry connecting until a manual connection is requested.
                 throw new Error('Connection aborted');
             }
-            const connectStart = Date.now();
-            try {
-                const nimiqPromise = this._loadNimiq();
-                const api = await LedgerApi._initializeLowLevelApi();
-                if (!LedgerApi._currentlyConnectedWalletId) {
-                    // Not connected yet.
-                    LedgerApi._setState(StateType.CONNECTING);
+            const nimiqPromise = this._loadNimiq();
+            const api = await LedgerApi._initializeLowLevelApi();
+            // Establish / verify the connection.
+            // This takes <300ms for a pre-authorized device via WebUSB, WebHID or WebBLE and <1s for WebAuthn or U2F.
+            if (!LedgerApi._currentlyConnectedWalletId) {
+                const connectStart = Date.now();
+                LedgerApi._setState(StateType.CONNECTING);
+                let firstAddressPubKeyBytes;
+                let version;
+                try {
                     // To check whether the connection to Nimiq app is established and to calculate the walletId. Set
                     // validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger
                     // app, see transport-comparison.md. Using getPublicKey and not getAppConfiguration, as other apps also
                     // respond to getAppConfiguration (for example the Ethereum app).
-                    const { publicKey: firstAddressPubKeyBytes } = await api.getPublicKey(LedgerApi.getBip32PathForKeyId(0), false, // validate
-                    false);
-                    const { version } = await api.getAppConfiguration();
-                    if (!LedgerApi._isAppVersionSupported(version))
-                        throw new Error('Ledger Nimiq App is outdated.');
-                    try {
-                        const Nimiq = await nimiqPromise;
-                        // Use sha256 as blake2b yields the nimiq address
-                        LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAddressPubKeyBytes).toBase64();
+                    ({ publicKey: firstAddressPubKeyBytes } = await api.getPublicKey(LedgerApi.getBip32PathForKeyId(0), false, // validate
+                    false));
+                    ({ version } = await api.getAppConfiguration());
+                }
+                catch (e) {
+                    const message = (e.message || e || '').toLowerCase();
+                    if (message.indexOf('busy') !== -1) {
+                        LedgerApi._throwError(ErrorType.LEDGER_BUSY, e);
                     }
-                    catch (e) {
-                        LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED, `Failed loading dependencies: ${e.message || e}`);
+                    else if (LedgerApi._isWebAuthnOrU2fCancellation(message, connectStart)) {
+                        LedgerApi._connectionAborted = true;
+                        LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
                     }
+                    // Just rethrow other errors that just keep the API retrying (like timeout, dongle locked).
+                    throw e;
                 }
-                if (walletId !== undefined && LedgerApi._currentlyConnectedWalletId !== walletId) {
-                    throw new Error('Wrong Ledger connected');
+                if (!LedgerApi._isAppVersionSupported(version)) {
+                    LedgerApi._throwError(ErrorType.APP_OUTDATED, 'Ledger Nimiq App is outdated.');
                 }
-                this._fire(EventType.CONNECTED, LedgerApi._currentlyConnectedWalletId);
-                return api;
+                try {
+                    const Nimiq = await nimiqPromise;
+                    // Use sha256 as blake2b yields the nimiq address
+                    LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAddressPubKeyBytes).toBase64();
+                }
+                catch (e) {
+                    LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED, `Failed loading dependencies: ${e.message || e}`);
+                }
             }
-            catch (e) {
-                const message = (e.message || e || '').toLowerCase();
-                if (message.indexOf('wrong ledger') !== -1) {
-                    LedgerApi._throwError(ErrorType.WRONG_LEDGER, e);
-                }
-                LedgerApi._currentlyConnectedWalletId = null;
-                if (message.indexOf('outdated') !== -1) {
-                    LedgerApi._throwError(ErrorType.APP_OUTDATED, e);
-                }
-                else if (message.indexOf('busy') !== -1) {
-                    LedgerApi._throwError(ErrorType.LEDGER_BUSY, e);
-                }
-                else if (LedgerApi._isWebAuthnOrU2fCancellation(message, connectStart)) {
-                    LedgerApi._connectionAborted = true;
-                    LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
-                }
-                // Just rethrow the error and not fire an error state for _initializeDependencies errors which fires error
-                // states itself and for other errors (like timeout, dongle locked) that just keep the API retrying.
-                throw e;
+            if (walletId !== undefined && LedgerApi._currentlyConnectedWalletId !== walletId) {
+                LedgerApi._throwError(ErrorType.WRONG_LEDGER, 'Wrong Ledger connected');
             }
+            this._fire(EventType.CONNECTED, LedgerApi._currentlyConnectedWalletId);
+            return api;
         }
         static async _initializeLowLevelApi() {
             const transportType = LedgerApi._transportType;
-            LedgerApi._lowLevelApiPromise = LedgerApi._lowLevelApiPromise
-                || (async () => {
-                    const errorType = LedgerApi.currentState.error ? LedgerApi.currentState.error.type : null;
-                    if (errorType !== ErrorType.CONNECTION_ABORTED
-                        && errorType !== ErrorType.USER_INTERACTION_REQUIRED
-                        && errorType !== ErrorType.LOADING_DEPENDENCIES_FAILED) {
-                        // On LOADING_DEPENDENCIES_FAILED which repeatedly retries to initialize the api or exceptions which
-                        // can only throw when the api was actually loaded successfully, don't reset the state to loading to
-                        // avoid switching back and forth between loading and error state.
-                        LedgerApi._setState(StateType.LOADING);
-                    }
-                    if (!transportType)
-                        throw new Error('No browser support');
-                    const transport = await createTransport(transportType);
-                    const onDisconnect = () => {
-                        console.debug('Ledger disconnected');
-                        transport.off('disconnect', onDisconnect);
-                        if (this._transportType !== transportType)
-                            return;
-                        // A disconnected transport can not be reconnected. Therefore reset the _lowLevelApiPromise.
-                        LedgerApi._lowLevelApiPromise = null;
-                        LedgerApi._currentlyConnectedWalletId = null;
-                    };
-                    transport.on('disconnect', onDisconnect);
-                    return new LowLevelApi(transport);
-                })();
-            try {
-                const api = await LedgerApi._lowLevelApiPromise;
-                if (this._transportType === transportType)
-                    return api;
-                // Transport type changed while we were connecting; rerun.
-                return LedgerApi._initializeLowLevelApi();
-            }
-            catch (e) {
-                if (LedgerApi._transportType === transportType) {
-                    LedgerApi._lowLevelApiPromise = null;
-                    const message = (e.message || e).toLowerCase();
-                    if (/no device selected|access denied|cancelled the requestdevice/i.test(message)) {
-                        if (LedgerApi._transportType === TransportType.WEB_USB) {
-                            // Use a fallback as the user might not have been able to select his device due to the Nano X
-                            // currently not being discoverable via WebUSB in Windows.
-                            // This fallback also temporarily serves Linux users which have not updated their udev rules.
-                            // TODO the fallback is just temporary and to be removed once WebUSB with Nano X works on
-                            //  Windows or WebHID is more broadly available.
-                            const fallback = [TransportType.WEB_AUTHN, TransportType.U2F].find(isSupported);
-                            if (!fallback) {
-                                LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT, 'Ledger not supported by browser or support not enabled.');
-                            }
-                            console.warn(`LedgerApi: switching to ${fallback} as fallback`);
-                            LedgerApi.setTransportType(fallback);
-                        }
-                        else {
-                            LedgerApi._connectionAborted = true;
-                            LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
-                        }
-                    }
-                    else if (message.indexOf('user gesture') !== -1) {
-                        LedgerApi._throwError(ErrorType.USER_INTERACTION_REQUIRED, e);
-                    }
-                    else if (message.indexOf('browser support') !== -1) {
-                        LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT, 'Ledger not supported by browser or support not enabled.');
-                    }
-                    else {
-                        LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED, `Failed loading dependencies: ${message}`);
+            LedgerApi._lowLevelApiPromise = LedgerApi._lowLevelApiPromise || (async () => {
+                // Check browser support for current transport. Note that when transport changes during connect, we recurse.
+                if (!transportType || !isSupported(transportType)) {
+                    LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT, 'Ledger not supported by browser or support not enabled.');
+                }
+                // Load transport lib.
+                let TransportLib;
+                // Only set the loading state if the lib is not already loaded or fails instantly.
+                const delayedLoadingStateTimeout = setTimeout(() => LedgerApi._setState(StateType.LOADING), 50);
+                try {
+                    TransportLib = await loadTransportLibrary(transportType);
+                }
+                catch (e) {
+                    if (transportType === LedgerApi._transportType) {
+                        LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED, `Failed loading dependencies: ${e.message || e}`);
                     }
                 }
+                finally {
+                    clearTimeout(delayedLoadingStateTimeout);
+                }
+                if (transportType !== LedgerApi._transportType)
+                    throw new Error('Transport changed');
+                // Create transport. Note that creating the transport has to happen in the context of a user interaction if
+                // opening a device selector is required.
+                let transport;
+                // Only set the connecting state if it is not instantaneous because a device selector needs to be shown
+                const delayedConnectingStateTimeout = setTimeout(() => LedgerApi._setState(StateType.CONNECTING), 50);
+                try {
+                    transport = await TransportLib.create();
+                }
+                catch (e) {
+                    if (transportType === LedgerApi._transportType) {
+                        const message = (e.message || e).toLowerCase();
+                        if (/no device selected|access denied|cancelled the requestdevice/i.test(message)) {
+                            if (LedgerApi._transportType === TransportType.WEB_USB) {
+                                // Use a fallback as the user might not have been able to select his device due to the Nano
+                                // X currently not being discoverable via WebUSB in Windows.
+                                // This fallback also temporarily serves Linux users which have not updated their udev rules
+                                // TODO the fallback is just temporary and to be removed once WebUSB with Nano X works on
+                                //  Windows or WebHID is more broadly available.
+                                const fallback = [TransportType.WEB_AUTHN, TransportType.U2F].find(isSupported);
+                                if (!fallback) {
+                                    LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT, 'Ledger not supported by browser or support not enabled.');
+                                }
+                                console.warn(`LedgerApi: switching to ${fallback} as fallback`);
+                                LedgerApi.setTransportType(fallback);
+                            }
+                            else {
+                                LedgerApi._connectionAborted = true;
+                                LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
+                            }
+                        }
+                        else if (message.indexOf('user gesture') !== -1) {
+                            LedgerApi._throwError(ErrorType.USER_INTERACTION_REQUIRED, e);
+                        }
+                        else {
+                            throw e; // rethrow unknown exception
+                        }
+                    }
+                }
+                finally {
+                    clearTimeout(delayedConnectingStateTimeout);
+                }
+                if (transportType !== LedgerApi._transportType) {
+                    transport.close();
+                    throw new Error('Transport changed');
+                }
+                const onDisconnect = () => {
+                    console.debug('Ledger disconnected');
+                    transport.off('disconnect', onDisconnect);
+                    if (transportType === LedgerApi._transportType) {
+                        // Disconnected transport cannot be reconnected. Thus also disconnect from our side for cleanup.
+                        // If the transport switched, no additional cleanup is necessary as it already happened on switch.
+                        LedgerApi.disconnect(/* cancelRequest */ false);
+                    }
+                };
+                transport.on('disconnect', onDisconnect);
+                return new LowLevelApi(transport);
+            })();
+            try {
+                return await LedgerApi._lowLevelApiPromise;
+            }
+            catch (e) {
+                LedgerApi._lowLevelApiPromise = null;
+                if (transportType === LedgerApi._transportType)
+                    throw e;
                 // Transport type changed while we were connecting; ignore error and rerun
                 return LedgerApi._initializeLowLevelApi();
             }
         }
         static async _loadNimiq() {
-            // Small helper that throws a "Failed loading dependencies" exception on error. Note that we don't need to cache
-            // a promise here as in _initializeLowLevelApi as loadNimiqCore and loadNimiqCryptography already do that.
-            try {
-                const [Nimiq] = await Promise.all([
-                    loadNimiqCore(),
-                    // needed for walletId hashing and pub key to address derivation in SignatureProof and BasicTransaction
-                    loadNimiqCryptography(),
-                ]);
-                return Nimiq;
-            }
-            catch (e) {
-                throw new Error(`Failed loading dependencies: ${e.message || e}`);
-            }
+            // Note that we don't need to cache a promise here as loadNimiqCore and loadNimiqCryptography already do that.
+            const [Nimiq] = await Promise.all([
+                loadNimiqCore(),
+                // needed for walletId hashing and pub key to address derivation in SignatureProof and BasicTransaction
+                loadNimiqCryptography(),
+            ]);
+            return Nimiq;
         }
         static _isWebAuthnOrU2fCancellation(errorMessage, requestStart) {
             // Try to detect a WebAuthn or U2F cancellation. In Firefox, we can detect a WebAuthn cancellation for the

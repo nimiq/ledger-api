@@ -1,4 +1,5 @@
-declare type Transport = import('@ledgerhq/hw-transport').default;
+declare type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
+declare type TransportWebUsbConstructor = typeof import('@ledgerhq/hw-transport-webusb').default;
 export declare enum TransportType {
     WEB_HID = "web-hid",
     WEB_USB = "web-usb",
@@ -9,10 +10,8 @@ export declare enum TransportType {
 export declare function isSupported(transportType?: TransportType): boolean;
 export declare function autoDetectTransportTypeToUse(): TransportType | null;
 /**
- * Create a new transport to a connected Ledger device. All transport types but U2F and WebAuthn must be invoked on user
- * interaction. If an already known device is connected, a transport instance to that device is established. Otherwise,
- * a browser popup with a selector is opened.
+ * Lazy load the library for a transport type.
  * @param transportType
  */
-export declare function createTransport(transportType: TransportType): Promise<Transport>;
+export declare function loadTransportLibrary(transportType: TransportType): Promise<TransportWebUsbConstructor | TransportConstructor>;
 export {};
