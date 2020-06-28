@@ -1,4 +1,5 @@
-type Transport = import('@ledgerhq/hw-transport').default;
+type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
+type TransportWebUsbConstructor = typeof import('@ledgerhq/hw-transport-webusb').default;
 
 export enum TransportType {
     WEB_HID = 'web-hid',
@@ -58,23 +59,22 @@ export function autoDetectTransportTypeToUse(): TransportType | null {
 }
 
 /**
- * Create a new transport to a connected Ledger device. All transport types but U2F and WebAuthn must be invoked on user
- * interaction. If an already known device is connected, a transport instance to that device is established. Otherwise,
- * a browser popup with a selector is opened.
+ * Lazy load the library for a transport type.
  * @param transportType
  */
-export async function createTransport(transportType: TransportType): Promise<Transport> {
+export async function loadTransportLibrary(transportType: TransportType)
+    : Promise<TransportWebUsbConstructor|TransportConstructor> {
     switch (transportType) {
         case TransportType.WEB_HID:
-            return (await import('@ledgerhq/hw-transport-webhid')).default.create();
+            return (await import('@ledgerhq/hw-transport-webhid')).default;
         case TransportType.WEB_USB:
-            return (await import('@ledgerhq/hw-transport-webusb')).default.create();
+            return (await import('@ledgerhq/hw-transport-webusb')).default;
         case TransportType.WEB_BLE:
-            return (await import('@ledgerhq/hw-transport-web-ble')).default.create();
+            return (await import('@ledgerhq/hw-transport-web-ble')).default;
         case TransportType.WEB_AUTHN:
-            return (await import('@ledgerhq/hw-transport-webauthn')).default.create();
+            return (await import('@ledgerhq/hw-transport-webauthn')).default;
         case TransportType.U2F:
-            return (await import('@ledgerhq/hw-transport-u2f')).default.create();
+            return (await import('@ledgerhq/hw-transport-u2f')).default;
         default:
             throw new Error(`Unknown transport type ${transportType}`);
     }
