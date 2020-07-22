@@ -64,9 +64,9 @@ export default class LowLevelApi {
      * Close the transport instance. Note that this does not emit a disconnect. Disconnects are only emitted when the
      * device actually disconnects (or switches it's descriptor which happens when switching to the dashboard or apps).
      */
-    public close() {
+    public async close() {
         try {
-            this._transport.close();
+            await this._transport.close();
         } catch (e) {
             // Ignore. Transport might already be closed.
         }
