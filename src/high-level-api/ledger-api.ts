@@ -2,7 +2,7 @@ import LowLevelApi from '../low-level-api/low-level-api';
 import Observable, { EventListener } from '../lib/observable';
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
 import { autoDetectTransportTypeToUse, loadTransportLibrary, isSupported, TransportType } from './transport-utils';
-import LedgerApiRequest, { RequestParams, RequestType } from './ledger-api-request';
+import Request, { RequestParams, RequestType } from './request';
 
 type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
 type TransportWebUsbConstructor = typeof import('@ledgerhq/hw-transport-webusb').default;
@@ -52,7 +52,7 @@ export interface State {
         type: ErrorType,
         message: string,
     };
-    request?: LedgerApiRequest<any>;
+    request?: Request<any>;
 }
 
 export interface TransactionInfo {
@@ -80,7 +80,7 @@ export default class LedgerApi {
         return LedgerApi._currentState;
     }
 
-    public static get currentRequest(): LedgerApiRequest<any> | null {
+    public static get currentRequest(): Request<any> | null {
         return LedgerApi._currentRequest;
     }
 
@@ -205,7 +205,7 @@ export default class LedgerApi {
             });
         }
         // We have to send a request ourselves
-        const request = new LedgerApiRequest(
+        const request = new Request(
             RequestType.GET_WALLET_ID,
             // we're connected when the request get's executed
             (): Promise<string> => Promise.resolve(LedgerApi._currentlyConnectedWalletId!),
@@ -254,7 +254,7 @@ export default class LedgerApi {
      */
     public static async deriveAddresses(pathsToDerive: Iterable<string>, walletId?: string)
         : Promise<Array<{ address: string, keyPath: string }>> {
-        const request = new LedgerApiRequest(RequestType.DERIVE_ADDRESSES,
+        const request = new Request(RequestType.DERIVE_ADDRESSES,
             async (api, params): Promise<Array<{ address: string, keyPath: string }>> => {
                 const addressRecords = [];
                 for (const keyPath of params.pathsToDerive!) {
@@ -289,7 +289,7 @@ export default class LedgerApi {
      * @returns The derived public key.
      */
     public static async getPublicKey(keyPath: string, walletId?: string): Promise<PublicKey> {
-        const request = new LedgerApiRequest(RequestType.GET_PUBLIC_KEY,
+        const request = new Request(RequestType.GET_PUBLIC_KEY,
             async (api, params): Promise<PublicKey> => {
                 const { publicKey } = await api.getPublicKey(
                     params.keyPath!,
@@ -321,7 +321,7 @@ export default class LedgerApi {
      * @returns The derived address.
      */
     public static async getAddress(keyPath: string, walletId?: string): Promise<string> {
-        const request = new LedgerApiRequest(RequestType.GET_ADDRESS,
+        const request = new Request(RequestType.GET_ADDRESS,
             async (api, params): Promise<string> => {
                 const { address } = await api.getAddress(
                     params.keyPath!,
@@ -350,7 +350,7 @@ export default class LedgerApi {
      */
     public static async confirmAddress(userFriendlyAddress: string, keyPath: string, walletId?: string)
         : Promise<string> {
-        const request = new LedgerApiRequest(RequestType.CONFIRM_ADDRESS,
+        const request = new Request(RequestType.CONFIRM_ADDRESS,
             async (api, params): Promise<string> => {
                 const { address: confirmedAddress } = await api.getAddress(
                     params.keyPath!,
@@ -399,7 +399,7 @@ export default class LedgerApi {
      */
     public static async signTransaction(transaction: TransactionInfo, keyPath: string, walletId?: string)
         : Promise<Transaction> {
-        const request = new LedgerApiRequest(RequestType.SIGN_TRANSACTION,
+        const request = new Request(RequestType.SIGN_TRANSACTION,
             async (api, params): Promise<Transaction> => {
                 // Note: We make api calls outside of try...catch blocks to let the exceptions fall through such that
                 // _callLedger can decide how to behave depending on the api error. All other errors are converted to
@@ -499,12 +499,12 @@ export default class LedgerApi {
     private static _transportType: TransportType | null = autoDetectTransportTypeToUse();
     private static _lowLevelApiPromise: Promise<LowLevelApi> | null = null;
     private static _currentState: State = { type: StateType.IDLE };
-    private static _currentRequest: LedgerApiRequest<any> | null = null;
+    private static _currentRequest: Request<any> | null = null;
     private static _currentlyConnectedWalletId: string | null = null;
     private static _connectionAborted: boolean = false;
     private static _observable = new Observable();
 
-    private static async _callLedger<T>(request: LedgerApiRequest<T>): Promise<T> {
+    private static async _callLedger<T>(request: Request<T>): Promise<T> {
         if (LedgerApi.isBusy) {
             LedgerApi._throwError(ErrorType.LEDGER_BUSY, 'Only one call to Ledger at a time allowed',
                 request);
@@ -517,7 +517,7 @@ export default class LedgerApi {
                 let lastRequestCallTime = -1;
                 let canCancelDirectly = true;
                 let cancelFired = false;
-                request.on(LedgerApiRequest.EVENT_CANCEL, () => {
+                request.on(Request.EVENT_CANCEL, () => {
                     // If we can, reject the call right away. Otherwise just notify that the request was requested to be
                     // cancelled such that the user can cancel the call on the ledger.
                     if (canCancelDirectly) {
@@ -825,7 +825,7 @@ export default class LedgerApi {
     private static _throwError(
         type: ErrorType,
         error: Error | string,
-        request?: LedgerApiRequest<any>,
+        request?: Request<any>,
     ): void {
         const state: State = {
             type: StateType.ERROR,

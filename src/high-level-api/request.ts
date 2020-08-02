@@ -20,7 +20,7 @@ export interface RequestParams {
     transaction?: TransactionInfo; // for SIGN_TRANSACTION
 }
 
-export default class LedgerApiRequest<T> extends Observable {
+export default class Request<T> extends Observable {
     public static readonly EVENT_CANCEL = 'cancel';
     public readonly type: RequestType;
     public readonly params: RequestParams;
@@ -49,11 +49,11 @@ export default class LedgerApiRequest<T> extends Observable {
     public cancel(): void {
         if (this._cancelled) return;
         this._cancelled = true;
-        this.fire(LedgerApiRequest.EVENT_CANCEL);
+        this.fire(Request.EVENT_CANCEL);
     }
 
     public on(type: string, callback: EventListener): void {
-        if (type === LedgerApiRequest.EVENT_CANCEL && this._cancelled) {
+        if (type === Request.EVENT_CANCEL && this._cancelled) {
             // trigger callback directly
             callback();
         }
