@@ -7,7 +7,7 @@ import { listen as onLog } from '@ledgerhq/logs';
 import { loadNimiqCore } from '../lib/load-nimiq';
 // typescript needs the import as specified to find the .d.ts file, see rollup.config.js
 import LowLevelApi from '../../dist/low-level-api/low-level-api';
-import HighLevelApi, { EventType, State, TransportType } from '../../dist/high-level-api/ledger-api';
+import HighLevelApi, { EventType, State, ErrorState, TransportType } from '../../dist/high-level-api/ledger-api';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
@@ -253,7 +253,8 @@ window.addEventListener('load', () => {
                 window._api = HighLevelApi;
                 window._api.on(EventType.STATE_CHANGE, (state: State) => {
                     console.log('%cState change', 'color: teal', state);
-                    $highLevelApiState.textContent = `${state.type}${state.error ? `: ${state.error.type}` : ''}`;
+                    $highLevelApiState.textContent = `${state.type}${state instanceof ErrorState
+                        ? `: ${state.errorType}` : ''}`;
                 });
                 window._api.on(EventType.CONNECTED, (walletId: string) => {
                     console.log(`%cConnected to wallet ${walletId}`, 'color: teal');

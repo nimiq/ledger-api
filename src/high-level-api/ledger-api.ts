@@ -1,8 +1,9 @@
 import LowLevelApi from '../low-level-api/low-level-api';
 import Observable, { EventListener } from '../lib/observable';
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
-import { autoDetectTransportTypeToUse, loadTransportLibrary, isSupported, TransportType } from './transport-utils';
+import { autoDetectTransportTypeToUse, isSupported, loadTransportLibrary, TransportType } from './transport-utils';
 import Request, { RequestParams, RequestType } from './request';
+import ErrorState, { ErrorType } from './error-state'; // eslint-disable-line import/no-cycle
 
 type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
 type TransportWebUsbConstructor = typeof import('@ledgerhq/hw-transport-webusb').default;
@@ -13,8 +14,9 @@ type AccountType = import('@nimiq/core-web').Account.Type;
 type Transaction = import('@nimiq/core-web').Transaction;
 type PublicKey = import('@nimiq/core-web').PublicKey;
 
-export { RequestType, RequestParams };
 export { isSupported, TransportType };
+export { RequestType, RequestParams };
+export { ErrorType, ErrorState };
 
 // events appear at a single point of time while states reflect the current state of the api for a timespan ranging
 // into the future. E.g. if a request was cancelled, a REQUEST_CANCELLED event gets thrown and the state changes to
@@ -35,25 +37,10 @@ export enum StateType {
     ERROR = 'error',
 }
 
-export enum ErrorType {
-    LEDGER_BUSY = 'ledger-busy',
-    LOADING_DEPENDENCIES_FAILED = 'loading-dependencies-failed',
-    USER_INTERACTION_REQUIRED = 'user-interaction-required',
-    CONNECTION_ABORTED = 'connection-aborted',
-    NO_BROWSER_SUPPORT = 'no-browser-support',
-    APP_OUTDATED = 'app-outdated',
-    WRONG_LEDGER = 'wrong-ledger',
-    REQUEST_ASSERTION_FAILED = 'request-specific-error',
-}
-
-export interface State {
-    type: StateType;
-    error?: {
-        type: ErrorType,
-        message: string,
-    };
-    request?: Request<any>;
-}
+export type State = {
+    type: Exclude<StateType, StateType.ERROR>,
+    request?: Request<any>,
+} | ErrorState;
 
 export interface TransactionInfo {
     sender: Address;
@@ -277,7 +264,9 @@ export default class LedgerApi {
         // check paths outside of request to avoid endless loop in _callLedger if we'd throw for an invalid keyPath
         for (const keyPath of pathsToDerive) {
             if (LedgerApi.BIP32_PATH_REGEX.test(keyPath)) continue;
-            this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            const error = new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            LedgerApi._setState(error);
+            throw error;
         }
         return LedgerApi._callLedger(request);
     }
@@ -309,7 +298,9 @@ export default class LedgerApi {
             },
         );
         if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-            this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            const error = new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            LedgerApi._setState(error);
+            throw error;
         }
         return LedgerApi._callLedger(request);
     }
@@ -336,7 +327,9 @@ export default class LedgerApi {
             },
         );
         if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-            this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            const error = new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            LedgerApi._setState(error);
+            throw error;
         }
         return LedgerApi._callLedger(request);
     }
@@ -360,7 +353,9 @@ export default class LedgerApi {
 
                 if (params.addressToConfirm!.replace(/ /g, '').toUpperCase()
                     !== confirmedAddress.replace(/ /g, '').toUpperCase()) {
-                    LedgerApi._throwError(ErrorType.REQUEST_ASSERTION_FAILED, 'Address mismatch', request);
+                    const error = new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, 'Address mismatch', request);
+                    LedgerApi._setState(error);
+                    throw error;
                 }
 
                 return confirmedAddress;
@@ -372,7 +367,9 @@ export default class LedgerApi {
             },
         );
         if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-            this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            const error = new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            LedgerApi._setState(error);
+            throw error;
         }
         return LedgerApi._callLedger(request);
     }
@@ -460,27 +457,31 @@ export default class LedgerApi {
                             fee, tx.validityStartHeight, /* signature */ undefined, networkId);
                     }
                 } catch (e) {
-                    this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, e, request);
+                    const error = new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e, request);
+                    LedgerApi._setState(error);
+                    throw error;
                 }
 
                 const { signature: signatureBytes } = await api.signTransaction(
                     params.keyPath!,
-                    nimiqTx!.serializeContent(),
+                    nimiqTx.serializeContent(),
                 );
 
                 try {
                     const signature = new Nimiq.Signature(signatureBytes);
 
-                    if (nimiqTx! instanceof Nimiq.BasicTransaction) {
+                    if (nimiqTx instanceof Nimiq.BasicTransaction) {
                         nimiqTx.signature = signature;
                     } else {
-                        nimiqTx!.proof = Nimiq.SignatureProof.singleSig(signerPubKey!, signature).serialize();
+                        nimiqTx.proof = Nimiq.SignatureProof.singleSig(signerPubKey, signature).serialize();
                     }
                 } catch (e) {
-                    this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, e, request);
+                    const error = new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e, request);
+                    LedgerApi._setState(error);
+                    throw error;
                 }
 
-                return nimiqTx!;
+                return nimiqTx;
             },
             {
                 walletId,
@@ -490,7 +491,9 @@ export default class LedgerApi {
         );
 
         if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-            this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            const error = new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+            LedgerApi._setState(error);
+            throw error;
         }
         return LedgerApi._callLedger(request);
     }
@@ -506,8 +509,9 @@ export default class LedgerApi {
 
     private static async _callLedger<T>(request: Request<T>): Promise<T> {
         if (LedgerApi.isBusy) {
-            LedgerApi._throwError(ErrorType.LEDGER_BUSY, 'Only one call to Ledger at a time allowed',
-                request);
+            const error = new ErrorState(ErrorType.LEDGER_BUSY, 'Only one call to Ledger at a time allowed', request);
+            LedgerApi._setState(error);
+            throw error;
         }
         LedgerApi._connectionAborted = false; // user is initiating a new request
         try {
@@ -577,8 +581,8 @@ export default class LedgerApi {
                             break; // continue after loop where the actual cancellation happens
                         }
                         // Errors that should end the request
-                        if ((LedgerApi.currentState.error
-                            && LedgerApi.currentState.error.type === ErrorType.REQUEST_ASSERTION_FAILED)
+                        if ((LedgerApi.currentState instanceof ErrorState
+                            && LedgerApi.currentState.errorType === ErrorType.REQUEST_ASSERTION_FAILED)
                             || message.indexOf('not supported') !== -1) { // no browser support
                             reject(e);
                             return;
@@ -612,8 +616,10 @@ export default class LedgerApi {
                 || LedgerApi._transportType === TransportType.WEB_AUTHN) {
                 LedgerApi._currentlyConnectedWalletId = null; // reset as we don't note when Ledger gets disconnected
             }
-            const errorType = LedgerApi.currentState.error ? LedgerApi.currentState.error.type : null;
-            if (errorType !== ErrorType.NO_BROWSER_SUPPORT
+            const errorType = LedgerApi._currentState instanceof ErrorState
+                ? LedgerApi._currentState.errorType
+                : null;
+            if (errorType !== ErrorType.BROWSER_UNSUPPORTED
                 && errorType !== ErrorType.REQUEST_ASSERTION_FAILED) {
                 LedgerApi._setState(StateType.IDLE);
             }
@@ -627,7 +633,8 @@ export default class LedgerApi {
         // method is not publicly exposed to avoid that it could be invoked multiple times in parallel which the ledger
         // requests called here do not allow. Additionally, this method exposes the low level api which is private.
         if (LedgerApi._connectionAborted) {
-            // When the connection was aborted, don't retry connecting until a manual connection is requested.
+            // When the connection was aborted, don't retry connecting until a manual connection is requested. Throw as
+            // normal error and not as error state as error state had already been reported.
             throw new Error('Connection aborted');
         }
 
@@ -656,10 +663,14 @@ export default class LedgerApi {
             } catch (e) {
                 const message = (e.message || e || '').toLowerCase();
                 if (message.indexOf('busy') !== -1) {
-                    LedgerApi._throwError(ErrorType.LEDGER_BUSY, e);
+                    const error = new ErrorState(ErrorType.LEDGER_BUSY, 'Only one call to Ledger at a time allowed');
+                    LedgerApi._setState(error);
+                    throw error;
                 } else if (LedgerApi._isWebAuthnOrU2fCancellation(message, connectStart)) {
                     LedgerApi._connectionAborted = true;
-                    LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
+                    const error = new ErrorState(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
+                    LedgerApi._setState(error);
+                    throw error;
                 }
 
                 // Just rethrow other errors that just keep the API retrying (like timeout, dongle locked).
@@ -667,7 +678,9 @@ export default class LedgerApi {
             }
 
             if (!LedgerApi._isAppVersionSupported(version)) {
-                LedgerApi._throwError(ErrorType.APP_OUTDATED, 'Ledger Nimiq App is outdated.');
+                const error = new ErrorState(ErrorType.APP_OUTDATED, 'Ledger Nimiq App is outdated.');
+                LedgerApi._setState(error);
+                throw error;
             }
 
             try {
@@ -675,13 +688,19 @@ export default class LedgerApi {
                 // Use sha256 as blake2b yields the nimiq address
                 LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAddressPubKeyBytes).toBase64();
             } catch (e) {
-                LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED,
-                    `Failed loading dependencies: ${e.message || e}`);
+                const error = new ErrorState(
+                    ErrorType.LOADING_DEPENDENCIES_FAILED,
+                    `Failed loading dependencies: ${e.message || e}`,
+                );
+                LedgerApi._setState(error);
+                throw error;
             }
         }
 
         if (walletId !== undefined && LedgerApi._currentlyConnectedWalletId !== walletId) {
-            LedgerApi._throwError(ErrorType.WRONG_LEDGER, 'Wrong Ledger connected');
+            const error = new ErrorState(ErrorType.WRONG_LEDGER, 'Wrong Ledger connected');
+            LedgerApi._setState(error);
+            throw error;
         }
         this._fire(EventType.CONNECTED, LedgerApi._currentlyConnectedWalletId);
         return api;
@@ -692,8 +711,9 @@ export default class LedgerApi {
         LedgerApi._lowLevelApiPromise = LedgerApi._lowLevelApiPromise || (async () => {
             // Check browser support for current transport. Note that when transport changes during connect, we recurse.
             if (!transportType || !isSupported(transportType)) {
-                LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT,
-                    'Ledger not supported by browser or support not enabled.');
+                const error = new ErrorState(ErrorType.BROWSER_UNSUPPORTED, 'Ledger not supported by browser.');
+                LedgerApi._setState(error);
+                throw error;
             }
 
             // Load transport lib.
@@ -704,13 +724,17 @@ export default class LedgerApi {
                 TransportLib = await loadTransportLibrary(transportType!);
             } catch (e) {
                 if (transportType === LedgerApi._transportType) {
-                    LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED,
-                        `Failed loading dependencies: ${e.message || e}`);
+                    const error = new ErrorState(
+                        ErrorType.LOADING_DEPENDENCIES_FAILED,
+                        `Failed loading dependencies: ${e.message || e}`,
+                    );
+                    LedgerApi._setState(error);
+                    throw error;
                 }
             } finally {
                 clearTimeout(delayedLoadingStateTimeout);
             }
-            if (transportType !== LedgerApi._transportType) throw new Error('Transport changed');
+            if (transportType !== LedgerApi._transportType) throw new Error('Transport changed'); // caught locally
 
             // Create transport. Note that creating the transport has to happen in the context of a user interaction if
             // opening a device selector is required.
@@ -731,17 +755,28 @@ export default class LedgerApi {
                             //  Windows or WebHID is more broadly available.
                             const fallback = [TransportType.WEB_AUTHN, TransportType.U2F].find(isSupported);
                             if (!fallback) {
-                                LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT,
-                                    'Ledger not supported by browser or support not enabled.');
+                                const error = new ErrorState(
+                                    ErrorType.BROWSER_UNSUPPORTED,
+                                    'Ledger not supported by browser.',
+                                );
+                                LedgerApi._setState(error);
+                                throw error;
                             }
                             console.warn(`LedgerApi: switching to ${fallback} as fallback`);
                             LedgerApi.setTransportType(fallback!);
                         } else {
                             LedgerApi._connectionAborted = true;
-                            LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
+                            const error = new ErrorState(
+                                ErrorType.CONNECTION_ABORTED,
+                                `Connection aborted: ${message}`,
+                            );
+                            LedgerApi._setState(error);
+                            throw error;
                         }
                     } else if (message.indexOf('user gesture') !== -1) {
-                        LedgerApi._throwError(ErrorType.USER_INTERACTION_REQUIRED, e);
+                        const error = new ErrorState(ErrorType.USER_INTERACTION_REQUIRED, e);
+                        LedgerApi._setState(error);
+                        throw error;
                     } else {
                         throw e; // rethrow unknown exception
                     }
@@ -751,7 +786,7 @@ export default class LedgerApi {
             }
             if (transportType !== LedgerApi._transportType) {
                 transport!.close();
-                throw new Error('Transport changed');
+                throw new Error('Transport changed'); // caught locally
             }
 
             const onDisconnect = () => {
@@ -806,41 +841,21 @@ export default class LedgerApi {
         return true;
     }
 
-    private static _setState(state: State | StateType): void {
+    private static _setState(state: State | Exclude<StateType, StateType.ERROR>): void {
         if (typeof state === 'string') {
             // it's an entry from LedgerApi.StateType enum
             state = { type: state };
         }
         state.request = !state.request && LedgerApi._currentRequest ? LedgerApi._currentRequest : state.request;
 
-        if (LedgerApi._currentState.type === state.type
-            && (LedgerApi._currentState.error === state.error
-                || (!!LedgerApi._currentState.error && !!state.error
-                    && LedgerApi._currentState.error.type === state.error.type))
+        const currentState = LedgerApi._currentState;
+        const currentErrorType = currentState instanceof ErrorState ? currentState.errorType : null;
+        const errorType = state instanceof ErrorState ? state.errorType : null;
+        if (currentState.type === state.type
+            && currentErrorType === errorType
             && LedgerApi._currentState.request === state.request) return;
         LedgerApi._currentState = state;
         LedgerApi._fire(EventType.STATE_CHANGE, state);
-    }
-
-    private static _throwError(
-        type: ErrorType,
-        error: Error | string,
-        request?: Request<any>,
-    ): void {
-        const state: State = {
-            type: StateType.ERROR,
-            error: {
-                type,
-                message: typeof error === 'string' ? error : error.message,
-            },
-        };
-        if (request) state.request = request;
-        LedgerApi._setState(state);
-        if (typeof error === 'string') {
-            throw new Error(error);
-        } else {
-            throw error;
-        }
     }
 
     private static _fire(eventName: EventType, ...args: any[]): void {
