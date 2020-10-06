@@ -53,11 +53,18 @@ export default class LowLevelApi {
 
     constructor(transport: Transport) {
         this._transport = transport;
+        // Note that the registered methods here do not intersect with the methods of the Bitcoin api, therefore, we can
+        // re-use the same transport instance for both, NIM and BTC apis (as long as a switch between NIM and BTC apps
+        // doesn't cause a disconnect).
         transport.decorateAppAPIMethods(
             this,
             ['getAppConfiguration', 'getPublicKey', 'signTransaction'],
             'w0w',
         );
+    }
+
+    public get transport(): Transport {
+        return this._transport;
     }
 
     /**

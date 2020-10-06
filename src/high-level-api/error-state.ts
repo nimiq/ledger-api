@@ -1,5 +1,6 @@
-import { StateType } from './ledger-api'; // eslint-disable-line import/no-cycle
-import Request from './request';
+type StateTypeError = import('./ledger-api').StateType.ERROR;
+
+type Request<P, R> = import('./requests/request').default<P, R>;
 
 export enum ErrorType {
     LEDGER_BUSY = 'ledger-busy',
@@ -13,11 +14,11 @@ export enum ErrorType {
 }
 
 export default class ErrorState extends Error {
-    public readonly type: StateType.ERROR = StateType.ERROR; // state type
+    public readonly type: StateTypeError = 'error' as StateTypeError; // state type
     public readonly errorType: ErrorType;
-    public request?: Request<any>;
+    public request?: Request<any, any>;
 
-    constructor(errorType: ErrorType, messageOrError: string | Error, request?: Request<any>) {
+    constructor(errorType: ErrorType, messageOrError: string | Error, request?: Request<any, any>) {
         super(messageOrError.toString());
 
         if (messageOrError instanceof Error && messageOrError.stack) {
@@ -28,7 +29,7 @@ export default class ErrorState extends Error {
             Error.captureStackTrace(this, ErrorState);
         }
 
-        this.name = 'LedgerApiError';
+        this.name = 'LedgerErrorState';
         this.errorType = errorType;
         this.request = request;
     }

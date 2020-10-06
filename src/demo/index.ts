@@ -7,7 +7,14 @@ import { listen as onLog } from '@ledgerhq/logs';
 import { loadNimiqCore } from '../lib/load-nimiq';
 // typescript needs the import as specified to find the .d.ts file, see rollup.config.js
 import LowLevelApi from '../../dist/low-level-api/low-level-api';
-import HighLevelApi, { EventType, State, ErrorState, TransportType } from '../../dist/high-level-api/ledger-api';
+import HighLevelApi, {
+    Coin,
+    CoinAppConnection,
+    ErrorState,
+    EventType,
+    State,
+    TransportType,
+} from '../../dist/high-level-api/ledger-api';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
@@ -256,9 +263,10 @@ window.addEventListener('load', () => {
                     $highLevelApiState.textContent = `${state.type}${state instanceof ErrorState
                         ? `: ${state.errorType}` : ''}`;
                 });
-                window._api.on(EventType.CONNECTED, (walletId: string) => {
-                    console.log(`%cConnected to wallet ${walletId}`, 'color: teal');
-                    $highLevelApiLastEvent.textContent = `Connected to wallet ${walletId}`;
+                window._api.on(EventType.CONNECTED, (connection: CoinAppConnection) => {
+                    console.log(`%cConnected to coin ${connection.coin}, wallet ${connection.walletId}`, 'color: teal');
+                    $highLevelApiLastEvent.textContent = `Connected to coin ${connection.coin},`
+                        + ` wallet ${connection.walletId}`;
                 });
                 window._api.on(EventType.REQUEST_SUCCESSFUL, (...args) => {
                     console.log('%cRequest successful', 'color: teal', ...args);
@@ -292,7 +300,7 @@ window.addEventListener('load', () => {
             const deviceModel = (window._transport.deviceModel || {}).productName || 'device type unknown';
             displayStatus(`Connected (app version ${version}, ${deviceModel})`);
         } else {
-            const connected = await api.connect();
+            const connected = await api.connect(Coin.NIMIQ);
             displayStatus(connected ? 'Connected' : 'Connection cancelled');
         }
     }
@@ -329,7 +337,7 @@ window.addEventListener('load', () => {
                 ({ publicKey } = await api.getPublicKey(bip32Path, false, confirm));
             } else {
                 if (confirm) throw new Error('High level api does not provide the option to confirm a public key');
-                publicKey = (await api.getPublicKey(bip32Path)).serialize();
+                publicKey = (await api.Nimiq.getPublicKey(bip32Path)).serialize();
             }
             const Nimiq = await loadNimiqPromise;
             $publicKey.textContent = Nimiq.BufferUtils.toHex(publicKey);
@@ -353,7 +361,9 @@ window.addEventListener('load', () => {
             if (api instanceof LowLevelApi) {
                 ({ address } = await api.getAddress(bip32Path, true, confirm));
             } else {
-                address = confirm ? await api.getConfirmedAddress(bip32Path) : await api.getAddress(bip32Path);
+                address = confirm
+                    ? await api.Nimiq.getConfirmedAddress(bip32Path)
+                    : await api.Nimiq.getAddress(bip32Path);
             }
             $address.textContent = address;
             displayStatus('Received address');
@@ -392,7 +402,7 @@ window.addEventListener('load', () => {
                 const validityStartHeight = buffer.readUint32();
                 buffer.readUint8(); // networkId
                 const flags = buffer.readUint8();
-                const proofBytes = new Nimiq.SerialBuffer((await api.signTransaction(
+                const proofBytes = new Nimiq.SerialBuffer((await api.Nimiq.signTransaction(
                     { sender, senderType, recipient, recipientType, value, fee, validityStartHeight, flags, extraData },
                     bip32Path,
                 )).proof);
