@@ -15,7 +15,6 @@ type RequestType = RequestTypeNimiq;
 type RequestGetWalletIdNimiq = import('./requests/nimiq/request-get-wallet-id-nimiq').default;
 type RequestGetPublicKeyNimiq = import('./requests/nimiq/request-get-public-key-nimiq').default;
 type RequestGetAddressNimiq = import('./requests/nimiq/request-get-address-nimiq').default;
-type RequestConfirmAddressNimiq = import('./requests/nimiq/request-confirm-address-nimiq').default;
 type RequestDeriveAddressesNimiq = import('./requests/nimiq/request-derive-addresses-nimiq').default;
 type RequestSignTransactionNimiq = import('./requests/nimiq/request-sign-transaction-nimiq').default;
 
@@ -95,32 +94,23 @@ export default class LedgerApi {
         },
 
         /**
-         * Get the address for a given bip32 key path. Optionally expect a specific walletId.
+         * Get the address for a given bip32 key path. Optionally display the address on the Ledger screen for
+         * verification, expect a specific address or expect a specific walletId.
          */
-        async getAddress(keyPath: string, walletId?: string): Promise<string> {
+        async getAddress(keyPath: string, display = false, expectedAddress?: string, walletId?: string)
+            : Promise<string> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetAddressNimiq>(
                 import('./requests/nimiq/request-get-address-nimiq'),
-                { keyPath, walletId },
+                { keyPath, display, expectedAddress, walletId },
             ));
         },
 
         /**
-         * Confirm that an address belongs to the connected Ledger and display the address to the user on the Ledger
-         * screen. Optionally expect a specific walletId.
-         */
-        async confirmAddress(userFriendlyAddress: string, keyPath: string, walletId?: string): Promise<string> {
-            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestConfirmAddressNimiq>(
-                import('./requests/nimiq/request-confirm-address-nimiq'),
-                { keyPath, walletId, addressToConfirm: userFriendlyAddress },
-            ));
-        },
-
-        /**
-         * Utility function that combines getAddress and confirmAddress to directly get a confirmed address.
+         * Utility function that directly gets a confirmed address.
          */
         async getConfirmedAddress(keyPath: string, walletId?: string): Promise<string> {
-            const address = await LedgerApi.Nimiq.getAddress(keyPath, walletId);
-            return LedgerApi.Nimiq.confirmAddress(address, keyPath, walletId);
+            const address = await LedgerApi.Nimiq.getAddress(keyPath, false, undefined, walletId);
+            return LedgerApi.Nimiq.getAddress(keyPath, true, address, walletId);
         },
 
         /**

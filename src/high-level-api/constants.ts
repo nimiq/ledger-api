@@ -12,6 +12,5 @@ export enum RequestTypeNimiq {
     DERIVE_ADDRESSES = 'derive-addresses-nimiq',
     GET_PUBLIC_KEY = 'get-public-key-nimiq',
     GET_ADDRESS = 'get-address-nimiq',
-    CONFIRM_ADDRESS = 'confirm-address-nimiq',
     SIGN_TRANSACTION = 'sign-transaction-nimiq',
 }

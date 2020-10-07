@@ -1,11 +1,14 @@
 import RequestNimiq from './request-nimiq';
 import { RequestParamsCommon } from '../request';
 import { RequestTypeNimiq } from '../../constants';
+import ErrorState, { ErrorType } from '../../error-state';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
 export interface RequestParamsGetAddressNimiq extends RequestParamsCommon {
     keyPath: string;
+    display?: boolean;
+    expectedAddress?: string;
 }
 
 export default class RequestGetAddressNimiq extends RequestNimiq<RequestParamsGetAddressNimiq, string> {
@@ -18,8 +21,15 @@ export default class RequestGetAddressNimiq extends RequestNimiq<RequestParamsGe
         const { address } = await api.getAddress(
             this.params.keyPath,
             true, // validate
-            false, // display
+            !!this.params.display, // display
         );
+
+        if (this.params.expectedAddress
+            && this.params.expectedAddress.replace(/ /g, '').toUpperCase()
+            !== address.replace(/ /g, '').toUpperCase()) {
+            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, 'Address mismatch', this);
+        }
+
         return address;
     }
 }
