@@ -20,15 +20,25 @@ export default abstract class Request<P extends RequestParamsCommon, R> extends 
     public readonly coin: Coin;
     public readonly type: RequestTypeNimiq;
     public readonly params: P;
+    public readonly minRequiredAppVersion: number[];
 
-    protected readonly abstract _minRequiredAppVersion: number[];
     private _cancelled: boolean = false;
 
-    constructor(coin: Coin, type: RequestTypeNimiq, params: P) {
+    protected static _isAppVersionSupported(versionString: string, minRequiredVersion: number[]): boolean {
+        const version = versionString.split('.').map((part) => parseInt(part, 10));
+        for (let i = 0; i < minRequiredVersion.length; ++i) {
+            if (typeof version[i] === 'undefined' || version[i] < minRequiredVersion[i]) return false;
+            if (version[i] > minRequiredVersion[i]) return true;
+        }
+        return true;
+    }
+
+    protected constructor(coin: Coin, type: RequestTypeNimiq, params: P, minRequiredAppVersion: number[]) {
         super();
         this.coin = coin;
         this.type = type;
         this.params = params;
+        this.minRequiredAppVersion = minRequiredAppVersion;
 
         const { keyPath } = params as any;
         if (!keyPath) return;
@@ -58,15 +68,6 @@ export default abstract class Request<P extends RequestParamsCommon, R> extends 
             callback();
         }
         super.on(type, callback);
-    }
-
-    protected _isAppVersionSupported(versionString: string): boolean {
-        const version = versionString.split('.').map((part) => parseInt(part, 10));
-        for (let i = 0; i < this._minRequiredAppVersion.length; ++i) {
-            if (typeof version[i] === 'undefined' || version[i] < this._minRequiredAppVersion[i]) return false;
-            if (version[i] > this._minRequiredAppVersion[i]) return true;
-        }
-        return true;
     }
 
     protected _checkExpectedWalletId(walletId: string) {

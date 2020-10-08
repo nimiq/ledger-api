@@ -31,10 +31,13 @@ export default abstract class RequestNimiq<P, R> extends Request<P, R> {
         return Nimiq;
     }
 
-    protected readonly _minRequiredAppVersion: number[] = [1, 4, 2]; // first version supporting web usb
-
-    constructor(type: RequestTypeNimiq, params: P) {
-        super(Coin.NIMIQ, type, params);
+    protected constructor(type: RequestTypeNimiq, params: P) {
+        super(
+            Coin.NIMIQ,
+            type,
+            params,
+            [1, 4, 2], // first version supporting web usb
+        );
     }
 
     public async checkCoinAppConnection(transport: Transport): Promise<CoinAppConnection> {
@@ -52,7 +55,7 @@ export default abstract class RequestNimiq<P, R> extends Request<P, R> {
         );
         const { version } = await api.getAppConfiguration();
 
-        if (!this._isAppVersionSupported(version)) {
+        if (!RequestNimiq._isAppVersionSupported(version, this.minRequiredAppVersion)) {
             throw new ErrorState(ErrorType.APP_OUTDATED, 'Ledger Nimiq App is outdated.');
         }
 
