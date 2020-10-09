@@ -1,5 +1,5 @@
 import RequestNimiq from './request-nimiq';
-import { RequestParamsCommon } from '../request';
+import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
 import { RequestTypeNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
 
@@ -22,14 +22,12 @@ export interface TransactionInfoNimiq {
     extraData?: Uint8Array;
 }
 
-export interface RequestParamsSignTransactionNimiq extends RequestParamsCommon {
-    keyPath: string;
-    transaction: TransactionInfoNimiq;
-}
+export default class RequestSignTransactionNimiq extends RequestWithKeyPathNimiq<Transaction> {
+    public readonly transaction: TransactionInfoNimiq;
 
-export default class RequestSignTransactionNimiq extends RequestNimiq<RequestParamsSignTransactionNimiq, Transaction> {
-    constructor(params: RequestParamsSignTransactionNimiq) {
-        super(RequestTypeNimiq.SIGN_TRANSACTION, params);
+    constructor(keyPath: string, transaction: TransactionInfoNimiq, walletId?: string) {
+        super(RequestTypeNimiq.SIGN_TRANSACTION, keyPath, walletId);
+        this.transaction = transaction;
     }
 
     public async call(transport: Transport): Promise<Transaction> {
@@ -38,7 +36,7 @@ export default class RequestSignTransactionNimiq extends RequestNimiq<RequestPar
         // _callLedger can decide how to behave depending on the api error. All other errors are converted to
         // REQUEST_ASSERTION_FAILED errors which stop the execution of the request.
         const { publicKey: signerPubKeyBytes } = await api.getPublicKey(
-            this.params.keyPath,
+            this.keyPath,
             true, // validate
             false, // display
         );
@@ -50,7 +48,7 @@ export default class RequestSignTransactionNimiq extends RequestNimiq<RequestPar
         let nimiqTx: Transaction;
         let signerPubKey: PublicKey;
         try {
-            const tx = this.params.transaction;
+            const tx = this.transaction;
             signerPubKey = new Nimiq.PublicKey(signerPubKeyBytes);
 
             const senderType = tx.senderType !== undefined && tx.senderType !== null
@@ -97,7 +95,7 @@ export default class RequestSignTransactionNimiq extends RequestNimiq<RequestPar
         }
 
         const { signature: signatureBytes } = await api.signTransaction(
-            this.params.keyPath,
+            this.keyPath,
             nimiqTx.serializeContent(),
         );
 

@@ -1,23 +1,19 @@
 import RequestNimiq from './request-nimiq';
-import { RequestParamsCommon } from '../request';
+import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
 import { RequestTypeNimiq } from '../../constants';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type PublicKey = import('@nimiq/core-web').PublicKey;
 
-export interface RequestParamsGetPublicKeyNimiq extends RequestParamsCommon {
-    keyPath: string;
-}
-
-export default class RequestGetPublicKeyNimiq extends RequestNimiq<RequestParamsGetPublicKeyNimiq, PublicKey> {
-    constructor(params: RequestParamsGetPublicKeyNimiq) {
-        super(RequestTypeNimiq.GET_PUBLIC_KEY, params);
+export default class RequestGetPublicKeyNimiq extends RequestWithKeyPathNimiq<PublicKey> {
+    constructor(keyPath: string, walletId?: string) {
+        super(RequestTypeNimiq.GET_PUBLIC_KEY, keyPath, walletId);
     }
 
     public async call(transport: Transport): Promise<PublicKey> {
         const api = RequestNimiq._getLowLevelApi(transport);
         const { publicKey } = await api.getPublicKey(
-            this.params.keyPath,
+            this.keyPath,
             true, // validate
             false, // display
         );

@@ -1,6 +1,6 @@
 type StateTypeError = import('./ledger-api').StateType.ERROR;
 
-type Request<P, R> = import('./requests/request').default<P, R>;
+type Request<T> = import('./requests/request').default<T>;
 
 export enum ErrorType {
     LEDGER_BUSY = 'ledger-busy',
@@ -16,9 +16,9 @@ export enum ErrorType {
 export default class ErrorState extends Error {
     public readonly type: StateTypeError = 'error' as StateTypeError; // state type
     public readonly errorType: ErrorType;
-    public request?: Request<any, any>;
+    public request?: Request<any>;
 
-    constructor(errorType: ErrorType, messageOrError: string | Error, request?: Request<any, any>) {
+    constructor(errorType: ErrorType, messageOrError: string | Error, request?: Request<any>) {
         super(messageOrError.toString());
 
         if (messageOrError instanceof Error && messageOrError.stack) {

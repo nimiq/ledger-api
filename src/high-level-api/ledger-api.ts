@@ -12,15 +12,19 @@ type CoinAppConnection = import('./requests/request').CoinAppConnection;
 
 type RequestType = RequestTypeNimiq;
 
-type RequestGetWalletIdNimiq = import('./requests/nimiq/request-get-wallet-id-nimiq').default;
-type RequestGetPublicKeyNimiq = import('./requests/nimiq/request-get-public-key-nimiq').default;
-type RequestGetAddressNimiq = import('./requests/nimiq/request-get-address-nimiq').default;
-type RequestDeriveAddressesNimiq = import('./requests/nimiq/request-derive-addresses-nimiq').default;
-type RequestSignTransactionNimiq = import('./requests/nimiq/request-sign-transaction-nimiq').default;
+type RequestGetWalletIdNimiqConstructor = typeof import('./requests/nimiq/request-get-wallet-id-nimiq').default;
+type RequestGetPublicKeyNimiqConstructor = typeof import('./requests/nimiq/request-get-public-key-nimiq').default;
+type RequestGetAddressNimiqConstructor = typeof import('./requests/nimiq/request-get-address-nimiq').default;
+type RequestDeriveAddressesNimiqConstructor = typeof import('./requests/nimiq/request-derive-addresses-nimiq').default;
+type RequestSignTransactionNimiqConstructor = typeof import('./requests/nimiq/request-sign-transaction-nimiq').default;
 
 // define Request type as actually defined request classes to be more specific than the abstract parent class
-type Request = RequestGetWalletIdNimiq | RequestGetPublicKeyNimiq | RequestGetAddressNimiq | RequestDeriveAddressesNimiq
-    | RequestSignTransactionNimiq; // eslint-disable-line @typescript-eslint/indent
+/* eslint-disable @typescript-eslint/indent */
+type RequestConstructor = RequestGetWalletIdNimiqConstructor | RequestGetPublicKeyNimiqConstructor
+    | RequestGetAddressNimiqConstructor | RequestDeriveAddressesNimiqConstructor
+    | RequestSignTransactionNimiqConstructor;
+/* eslint-enable @typescript-eslint/indent */
+type Request = InstanceType<RequestConstructor>;
 
 type PublicKeyNimiq = import('@nimiq/core-web').PublicKey;
 type TransactionInfoNimiq = import('./requests/nimiq/request-sign-transaction-nimiq').TransactionInfoNimiq;
@@ -87,9 +91,9 @@ export default class LedgerApi {
          * Get the public key for a given bip32 key path. Optionally expect a specific walletId.
          */
         async getPublicKey(keyPath: string, walletId?: string): Promise<PublicKeyNimiq> {
-            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetPublicKeyNimiq>(
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetPublicKeyNimiqConstructor>(
                 import('./requests/nimiq/request-get-public-key-nimiq'),
-                { keyPath, walletId },
+                keyPath, walletId,
             ));
         },
 
@@ -99,9 +103,9 @@ export default class LedgerApi {
          */
         async getAddress(keyPath: string, display = false, expectedAddress?: string, walletId?: string)
             : Promise<string> {
-            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetAddressNimiq>(
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetAddressNimiqConstructor>(
                 import('./requests/nimiq/request-get-address-nimiq'),
-                { keyPath, display, expectedAddress, walletId },
+                keyPath, display, expectedAddress, walletId,
             ));
         },
 
@@ -118,9 +122,9 @@ export default class LedgerApi {
          */
         async deriveAddresses(pathsToDerive: Iterable<string>, walletId?: string)
             : Promise<Array<{ address: string, keyPath: string }>> {
-            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestDeriveAddressesNimiq>(
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestDeriveAddressesNimiqConstructor>(
                 import('./requests/nimiq/request-derive-addresses-nimiq'),
-                { pathsToDerive, walletId },
+                pathsToDerive, walletId,
             ));
         },
 
@@ -131,9 +135,9 @@ export default class LedgerApi {
          */
         async signTransaction(transaction: TransactionInfoNimiq, keyPath: string, walletId?: string)
             : Promise<TransactionNimiq> {
-            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignTransactionNimiq>(
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignTransactionNimiqConstructor>(
                 import('./requests/nimiq/request-sign-transaction-nimiq'),
-                { transaction, keyPath, walletId },
+                keyPath, transaction, walletId,
             ));
         },
     };
@@ -294,21 +298,20 @@ export default class LedgerApi {
         // Note that if the api is already busy with a request for another coin, a LEDGER_BUSY error will be thrown.
         switch (coin) {
             case Coin.NIMIQ:
-                return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetWalletIdNimiq>(
+                return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetWalletIdNimiqConstructor>(
                     import('./requests/nimiq/request-get-wallet-id-nimiq'),
-                    {},
                 ));
             default:
                 throw new Error(`Unsupported coin: ${coin}`);
         }
     }
 
-    private static async _createRequest<R extends Request>(
-        requestConstructor: (new (params: R['params']) => R) | Promise<{ default: new (params: R['params']) => R }>,
-        params: R['params'],
-        prepareDependencies: boolean = true,
-    ): Promise<R> {
-        if (prepareDependencies && LedgerApi.transportType) {
+    private static async _createRequest<RC extends RequestConstructor>(
+        requestConstructor: (new (...params: ConstructorParameters<RC>) => InstanceType<RC>)
+        | Promise<{ default: new (...params: ConstructorParameters<RC>) => InstanceType<RC> }>,
+        ...params: ConstructorParameters<RC>
+    ): Promise<InstanceType<RC>> {
+        if (LedgerApi.transportType) {
             // Prepare dependencies in parallel. Ignore errors as it's just a preparation.
             loadTransportLibrary(LedgerApi.transportType).catch(() => {});
         }
@@ -327,7 +330,9 @@ export default class LedgerApi {
         }
 
         try {
-            return new requestConstructor(params); // eslint-disable-line new-cap
+            // Note that the requestConstructor is typed as is instead of just RC | Promise<{ default: RC }> such that
+            // typescript can determine which exact request is being created and returned.
+            return new requestConstructor(...params); // eslint-disable-line new-cap
         } catch (e) {
             if (e instanceof ErrorState) {
                 LedgerApi._setState(e);

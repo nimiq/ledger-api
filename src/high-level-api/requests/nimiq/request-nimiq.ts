@@ -10,7 +10,7 @@ type Transport = import('@ledgerhq/hw-transport').default;
 
 export { RequestTypeNimiq };
 
-export default abstract class RequestNimiq<P, R> extends Request<P, R> {
+export default abstract class RequestNimiq<T> extends Request<T> {
     private static _lowLevelApi: LowLevelApi | null = null;
 
     protected static _getLowLevelApi(transport: Transport): LowLevelApi {
@@ -31,12 +31,12 @@ export default abstract class RequestNimiq<P, R> extends Request<P, R> {
         return Nimiq;
     }
 
-    protected constructor(type: RequestTypeNimiq, params: P) {
+    protected constructor(type: RequestTypeNimiq, walletId?: string) {
         super(
             Coin.NIMIQ,
             type,
-            params,
             [1, 4, 2], // first version supporting web usb
+            walletId,
         );
     }
 

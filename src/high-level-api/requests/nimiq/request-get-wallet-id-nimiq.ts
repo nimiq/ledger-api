@@ -1,14 +1,14 @@
 import RequestNimiq from './request-nimiq';
-import { RequestParamsCommon, CoinAppConnection } from '../request';
+import { CoinAppConnection } from '../request';
 import { RequestTypeNimiq } from '../../constants';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
-export default class RequestGetWalletIdNimiq extends RequestNimiq<RequestParamsCommon, string> {
+export default class RequestGetWalletIdNimiq extends RequestNimiq<string> {
     private _coinAppConnection: CoinAppConnection | null = null;
 
-    constructor(params: RequestParamsCommon) {
-        super(RequestTypeNimiq.GET_WALLET_ID, params);
+    constructor() {
+        super(RequestTypeNimiq.GET_WALLET_ID);
     }
 
     public async call(transport: Transport): Promise<string> {
