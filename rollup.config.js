@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+import { walk } from 'estree-walker';
+import MagicString from 'magic-string';
 
 import typescript from '@rollup/plugin-typescript';
 import resolve from '@rollup/plugin-node-resolve';
@@ -37,6 +39,70 @@ function fixedEslint(options) {
         transform(code, id) {
             if (id.endsWith('.ts')) return null;
             return originalLint(code, id);
+        },
+    };
+}
+
+// Hoist dependency imports for dynamic imports similar to rollup's dependency hoisting for regular imports
+// (see https://rollupjs.org/guide/en/#why-do-additional-imports-turn-up-in-my-entry-chunks-when-code-splitting) for
+// quicker loading of the dependencies. Note that rollup does not do this by default, as the execution order is not
+// guaranteed anymore (see https://github.com/rollup/rollup/issues/3009), but that doesn't matter in our case.
+// Inspired by https://github.com/vikerman/rollup-plugin-hoist-import-deps which can't be used directly in our case due
+// to https://github.com/vikerman/rollup-plugin-hoist-import-deps/issues/57.
+function hoistDynamicImportDependencies() {
+    return {
+        name: 'hoist-dynamic-import-dependencies',
+
+        generateBundle(options, bundle) {
+            const warn = this.warn.bind(this);
+            for (const chunkName of Object.keys(bundle)) {
+                const chunk = bundle[chunkName];
+                if (chunk.type !== 'chunk' || chunk.dynamicImports.length === 0) {
+                    continue;
+                }
+                const { code } = chunk;
+
+                let ast = null;
+                try {
+                    ast = this.parse(code);
+                } catch (err) {
+                    warn({
+                        code: 'PARSE_ERROR',
+                        message: `hoist-dynamic-import-dependencies: failed to parse ${chunk.fileName}.\n${err}`,
+                    });
+                }
+                if (!ast) {
+                    continue;
+                }
+
+                const magicString = new MagicString(code);
+                walk(ast, {
+                    enter(node) {
+                        // Note that only the .es output generates dynamic imports
+                        if (node.type !== 'ImportExpression') return;
+                        const { value: importPath } = node.source;
+
+                        // as specified by chunkFileNames
+                        const importBundleId = `high-level-api${importPath.substring(1)}`;
+                        if (!bundle[importBundleId]) {
+                            warn(`hoist-dynamic-import-dependencies: unknown bundle ${importBundleId}.\n`);
+                            return;
+                        }
+
+                        const dependencies = bundle[importBundleId].imports
+                            .filter((dependencyBundleId) => dependencyBundleId !== chunkName)
+                            .map((dependencyBundleId) => dependencyBundleId.replace('high-level-api', '.'));
+                        if (!dependencies) return;
+
+                        magicString.prependLeft(node.start, `[${
+                            dependencies.map((dependency) => `import('${dependency}')`).join(', ')
+                        }, `);
+                        magicString.appendRight(node.end, `][${dependencies.length}]`);
+                    },
+                });
+
+                chunk.code = magicString.toString();
+            }
         },
     };
 }
@@ -90,6 +156,7 @@ export default (commandLineArgs) => {
                     'node_modules/**/*.js',
                 ],
             }),
+            hoistDynamicImportDependencies(),
         ],
         watch: {
             clearScreen: false,
