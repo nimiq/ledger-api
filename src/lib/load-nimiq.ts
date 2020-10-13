@@ -4,6 +4,7 @@ type Nimiq = typeof import('@nimiq/core-web');
 const coreBasePath = 'https://cdn.jsdelivr.net/npm/@nimiq/core-web/';
 
 let nimiqCorePromise: Promise<Nimiq> | null = null;
+let nimiqCryptographyPromise: Promise<void> | null = null;
 
 /**
  * Lazy-load the Nimiq core api from the cdn server if it's not loaded yet.
@@ -45,8 +46,28 @@ export async function loadNimiqCore(coreVariant: 'web' | 'web-offline' = 'web-of
  * deriving keys or addresses, signing transactions or messages, etc.
  */
 export async function loadNimiqCryptography(): Promise<void> {
-    // Note that there is no need to cache a promise like in loadNimiqCore for this call, as loadNimiqCore and doImport
-    // already do that themselves.
-    const Nimiq = await loadNimiqCore();
-    await Nimiq.WasmHelper.doImport();
+    nimiqCryptographyPromise = nimiqCryptographyPromise || (async () => {
+        try {
+            // preload wasm in parallel
+            preloadAsset(`${coreBasePath}worker-wasm.wasm`, 'fetch', true);
+            preloadAsset(`${coreBasePath}worker-wasm.js`, 'script');
+
+            const Nimiq = await loadNimiqCore();
+            await Nimiq.WasmHelper.doImport();
+        } catch (e) {
+            nimiqCryptographyPromise = null;
+            throw e;
+        }
+    })();
+    return nimiqCryptographyPromise;
+}
+
+function preloadAsset(asset: string, as: string, crossOrigin?: boolean) {
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = as;
+    link.href = asset;
+    link.onload = link.onerror = () => document.head.removeChild(link); // eslint-disable-line no-multi-assign
+    if (crossOrigin) link.crossOrigin = '';
+    document.head.appendChild(link);
 }

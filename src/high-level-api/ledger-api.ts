@@ -312,7 +312,7 @@ export default class LedgerApi {
         ...params: ConstructorParameters<RC>
     ): Promise<InstanceType<RC>> {
         if (LedgerApi.transportType) {
-            // Prepare dependencies in parallel. Ignore errors as it's just a preparation.
+            // Prepare transport dependency in parallel. Ignore errors as it's just a preparation.
             loadTransportLibrary(LedgerApi.transportType).catch(() => {});
         }
 

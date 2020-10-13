@@ -38,6 +38,8 @@ export default abstract class RequestNimiq<T> extends Request<T> {
             [1, 4, 2], // first version supporting web usb
             walletId,
         );
+        // Preload nimiq core dependency. Ignore errors.
+        RequestNimiq._loadNimiq().catch(() => {});
     }
 
     public async checkCoinAppConnection(transport: Transport): Promise<CoinAppConnection> {
