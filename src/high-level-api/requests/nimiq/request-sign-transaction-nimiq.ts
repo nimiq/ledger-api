@@ -31,7 +31,7 @@ export default class RequestSignTransactionNimiq extends RequestWithKeyPathNimiq
     }
 
     public async call(transport: Transport): Promise<Transaction> {
-        const api = RequestNimiq._getLowLevelApi(transport);
+        const api = await RequestNimiq._getLowLevelApi(transport);
         // Note: We make api calls outside of try...catch blocks to let the exceptions fall through such that
         // _callLedger can decide how to behave depending on the api error. All other errors are converted to
         // REQUEST_ASSERTION_FAILED errors which stop the execution of the request.

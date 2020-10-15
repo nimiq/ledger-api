@@ -11,7 +11,7 @@ export default class RequestGetPublicKeyNimiq extends RequestWithKeyPathNimiq<Pu
     }
 
     public async call(transport: Transport): Promise<PublicKey> {
-        const api = RequestNimiq._getLowLevelApi(transport);
+        const api = await RequestNimiq._getLowLevelApi(transport);
         const { publicKey } = await api.getPublicKey(
             this.keyPath,
             true, // validate

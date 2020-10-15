@@ -16,7 +16,7 @@ export default class RequestGetAddressNimiq extends RequestWithKeyPathNimiq<stri
     }
 
     public async call(transport: Transport): Promise<string> {
-        const api = RequestNimiq._getLowLevelApi(transport);
+        const api = await RequestNimiq._getLowLevelApi(transport);
         const { address } = await api.getAddress(
             this.keyPath,
             true, // validate

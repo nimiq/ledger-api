@@ -2,23 +2,43 @@ import Request, { CoinAppConnection } from '../request';
 import { Coin, RequestTypeNimiq } from '../../constants';
 import { getBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
-import LowLevelApi from '../../../low-level-api/low-level-api';
 import { loadNimiqCore, loadNimiqCryptography } from '../../../lib/load-nimiq';
 
 type Nimiq = typeof import('@nimiq/core-web');
 type Transport = import('@ledgerhq/hw-transport').default;
+type LowLevelApiConstructor = typeof import('../../../low-level-api/low-level-api').default;
+
+type LowLevelApi = InstanceType<LowLevelApiConstructor>;
 
 export { RequestTypeNimiq };
 
 export default abstract class RequestNimiq<T> extends Request<T> {
-    private static _lowLevelApi: LowLevelApi | null = null;
+    private static _lowLevelApiPromise: Promise<LowLevelApi> | null = null;
 
-    protected static _getLowLevelApi(transport: Transport): LowLevelApi {
-        if (!RequestNimiq._lowLevelApi || transport !== RequestNimiq._lowLevelApi.transport) {
+    protected static async _getLowLevelApi(transport: Transport): Promise<LowLevelApi> {
+        if (!RequestNimiq._lowLevelApiPromise || transport !== (await RequestNimiq._lowLevelApiPromise).transport) {
             // no low level api instantiated yet or transport / transport type changed in the meantime
-            RequestNimiq._lowLevelApi = new LowLevelApi(transport);
+            RequestNimiq._lowLevelApiPromise = RequestNimiq._loadLowLevelApi()
+                .then(
+                    (LowLevelApi: LowLevelApiConstructor) => new LowLevelApi(transport),
+                    (e) => {
+                        RequestNimiq._lowLevelApiPromise = null;
+                        return Promise.reject(e);
+                    },
+                );
         }
-        return RequestNimiq._lowLevelApi;
+        return RequestNimiq._lowLevelApiPromise;
+    }
+
+    private static async _loadLowLevelApi(): Promise<LowLevelApiConstructor> {
+        try {
+            return (await import('../../../low-level-api/low-level-api')).default;
+        } catch (e) {
+            throw new ErrorState(
+                ErrorType.LOADING_DEPENDENCIES_FAILED,
+                `Failed loading dependencies: ${e.message || e}`,
+            );
+        }
     }
 
     protected static async _loadNimiq(): Promise<Nimiq> {
@@ -38,13 +58,16 @@ export default abstract class RequestNimiq<T> extends Request<T> {
             [1, 4, 2], // first version supporting web usb
             walletId,
         );
-        // Preload nimiq core dependency. Ignore errors.
-        RequestNimiq._loadNimiq().catch(() => {});
+        // Preload dependencies. Ignore errors.
+        Promise.all([
+            RequestNimiq._loadLowLevelApi(),
+            RequestNimiq._loadNimiq(),
+        ]).catch(() => {});
     }
 
     public async checkCoinAppConnection(transport: Transport): Promise<CoinAppConnection> {
         const nimiqPromise = RequestNimiq._loadNimiq();
-        const api = RequestNimiq._getLowLevelApi(transport);
+        const api = await RequestNimiq._getLowLevelApi(transport);
 
         // To check whether the connection to Nimiq app is established and to calculate the wallet id. Set
         // validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger
