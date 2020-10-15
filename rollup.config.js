@@ -124,11 +124,7 @@ export default (commandLineArgs) => {
             sourcemap: true,
             sourcemapPathTransform,
         })),
-        manualChunks: {
-            buffer: ['buffer'], // avoid that Buffer polyfill gets bundled into ledger-api chunk from where it is
-            // imported by other chunks, causing a circular dependency and an additional entry chunk that re-exports
-            // everything from ledger-api but Buffer.
-        },
+        preserveEntrySignatures: 'allow-extension', // avoid rollup's additional facade chunk
         plugins: [
             fixedEslint({
                 throwOnError: isProduction,
