@@ -31,6 +31,7 @@ type TransactionInfoNimiq = import('./requests/nimiq/request-sign-transaction-ni
 type TransactionNimiq = import('@nimiq/core-web').Transaction;
 
 export { isSupported, TransportType };
+export { getBip32Path, parseBip32Path };
 export { ErrorType, ErrorState };
 export { Coin, AddressTypeBitcoin, Network };
 export { CoinAppConnection, RequestTypeNimiq };
@@ -71,22 +72,6 @@ export default class LedgerApi {
          */
         async getWalletId(): Promise<string> {
             return LedgerApi._getWalletId(Coin.NIMIQ);
-        },
-
-        /**
-         * Convert an address's index / keyId to the full Nimiq bip32 path.
-         */
-        getBip32PathForKeyId(keyId: number): string {
-            return getBip32Path({ coin: Coin.NIMIQ, addressIndex: keyId });
-        },
-
-        /**
-         * Extract an address's index / keyId from its bip32 path.
-         */
-        getKeyIdForBip32Path(path: string): number {
-            const parseResult = parseBip32Path(path);
-            if (parseResult.coin !== Coin.NIMIQ) throw new Error('Not a Nimiq path');
-            return parseResult.addressIndex;
         },
 
         /**
