@@ -4,9 +4,22 @@
 
 export enum Coin {
     NIMIQ = 'Nimiq',
+    BITCOIN = 'Bitcoin',
+}
+
+export enum Network {
+    MAINNET = 'main',
+    TESTNET = 'test',
+}
+
+export enum AddressTypeBitcoin {
+    LEGACY = 'legacy-bitcoin',
+    P2SH_SEGWIT = 'p2sh-segwit-bitcoin',
+    NATIVE_SEGWIT = 'native-segwit-bitcoin',
 }
 
 export const REQUEST_EVENT_CANCEL = 'cancel';
+
 export enum RequestTypeNimiq {
     GET_WALLET_ID = 'get-wallet-id-nimiq',
     DERIVE_ADDRESSES = 'derive-addresses-nimiq',

@@ -1,7 +1,7 @@
 import RequestNimiq from './request-nimiq';
 import { Coin, RequestTypeNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
-import { getKeyIdForBip32Path } from '../../bip32-utils';
+import { parseBip32Path } from '../../bip32-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
@@ -14,9 +14,13 @@ export default class RequestDeriveAddressesNimiq extends RequestNimiq<Array<{ ad
 
         for (const keyPath of pathsToDerive) {
             try {
-                getKeyIdForBip32Path(Coin.NIMIQ, keyPath);
+                if (parseBip32Path(keyPath).coin !== Coin.NIMIQ) throw new Error('Not a Nimiq bip32 path');
             } catch (e) {
-                throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, this);
+                throw new ErrorState(
+                    ErrorType.REQUEST_ASSERTION_FAILED,
+                    `Invalid keyPath ${keyPath}: ${e.message || e}`,
+                    this,
+                );
             }
         }
     }

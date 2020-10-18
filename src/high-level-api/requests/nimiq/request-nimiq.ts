@@ -74,7 +74,7 @@ export default abstract class RequestNimiq<T> extends Request<T> {
         // app, see transport-comparison.md. Using getPublicKey and not getAppConfiguration, as other apps also
         // respond to getAppConfiguration (for example the Ethereum app).
         const { publicKey: firstAddressPubKeyBytes } = await api.getPublicKey(
-            getBip32Path(Coin.NIMIQ, 0),
+            getBip32Path({ coin: Coin.NIMIQ, addressIndex: 0 }),
             false, // validate
             false, // display
         );

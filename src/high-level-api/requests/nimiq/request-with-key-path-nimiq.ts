@@ -1,6 +1,6 @@
 import RequestNimiq from './request-nimiq';
-import { RequestTypeNimiq } from '../../constants';
-import { getKeyIdForBip32Path } from '../../bip32-utils';
+import { Coin, RequestTypeNimiq } from '../../constants';
+import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 
 export default abstract class RequestWithKeyPathNimiq<T> extends RequestNimiq<T> {
@@ -11,9 +11,13 @@ export default abstract class RequestWithKeyPathNimiq<T> extends RequestNimiq<T>
 
         this.keyPath = keyPath;
         try {
-            getKeyIdForBip32Path(this.coin, keyPath);
+            if (parseBip32Path(keyPath).coin !== Coin.NIMIQ) throw new Error('Not a Nimiq bip32 path');
         } catch (e) {
-            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, this);
+            throw new ErrorState(
+                ErrorType.REQUEST_ASSERTION_FAILED,
+                `Invalid keyPath ${keyPath}: ${e.message || e}`,
+                this,
+            );
         }
     }
 }

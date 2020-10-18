@@ -1,8 +1,8 @@
 import Observable, { EventListener } from '../lib/observable';
 import { autoDetectTransportTypeToUse, isSupported, loadTransportLibrary, TransportType } from './transport-utils';
-import { getBip32Path, getKeyIdForBip32Path } from './bip32-utils';
+import { getBip32Path, parseBip32Path } from './bip32-utils';
 import ErrorState, { ErrorType } from './error-state';
-import { Coin, REQUEST_EVENT_CANCEL, RequestTypeNimiq } from './constants';
+import { Coin, AddressTypeBitcoin, Network, REQUEST_EVENT_CANCEL, RequestTypeNimiq } from './constants';
 
 type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
 type TransportWebUsbConstructor = typeof import('@ledgerhq/hw-transport-webusb').default;
@@ -32,7 +32,7 @@ type TransactionNimiq = import('@nimiq/core-web').Transaction;
 
 export { isSupported, TransportType };
 export { ErrorType, ErrorState };
-export { Coin };
+export { Coin, AddressTypeBitcoin, Network };
 export { CoinAppConnection, RequestTypeNimiq };
 
 export enum StateType {
@@ -77,14 +77,16 @@ export default class LedgerApi {
          * Convert an address's index / keyId to the full Nimiq bip32 path.
          */
         getBip32PathForKeyId(keyId: number): string {
-            return getBip32Path(Coin.NIMIQ, keyId);
+            return getBip32Path({ coin: Coin.NIMIQ, addressIndex: keyId });
         },
 
         /**
          * Extract an address's index / keyId from its bip32 path.
          */
         getKeyIdForBip32Path(path: string): number {
-            return getKeyIdForBip32Path(Coin.NIMIQ, path);
+            const parseResult = parseBip32Path(path);
+            if (parseResult.coin !== Coin.NIMIQ) throw new Error('Not a Nimiq path');
+            return parseResult.addressIndex;
         },
 
         /**
