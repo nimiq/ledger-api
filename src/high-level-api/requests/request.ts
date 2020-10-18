@@ -1,8 +1,9 @@
-import { Coin, RequestTypeNimiq, REQUEST_EVENT_CANCEL } from '../constants';
+import { Coin, RequestTypeNimiq, RequestTypeBitcoin, REQUEST_EVENT_CANCEL } from '../constants';
 import Observable, { EventListener } from '../../lib/observable';
 import ErrorState, { ErrorType } from '../error-state';
 
 type Transport = import('@ledgerhq/hw-transport').default;
+type RequestType = RequestTypeNimiq | RequestTypeBitcoin;
 
 export interface CoinAppConnection {
     coin: Coin;
@@ -13,7 +14,7 @@ export default abstract class Request<T> extends Observable {
     public static readonly EVENT_CANCEL = REQUEST_EVENT_CANCEL;
 
     public readonly coin: Coin;
-    public readonly type: RequestTypeNimiq;
+    public readonly type: RequestType;
     public readonly minRequiredAppVersion: number[];
     public readonly walletId?: string;
 
@@ -28,7 +29,7 @@ export default abstract class Request<T> extends Observable {
         return true;
     }
 
-    protected constructor(coin: Coin, type: RequestTypeNimiq, minRequiredAppVersion: number[], walletId?: string) {
+    protected constructor(coin: Coin, type: RequestType, minRequiredAppVersion: number[], walletId?: string) {
         super();
         this.coin = coin;
         this.type = type;

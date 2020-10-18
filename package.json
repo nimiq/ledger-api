@@ -51,6 +51,7 @@
     "typescript": "^3.9.2"
   },
   "dependencies": {
+    "@ledgerhq/hw-app-btc": "^5.26.0",
     "@ledgerhq/hw-transport": "^5.17.0",
     "@ledgerhq/hw-transport-u2f": "^5.17.0",
     "@ledgerhq/hw-transport-web-ble": "^5.17.0",
@@ -59,6 +60,7 @@
     "@ledgerhq/hw-transport-webusb": "^5.17.0",
     "@ledgerhq/logs": "^5.17.0",
     "@nimiq/core-web": "^1.5.6",
+    "@types/ledgerhq__hw-app-btc": "^5.19.2",
     "@types/ledgerhq__hw-transport": "^4.21.2",
     "@types/ledgerhq__hw-transport-u2f": "^4.21.1",
     "@types/ledgerhq__hw-transport-webusb": "^4.70.0"

@@ -2,7 +2,14 @@ import Observable, { EventListener } from '../lib/observable';
 import { autoDetectTransportTypeToUse, isSupported, loadTransportLibrary, TransportType } from './transport-utils';
 import { getBip32Path, parseBip32Path } from './bip32-utils';
 import ErrorState, { ErrorType } from './error-state';
-import { Coin, AddressTypeBitcoin, Network, REQUEST_EVENT_CANCEL, RequestTypeNimiq } from './constants';
+import {
+    Coin,
+    AddressTypeBitcoin,
+    Network,
+    REQUEST_EVENT_CANCEL,
+    RequestTypeNimiq,
+    RequestTypeBitcoin,
+} from './constants';
 
 type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
 type TransportWebUsbConstructor = typeof import('@ledgerhq/hw-transport-webusb').default;
@@ -10,7 +17,7 @@ type Transport = InstanceType<TransportConstructor | TransportWebUsbConstructor>
 
 type CoinAppConnection = import('./requests/request').CoinAppConnection;
 
-type RequestType = RequestTypeNimiq;
+type RequestType = RequestTypeNimiq | RequestTypeBitcoin;
 
 type RequestGetWalletIdNimiqConstructor = typeof import('./requests/nimiq/request-get-wallet-id-nimiq').default;
 type RequestGetPublicKeyNimiqConstructor = typeof import('./requests/nimiq/request-get-public-key-nimiq').default;
@@ -18,11 +25,14 @@ type RequestGetAddressNimiqConstructor = typeof import('./requests/nimiq/request
 type RequestDeriveAddressesNimiqConstructor = typeof import('./requests/nimiq/request-derive-addresses-nimiq').default;
 type RequestSignTransactionNimiqConstructor = typeof import('./requests/nimiq/request-sign-transaction-nimiq').default;
 
+type RequestGetAddressAndPublicKeyBitcoinConstructor =
+    typeof import('./requests/bitcoin/request-get-address-and-public-key-bitcoin').default;
+
 // define Request type as actually defined request classes to be more specific than the abstract parent class
 /* eslint-disable @typescript-eslint/indent */
 type RequestConstructor = RequestGetWalletIdNimiqConstructor | RequestGetPublicKeyNimiqConstructor
     | RequestGetAddressNimiqConstructor | RequestDeriveAddressesNimiqConstructor
-    | RequestSignTransactionNimiqConstructor;
+    | RequestSignTransactionNimiqConstructor | RequestGetAddressAndPublicKeyBitcoinConstructor;
 /* eslint-enable @typescript-eslint/indent */
 type Request = InstanceType<RequestConstructor>;
 
@@ -34,7 +44,7 @@ export { isSupported, TransportType };
 export { getBip32Path, parseBip32Path };
 export { ErrorType, ErrorState };
 export { Coin, AddressTypeBitcoin, Network };
-export { CoinAppConnection, RequestTypeNimiq };
+export { CoinAppConnection, RequestTypeNimiq, RequestTypeBitcoin };
 
 export enum StateType {
     IDLE = 'idle',
@@ -126,6 +136,31 @@ export default class LedgerApi {
                 import('./requests/nimiq/request-sign-transaction-nimiq'),
                 keyPath, transaction, walletId,
             ));
+        },
+    };
+
+    public static readonly Bitcoin = {
+        /**
+         * Get the public key, address and bip32 chain code for a given bip32 key path. Optionally display the address
+         * on the Ledger screen for verification, expect a specific address or expect a specific walletId.
+         */
+        async getAddressAndPublicKey(keyPath: string, display = false, expectedAddress?: string, walletId?: string)
+            : Promise<{ publicKey: string, address: string, chainCode: string }> {
+            return LedgerApi._callLedger(
+                await LedgerApi._createRequest<RequestGetAddressAndPublicKeyBitcoinConstructor>(
+                    import('./requests/bitcoin/request-get-address-and-public-key-bitcoin'),
+                    keyPath, display, expectedAddress, walletId,
+                ),
+            );
+        },
+
+        /**
+         * Utility function that directly gets a confirmed address.
+         */
+        async getConfirmedAddressAndPublicKey(keyPath: string, walletId?: string)
+            : Promise<{ publicKey: string, address: string, chainCode: string }> {
+            const { address } = await LedgerApi.Bitcoin.getAddressAndPublicKey(keyPath, false, undefined, walletId);
+            return LedgerApi.Bitcoin.getAddressAndPublicKey(keyPath, true, address, walletId);
         },
     };
 

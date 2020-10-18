@@ -27,3 +27,7 @@ export enum RequestTypeNimiq {
     GET_ADDRESS = 'get-address-nimiq',
     SIGN_TRANSACTION = 'sign-transaction-nimiq',
 }
+
+export enum RequestTypeBitcoin {
+    GET_ADDRESS_AND_PUBLIC_KEY = 'get-address-and-public-key-bitcoin',
+}
