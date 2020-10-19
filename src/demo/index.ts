@@ -62,6 +62,16 @@ window.addEventListener('load', () => {
                     Low Level Api
                 </label>
             </div>
+            <div id="coin-selector" class="selector">
+                <label>
+                    <input type="radio" name="coin-selector" value="${Coin.NIMIQ}" checked>
+                    Nimiq
+                </label>
+                <label>
+                    <input type="radio" name="coin-selector" value="${Coin.BITCOIN}">
+                    Bitcoin
+                </label>
+            </div>
             <div id="transport-selector" class="selector">
                 <label>
                     <input type="radio" name="transport-selector" value="${TransportType.WEB_USB}" checked>
@@ -97,46 +107,67 @@ window.addEventListener('load', () => {
             </div>
         </section>
 
-        <section class="nq-text nq-card">
-            <h2 class="nq-card-header nq-h2">Get Public Key</h2>
-            <div class="nq-card-body">
-                <input class="nq-input" id="bip32-path-public-key-input" value="44'/242'/0'/0'">
-                <button class="nq-button-s" id="get-public-key-button">Get Public Key</button>
-                <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="low-level-api-confirm-public-key-button">
-                    Confirm Public Key
-                </button>
-                <br>
-                <div class="nq-text">Public Key: <span id="public-key" class="mono"></span></div>
-            </div>
-        </section>
-
-        <section class="nq-text nq-card">
-            <h2 class="nq-card-header nq-h2">Get Address</h2>
-            <div class="nq-card-body">
-                <input class="nq-input" id="bip32-path-address-input" value="44'/242'/0'/0'">
-                <button class="nq-button-s" id="get-address-button">Get Address</button>
-                <button class="nq-button-s" id="confirm-address-button">Confirm Address</button>
-                <br>
-                <div class="nq-text">Address: <span id="address" class="mono"></span></div>
-            </div>
-        </section>
-
-        <section class="nq-text nq-card">
-            <h2 class="nq-card-header nq-h2">Sign Transaction</h2>
-            <div class="nq-card-body">
-                <div class="nq-text">Fill the input with a transaction's serializeContent hex.</div>
-                <input class="nq-input" id="tx-hex-input" value="${txHash}">
-                <button class="nq-button-s" id="sign-tx-button">Sign</button>
-                <br>
-                <div class="nq-text">Signature: <span id="signature" class="mono"></span></div>
+        <!-- Nimiq requests -->
+        <div class="show-${Coin.NIMIQ}">
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Get Public Key</h2>
+                <div class="nq-card-body">
+                    <input class="nq-input" id="bip32-path-public-key-input-nimiq" value="44'/242'/0'/0'">
+                    <button class="nq-button-s" id="get-public-key-button-nimiq">Get Public Key</button>
+                    <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="confirm-public-key-button-nimiq">
+                        Confirm Public Key
+                    </button>
+                    <br>
+                    <div class="nq-text">Public Key: <span id="public-key-nimiq" class="mono"></span></div>
                 </div>
-        </section>
+            </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Get Address</h2>
+                <div class="nq-card-body">
+                    <input class="nq-input" id="bip32-path-address-input-nimiq" value="44'/242'/0'/0'">
+                    <button class="nq-button-s" id="get-address-button-nimiq">Get Address</button>
+                    <button class="nq-button-s" id="confirm-address-button-nimiq">Confirm Address</button>
+                    <br>
+                    <div class="nq-text">Address: <span id="address-nimiq" class="mono"></span></div>
+                </div>
+            </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Sign Transaction</h2>
+                <div class="nq-card-body">
+                    <div class="nq-text">Fill the input with a transaction's serializeContent hex.</div>
+                    <input class="nq-input" id="tx-hex-input-nimiq" value="${txHash}">
+                    <button class="nq-button-s" id="sign-tx-button-nimiq">Sign</button>
+                    <br>
+                    <div class="nq-text">Signature: <span id="signature-nimiq" class="mono"></span></div>
+                    </div>
+            </section>
+        </div>
+
+        <!-- Bitcoin requests -->
+        <div class="show-${Coin.BITCOIN}">
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Get Address and Public Key</h2>
+                <div class="nq-card-body">
+                    <input class="nq-input" id="bip32-path-address-input-bitcoin" value="84'/0'/0'/0/0"
+                        style="max-width: 20rem">
+                    <button class="nq-button-s" id="get-address-button-bitcoin">Get Address and Public Key</button>
+                    <button class="nq-button-s" id="confirm-address-button-bitcoin">Confirm Address</button>
+                    <br>
+                    <div class="nq-text">Address: <span id="address-bitcoin" class="mono"></span></div>
+                    <div class="nq-text">Public Key: <span id="public-key-bitcoin" class="mono"></span></div>
+                    <div class="nq-text">Chain Code: <span id="chain-code-bitcoin" class="mono"></span></div>
+                </div>
+            </section>
+        </div>
 
         <style>
             body {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
+                padding: 3rem;
             }
             
             .center {
@@ -172,48 +203,77 @@ window.addEventListener('load', () => {
             }
 
             .${ApiType.LOW_LEVEL} .show-${ApiType.HIGH_LEVEL},
-            .${ApiType.HIGH_LEVEL} .show-${ApiType.LOW_LEVEL} {
+            .${ApiType.HIGH_LEVEL} .show-${ApiType.LOW_LEVEL},
+            .${Coin.NIMIQ} .show-${Coin.BITCOIN},
+            .${Coin.BITCOIN} .show-${Coin.NIMIQ} {
                 display: none;
             }
         </style>
     `;
 
+    function getInputElement(selector: string, parent: HTMLElement | Document = document): HTMLInputElement {
+        const input = parent.querySelector(selector);
+        if (!input || input.tagName !== 'INPUT') throw new Error(`No input found by selector ${selector}.`);
+        return input as HTMLInputElement;
+    }
+
     const $status = document.getElementById('status')!;
     const $highLevelApiState = document.getElementById('high-level-api-state')!;
     const $highLevelApiLastEvent = document.getElementById('high-level-api-last-event')!;
     const $apiSelector = document.getElementById('api-selector')!;
+    const $coinSelector = document.getElementById('coin-selector')!;
     const $transportSelector = document.getElementById('transport-selector')!;
-    const $noUserInteractionCheckbox = document.getElementById('no-user-interaction-checkbox') as HTMLInputElement;
+    const $noUserInteractionCheckbox = getInputElement('#no-user-interaction-checkbox');
     const $connectButton = document.getElementById('connect-button')!;
     const $disconnectButton = document.getElementById('disconnect-button')!;
     const $highLevelApiCancelButton = document.getElementById('high-level-api-cancel-button')!;
-    const $bip32PathPublicKeyInput = document.getElementById('bip32-path-public-key-input') as HTMLInputElement;
-    const $getPublicKeyButton = document.getElementById('get-public-key-button')!;
-    const $lowLevelApiConfirmPublicKeyButton = document.getElementById('low-level-api-confirm-public-key-button')!;
-    const $publicKey = document.getElementById('public-key')!;
-    const $bip32PathAddressInput = document.getElementById('bip32-path-address-input') as HTMLInputElement;
-    const $getAddressButton = document.getElementById('get-address-button')!;
-    const $confirmAddressButton = document.getElementById('confirm-address-button')!;
-    const $address = document.getElementById('address')!;
-    const $txHexInput = document.getElementById('tx-hex-input') as HTMLInputElement;
-    const $signTxButton = document.getElementById('sign-tx-button')!;
-    const $signature = document.getElementById('signature')!;
+
+    // UI elements for Nimiq requests
+    const $bip32PathPublicKeyInputNimiq = getInputElement('#bip32-path-public-key-input-nimiq');
+    const $getPublicKeyButtonNimiq = document.getElementById('get-public-key-button-nimiq')!;
+    const $confirmPublicKeyButtonNimiq = document.getElementById('confirm-public-key-button-nimiq')!;
+    const $publicKeyNimiq = document.getElementById('public-key-nimiq')!;
+    const $bip32PathAddressInputNimiq = getInputElement('#bip32-path-address-input-nimiq');
+    const $getAddressButtonNimiq = document.getElementById('get-address-button-nimiq')!;
+    const $confirmAddressButtonNimiq = document.getElementById('confirm-address-button-nimiq')!;
+    const $addressNimiq = document.getElementById('address-nimiq')!;
+    const $txHexInputNimiq = getInputElement('#tx-hex-input-nimiq');
+    const $signTxButtonNimiq = document.getElementById('sign-tx-button-nimiq')!;
+    const $signatureNimiq = document.getElementById('signature-nimiq')!;
+
+    // UI elements for Bitcoin requests
+    const $bip32PathAddressInputBitcoin = getInputElement('#bip32-path-address-input-bitcoin');
+    const $getAddressButtonBitcoin = document.getElementById('get-address-button-bitcoin')!;
+    const $confirmAddressButtonBitcoin = document.getElementById('confirm-address-button-bitcoin')!;
+    const $addressBitcoin = document.getElementById('address-bitcoin')!;
+    const $publicKeyBitcoin = document.getElementById('public-key-bitcoin')!;
+    const $chainCodeBitcoin = document.getElementById('chain-code-bitcoin')!;
 
     function displayStatus(msg: string) {
         console.log(msg);
         $status.textContent = msg;
     }
 
-    function disableSelector(selector: HTMLElement) {
+    function enableSelector(selector: HTMLElement, enable: boolean) {
         for (const el of selector.getElementsByTagName('input')) {
-            el.disabled = true;
+            el.disabled = !enable;
         }
     }
 
     function switchApi() {
-        const api = ($apiSelector.querySelector(':checked') as HTMLInputElement).value;
+        const api = getInputElement(':checked', $apiSelector).value;
         document.body.classList.toggle(ApiType.LOW_LEVEL, api === ApiType.LOW_LEVEL);
         document.body.classList.toggle(ApiType.HIGH_LEVEL, api === ApiType.HIGH_LEVEL);
+        enableSelector($coinSelector, api === ApiType.HIGH_LEVEL); // other coins than Nimiq only for high level api
+        getInputElement(`[value=${Coin.NIMIQ}]`, $coinSelector).checked = true;
+    }
+
+    function switchCoin() {
+        const coin = getInputElement(':checked', $coinSelector).value;
+        document.body.classList.toggle(Coin.NIMIQ, coin === Coin.NIMIQ);
+        document.body.classList.toggle(Coin.BITCOIN, coin === Coin.BITCOIN);
+        enableSelector($apiSelector, coin === Coin.NIMIQ && !window._api); // only for Nimiq and only until initialized
+        getInputElement(`[value=${ApiType.HIGH_LEVEL}]`, $apiSelector).checked = true;
     }
 
     async function clearUserInteraction() {
@@ -227,12 +287,12 @@ window.addEventListener('load', () => {
     async function createApi() {
         if (window._api) return window._api;
         try {
-            disableSelector($apiSelector);
+            enableSelector($apiSelector, false);
             displayStatus('Creating Api');
-            const apiType = ($apiSelector.querySelector(':checked') as HTMLInputElement).value;
-            const transportType = ($transportSelector.querySelector(':checked') as HTMLInputElement).value;
+            const apiType = getInputElement(':checked', $apiSelector).value;
+            const transportType = getInputElement(':checked', $transportSelector).value;
             if (apiType === ApiType.LOW_LEVEL) {
-                disableSelector($transportSelector);
+                enableSelector($transportSelector, false);
                 // Note that for the high-level api, the ledger log does not work as the logger in the demo is a
                 // different instance than the one in the lazy loaded transports.
                 onLog((logEntry: any) => console.log('%cLog:', 'color: teal', logEntry));
@@ -300,7 +360,8 @@ window.addEventListener('load', () => {
             const deviceModel = (window._transport.deviceModel || {}).productName || 'device type unknown';
             displayStatus(`Connected (app version ${version}, ${deviceModel})`);
         } else {
-            const connected = await api.connect(Coin.NIMIQ);
+            const coin = getInputElement(':checked', $coinSelector).value as Coin;
+            const connected = await api.connect(coin);
             displayStatus(connected ? 'Connected' : 'Connection cancelled');
         }
     }
@@ -323,11 +384,11 @@ window.addEventListener('load', () => {
         window._api.currentRequest.cancel();
     }
 
-    async function getPublicKey(confirm: boolean) {
+    async function getPublicKeyNimiq(confirm: boolean) {
         if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         try {
-            $publicKey.textContent = '';
-            const bip32Path = $bip32PathPublicKeyInput.value;
+            $publicKeyNimiq.textContent = '';
+            const bip32Path = $bip32PathPublicKeyInputNimiq.value;
             const loadNimiqPromise = loadNimiqCore();
             const api = await createApi();
             const msg = confirm ? 'Confirm public key...' : 'Getting public key...';
@@ -340,7 +401,7 @@ window.addEventListener('load', () => {
                 publicKey = (await api.Nimiq.getPublicKey(bip32Path)).serialize();
             }
             const Nimiq = await loadNimiqPromise;
-            $publicKey.textContent = Nimiq.BufferUtils.toHex(publicKey);
+            $publicKeyNimiq.textContent = Nimiq.BufferUtils.toHex(publicKey);
             displayStatus('Received public key');
             return publicKey;
         } catch (error) {
@@ -349,11 +410,11 @@ window.addEventListener('load', () => {
         }
     }
 
-    async function getAddress(confirm: boolean) {
+    async function getAddressNimiq(confirm: boolean) {
         if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         try {
-            $address.textContent = '';
-            const bip32Path = $bip32PathAddressInput.value;
+            $addressNimiq.textContent = '';
+            const bip32Path = $bip32PathAddressInputNimiq.value;
             const api = await createApi();
             const msg = confirm ? 'Confirm address...' : 'Getting address...';
             displayStatus(msg);
@@ -365,7 +426,7 @@ window.addEventListener('load', () => {
                     ? await api.Nimiq.getConfirmedAddress(bip32Path)
                     : await api.Nimiq.getAddress(bip32Path);
             }
-            $address.textContent = address;
+            $addressNimiq.textContent = address;
             displayStatus('Received address');
             return address;
         } catch (error) {
@@ -374,17 +435,17 @@ window.addEventListener('load', () => {
         }
     }
 
-    async function signTransaction() {
+    async function signTransactionNimiq() {
         if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         try {
-            $signature.textContent = '';
-            const tx = $txHexInput.value;
+            $signatureNimiq.textContent = '';
+            const tx = $txHexInputNimiq.value;
             const [api, Nimiq] = await Promise.all([
                 createApi(),
                 loadNimiqCore(),
             ]);
             const buffer = Nimiq.BufferUtils.fromHex(tx);
-            const bip32Path = $bip32PathAddressInput.value;
+            const bip32Path = $bip32PathAddressInputNimiq.value;
             displayStatus('Signing transaction...');
             let signature: Uint8Array;
             if (api instanceof LowLevelApi) {
@@ -408,9 +469,34 @@ window.addEventListener('load', () => {
                 )).proof);
                 signature = Nimiq.SignatureProof.unserialize(proofBytes).signature.serialize();
             }
-            $signature.textContent = Nimiq.BufferUtils.toHex(signature);
+            $signatureNimiq.textContent = Nimiq.BufferUtils.toHex(signature);
         } catch (error) {
             displayStatus(error);
+        }
+    }
+
+    async function getAddressAndPublicKeyBitcoin(confirm: boolean) {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
+        try {
+            $addressBitcoin.textContent = '';
+            $publicKeyBitcoin.textContent = '';
+            $chainCodeBitcoin.textContent = '';
+            const bip32Path = $bip32PathAddressInputBitcoin.value;
+            const api = await createApi();
+            if (api instanceof LowLevelApi) throw new Error('Bitcoin not supported by LowLevelApi');
+            const msg = confirm ? 'Confirm address...' : 'Getting address...';
+            displayStatus(msg);
+            const { address, publicKey, chainCode } = confirm
+                ? await api.Bitcoin.getConfirmedAddressAndPublicKey(bip32Path)
+                : await api.Bitcoin.getAddressAndPublicKey(bip32Path);
+            $addressBitcoin.textContent = address;
+            $publicKeyBitcoin.textContent = publicKey;
+            $chainCodeBitcoin.textContent = chainCode;
+            displayStatus('Received address and public key');
+            return address;
+        } catch (error) {
+            displayStatus(`Failed to get address: ${error}`);
+            throw error;
         }
     }
 
@@ -420,16 +506,22 @@ window.addEventListener('load', () => {
         console.log('To experiment with how connecting to the Ledger works on a fresh system, don\'t forget to revoke'
             + ' previously granted permissions.');
         $apiSelector.addEventListener('change', switchApi);
+        $coinSelector.addEventListener('change', switchCoin);
         $connectButton.addEventListener('click', connect);
         $disconnectButton.addEventListener('click', disconnect);
         $highLevelApiCancelButton.addEventListener('click', cancelRequest);
-        $getPublicKeyButton.addEventListener('click', () => getPublicKey(false));
-        $lowLevelApiConfirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
-        $getAddressButton.addEventListener('click', () => getAddress(false));
-        $confirmAddressButton.addEventListener('click', () => getAddress(true));
-        $signTxButton.addEventListener('click', signTransaction);
+
+        $getPublicKeyButtonNimiq.addEventListener('click', () => getPublicKeyNimiq(false));
+        $confirmPublicKeyButtonNimiq.addEventListener('click', () => getPublicKeyNimiq(true));
+        $getAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(false));
+        $confirmAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(true));
+        $signTxButtonNimiq.addEventListener('click', signTransactionNimiq);
+
+        $getAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(false));
+        $confirmAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(true));
 
         switchApi();
+        switchCoin();
     }
 
     init();
