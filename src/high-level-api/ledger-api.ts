@@ -27,12 +27,15 @@ type RequestSignTransactionNimiqConstructor = typeof import('./requests/nimiq/re
 
 type RequestGetAddressAndPublicKeyBitcoinConstructor =
     typeof import('./requests/bitcoin/request-get-address-and-public-key-bitcoin').default;
+type RequestGetExtendedPublicKeyBitcoinConstructor =
+    typeof import('./requests/bitcoin/request-get-extended-public-key-bitcoin').default;
 
 // define Request type as actually defined request classes to be more specific than the abstract parent class
 /* eslint-disable @typescript-eslint/indent */
 type RequestConstructor = RequestGetWalletIdNimiqConstructor | RequestGetPublicKeyNimiqConstructor
     | RequestGetAddressNimiqConstructor | RequestDeriveAddressesNimiqConstructor
-    | RequestSignTransactionNimiqConstructor | RequestGetAddressAndPublicKeyBitcoinConstructor;
+    | RequestSignTransactionNimiqConstructor
+    | RequestGetAddressAndPublicKeyBitcoinConstructor | RequestGetExtendedPublicKeyBitcoinConstructor;
 /* eslint-enable @typescript-eslint/indent */
 type Request = InstanceType<RequestConstructor>;
 
@@ -161,6 +164,18 @@ export default class LedgerApi {
             : Promise<{ publicKey: string, address: string, chainCode: string }> {
             const { address } = await LedgerApi.Bitcoin.getAddressAndPublicKey(keyPath, false, undefined, walletId);
             return LedgerApi.Bitcoin.getAddressAndPublicKey(keyPath, true, address, walletId);
+        },
+
+        /**
+         * Get the extended public key for a bip32 path from which addresses can be derived, encoded as specified in
+         * bip32. The key path must follow the bip44 specification and at least be defined to the account level.
+         * Optionally expect a specific walletId.
+         */
+        async getExtendedPublicKey(keyPath: string, walletId?: string): Promise<string> {
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetExtendedPublicKeyBitcoinConstructor>(
+                import('./requests/bitcoin/request-get-extended-public-key-bitcoin'),
+                keyPath, walletId,
+            ));
         },
     };
 

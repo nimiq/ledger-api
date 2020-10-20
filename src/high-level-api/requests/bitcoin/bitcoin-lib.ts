@@ -11,8 +11,8 @@
 export {
     bip32,
     networks,
-    payments,
-    address,
+    // payments,
+    // address,
 
     // Required by @nimiq/electrum-client
     // Transaction,

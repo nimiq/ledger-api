@@ -160,6 +160,22 @@ window.addEventListener('load', () => {
                     <div class="nq-text">Chain Code: <span id="chain-code-bitcoin" class="mono"></span></div>
                 </div>
             </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Get Extended Public Key</h2>
+                <div class="nq-card-body">
+                    <input class="nq-input" id="bip32-path-extended-public-key-input-bitcoin" value="84'/0'/0'"
+                        style="max-width: 20rem">
+                    <button class="nq-button-s" id="get-extended-public-key-button-bitcoin">
+                        Get Extended Public Key
+                    </button>
+                    <br>
+                    <div class="nq-text">
+                        Extended Public Key:
+                        <span id="extended-public-key-bitcoin" class="mono"></span>
+                    </div>
+                </div>
+            </section>
         </div>
 
         <style>
@@ -248,6 +264,9 @@ window.addEventListener('load', () => {
     const $addressBitcoin = document.getElementById('address-bitcoin')!;
     const $publicKeyBitcoin = document.getElementById('public-key-bitcoin')!;
     const $chainCodeBitcoin = document.getElementById('chain-code-bitcoin')!;
+    const $bip32PathExtendedPublicKeyInputBitcoin = getInputElement('#bip32-path-extended-public-key-input-bitcoin');
+    const $getExtendedPublicKeyButtonBitcoin = document.getElementById('get-extended-public-key-button-bitcoin')!;
+    const $extendedPublicKeyBitcoin = document.getElementById('extended-public-key-bitcoin')!;
 
     function displayStatus(msg: string) {
         console.log(msg);
@@ -500,6 +519,24 @@ window.addEventListener('load', () => {
         }
     }
 
+    async function getExtendedPublicKeyBitcoin() {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
+        try {
+            $extendedPublicKeyBitcoin.textContent = '';
+            const bip32Path = $bip32PathExtendedPublicKeyInputBitcoin.value;
+            const api = await createApi();
+            if (api instanceof LowLevelApi) throw new Error('Bitcoin not supported by LowLevelApi');
+            displayStatus('Getting extended public key...');
+            const extendedPublicKey = await api.Bitcoin.getExtendedPublicKey(bip32Path);
+            $extendedPublicKeyBitcoin.textContent = extendedPublicKey;
+            displayStatus('Received extended public key');
+            return extendedPublicKey;
+        } catch (error) {
+            displayStatus(`Failed to get extended public key: ${error}`);
+            throw error;
+        }
+    }
+
     function init() {
         console.log('Nimiq Ledger Api demo. Note that another great place to directly experiment with the apis'
             + ' provided by Ledger is https://ledger-repl.now.sh/');
@@ -519,6 +556,7 @@ window.addEventListener('load', () => {
 
         $getAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(false));
         $confirmAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(true));
+        $getExtendedPublicKeyButtonBitcoin.addEventListener('click', () => getExtendedPublicKeyBitcoin());
 
         switchApi();
         switchCoin();
