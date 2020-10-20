@@ -59,7 +59,10 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         }
 
         // Preload dependencies. Ignore errors.
-        RequestBitcoin._loadLowLevelApi().catch(() => {});
+        Promise.all([
+            import('./lib/bitcoinjs'),
+            RequestBitcoin._loadLowLevelApi(),
+        ]).catch(() => {});
     }
 
     public async checkCoinAppConnection(/* transport: Transport */): Promise<CoinAppConnection> {

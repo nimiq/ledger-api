@@ -32,6 +32,8 @@ export default abstract class RequestNimiq<T> extends Request<T> {
 
     private static async _loadLowLevelApi(): Promise<LowLevelApiConstructor> {
         try {
+            // build the low-level-api from source instead of taking it from dist to create optimized chunks and to
+            // avoid double bundling of dependencies like buffer.
             return (await import('../../../low-level-api/low-level-api')).default;
         } catch (e) {
             throw new ErrorState(

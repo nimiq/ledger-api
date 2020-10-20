@@ -6,6 +6,7 @@ import MagicString from 'magic-string';
 import typescript from '@rollup/plugin-typescript';
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
+import json from '@rollup/plugin-json';
 import sourcemaps from 'rollup-plugin-sourcemaps';
 import eslint from '@rbnlffl/rollup-plugin-eslint';
 
@@ -124,6 +125,8 @@ export default (commandLineArgs) => {
         })),
         preserveEntrySignatures: 'allow-extension', // avoid rollup's additional facade chunk
         plugins: [
+            // First run plugins that map imports to the actual imported files, e.g. aliased imports or browser versions
+            // of packages, such that subsequent plugins operate on the right files. Node builtins are kept as such.
             alias({
                 entries: {
                     // replace readable-stream imported by @ledgerhq/hw-app-btc/src/hashPublicKey > ripemd160 >
@@ -137,9 +140,15 @@ export default (commandLineArgs) => {
                     'readable-stream': 'stream',
                 },
             }),
+            resolve({
+                browser: true, // use browser versions of packages if defined in their package.json
+                preferBuiltins: true, // don't touch imports of node builtins as these will be handled by nodePolyfills
+            }),
+            // Have eslint high up in the hierarchy to lint the original files.
             eslint({
                 throwOnError: isProduction,
             }),
+            // Check types and transpile ts to js. Note that ts does only transpile and not bundle imports.
             typescript({
                 include: ['src/high-level-api/**', 'src/low-level-api/**', 'src/lib/**'],
                 declaration: true,
@@ -147,15 +156,17 @@ export default (commandLineArgs) => {
                 rootDir: 'src', // temporary, see https://github.com/rollup/plugins/issues/61#issuecomment-596270901
                 noEmitOnError: isProduction,
             }),
-            resolve({
-                browser: true, // use browser versions of packages if defined in their package.json
-                preferBuiltins: true, // don't touch imports of node builtins as these will be handled by nodePolyfills
-            }),
+            // Read code including sourcemaps. Has to happen after ts as ts files should be loaded by typescript plugin
+            // and the sourcemaps plugin can't parse ts files.
             sourcemaps(),
+            // Process imports of commonjs, json and polyfills.
             commonjs({
                 namedExports: {
                     'u2f-api': ['sign', 'isSupported'],
                 },
+            }),
+            json({ // required for import of bitcoin-ops/index.json imported by bitcoinjs-lib
+                compact: true,
             }),
             nodePolyfills({
                 include: [
@@ -163,6 +174,7 @@ export default (commandLineArgs) => {
                     'node_modules/**/*.js',
                 ],
             }),
+            // Last steps in output generation.
             hoistDynamicImportDependencies(),
             // debugModuleDependencies('stream'),
         ],
