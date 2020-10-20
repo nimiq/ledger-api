@@ -22,7 +22,6 @@ module.exports = {
         'no-debugger': isProduction ? 'error' : 'off',
         'class-methods-use-this': 'off',
         'function-paren-newline': 'off',
-        indent: ['error', 4, { SwitchCase: 1 }],
         'max-len': ['error', 120],
         'no-underscore-dangle': 'off',
         'no-param-reassign': 'off',
@@ -48,6 +47,7 @@ module.exports = {
         '@typescript-eslint/no-namespace': 'off',
 
         // False positives that are checked by TS
+        indent: 'off',
         'no-redeclare': 'off',
         '@typescript-eslint/no-use-before-define': 'off',
         'import/no-unresolved': 'off',

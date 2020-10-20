@@ -7,7 +7,7 @@ import typescript from '@rollup/plugin-typescript';
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import sourcemaps from 'rollup-plugin-sourcemaps';
-import { eslint } from 'rollup-plugin-eslint';
+import eslint from '@rbnlffl/rollup-plugin-eslint';
 
 // demo page specific imports
 import alias from '@rollup/plugin-alias';
@@ -20,27 +20,6 @@ import livereload from 'rollup-plugin-livereload';
 const SOURCE_MAP_PREFIX = 'source-mapped://source-mapped/';
 function sourcemapPathTransform(relativePath) {
     return `${SOURCE_MAP_PREFIX}${path.relative('../../', relativePath)}`;
-}
-
-// Fixed eslint plugin that runs on original typescript files instead of transpiled js files, see
-// https://github.com/TrySound/rollup-plugin-eslint/issues/42
-function fixedEslint(options) {
-    const original = eslint(options);
-    const originalLint = original.transform.bind(original);
-    return {
-        name: original.name,
-        load(id) {
-            if (id.endsWith('.ts')) {
-                const code = fs.readFileSync(id, 'utf8');
-                originalLint(code, id);
-            }
-            return null;
-        },
-        transform(code, id) {
-            if (id.endsWith('.ts')) return null;
-            return originalLint(code, id);
-        },
-    };
 }
 
 // function debugModuleDependencies(module) {
@@ -158,7 +137,7 @@ export default (commandLineArgs) => {
                     'readable-stream': 'stream',
                 },
             }),
-            fixedEslint({
+            eslint({
                 throwOnError: isProduction,
             }),
             typescript({
@@ -202,7 +181,7 @@ export default (commandLineArgs) => {
             sourcemapPathTransform,
         })),
         plugins: [
-            fixedEslint({
+            eslint({
                 throwOnError: isProduction,
             }),
             typescript({
@@ -240,7 +219,7 @@ export default (commandLineArgs) => {
                     '../../dist/high-level-api/ledger-api': '../high-level-api/ledger-api.es.js',
                 },
             }),
-            fixedEslint({
+            eslint({
                 throwOnError: isProduction,
             }),
             typescript({
