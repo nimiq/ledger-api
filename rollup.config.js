@@ -43,6 +43,25 @@ function fixedEslint(options) {
     };
 }
 
+// function debugModuleDependencies(module) {
+//     return {
+//         name: 'debug-module-dependencies',
+//         writeBundle() {
+//             console.log(`\n\nDebug module dependencies for ${module}.`);
+//             const moduleIds = [...this.getModuleIds()].filter((id) => id.includes(module));
+//             console.log('Matched bundled module ids:', moduleIds);
+//             for (const moduleId of moduleIds) {
+//                 const moduleInfo = this.getModuleInfo(moduleId);
+//                 console.log('\n', {
+//                     id: moduleInfo.id,
+//                     importers: moduleInfo.importers,
+//                     dynamicImporters: moduleInfo.dynamicImporters,
+//                 });
+//             }
+//         },
+//     };
+// }
+
 // Hoist dependency imports for dynamic imports similar to rollup's dependency hoisting for regular imports
 // (see https://rollupjs.org/guide/en/#why-do-additional-imports-turn-up-in-my-entry-chunks-when-code-splitting) for
 // quicker loading of the dependencies. Note that rollup does not do this by default, as the execution order is not
@@ -126,6 +145,19 @@ export default (commandLineArgs) => {
         })),
         preserveEntrySignatures: 'allow-extension', // avoid rollup's additional facade chunk
         plugins: [
+            alias({
+                entries: {
+                    // replace readable-stream imported by @ledgerhq/hw-app-btc/src/hashPublicKey > ripemd160 >
+                    // hash-base by stream which gets polyfilled by rollup-plugin-node-polyfills. Note that stream and
+                    // readable-stream are largely compatible and effectively the same code. However, the stream
+                    // polyfill used by rollup-plugin-node-polyfills is an older version which has less problems with
+                    // circular dependencies. The circular dependencies are currently being resolved in readable-stream
+                    // though and once merged (see https://github.com/nodejs/readable-stream/issues/348), this alias
+                    // should be removed or even turned around. Note that without the replacement, the stream polyfill
+                    // and readable-stream are both bundled, which is not desirable.
+                    'readable-stream': 'stream',
+                },
+            }),
             fixedEslint({
                 throwOnError: isProduction,
             }),
@@ -153,6 +185,7 @@ export default (commandLineArgs) => {
                 ],
             }),
             hoistDynamicImportDependencies(),
+            // debugModuleDependencies('stream'),
         ],
         watch: {
             clearScreen: false,
@@ -200,19 +233,19 @@ export default (commandLineArgs) => {
             sourcemapPathTransform,
         },
         plugins: [
-            fixedEslint({
-                throwOnError: isProduction,
-            }),
-            typescript({
-                include: ['src/demo/**', 'src/lib/**'],
-                noEmitOnError: isProduction,
-            }),
             // typescript needs the import as specified to find the .d.ts file but for actual import we need .es.js file
             alias({
                 entries: {
                     '../../dist/low-level-api/low-level-api': '../low-level-api/low-level-api.es.js',
                     '../../dist/high-level-api/ledger-api': '../high-level-api/ledger-api.es.js',
                 },
+            }),
+            fixedEslint({
+                throwOnError: isProduction,
+            }),
+            typescript({
+                include: ['src/demo/**', 'src/lib/**'],
+                noEmitOnError: isProduction,
             }),
             resolve({
                 preferBuiltins: true, // don't touch imports of node builtins as these will be handled by nodePolyfills
