@@ -24,7 +24,7 @@ export default class RequestGetAddressAndPublicKeyBitcoin extends RequestBitcoin
 
         try {
             const parsedKeyPath = parseBip32Path(keyPath);
-            if (parsedKeyPath.coin !== Coin.BITCOIN) throw new Error('Not a Bitcoin bip32 path');
+            if (parsedKeyPath.coin !== Coin.BITCOIN) throw new Error('Not a Bitcoin bip32 path following bip44');
             // TODO The ledger BTC app only returns mainnet addresses (even for testnet paths). For the testnet there
             //  is a separate ledger app. So should we calculate testnet addresses ourselves from the public key? At
             //  least in combination with the display flag this doesn't make much sense though.

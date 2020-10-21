@@ -29,13 +29,16 @@ type RequestGetAddressAndPublicKeyBitcoinConstructor =
     typeof import('./requests/bitcoin/request-get-address-and-public-key-bitcoin').default;
 type RequestGetExtendedPublicKeyBitcoinConstructor =
     typeof import('./requests/bitcoin/request-get-extended-public-key-bitcoin').default;
+type RequestSignTransactionBitcoinConstructor =
+    typeof import('./requests/bitcoin/request-sign-transaction-bitcoin').default;
 
 // define Request type as actually defined request classes to be more specific than the abstract parent class
 /* eslint-disable @typescript-eslint/indent */
 type RequestConstructor = RequestGetWalletIdNimiqConstructor | RequestGetPublicKeyNimiqConstructor
     | RequestGetAddressNimiqConstructor | RequestDeriveAddressesNimiqConstructor
     | RequestSignTransactionNimiqConstructor
-    | RequestGetAddressAndPublicKeyBitcoinConstructor | RequestGetExtendedPublicKeyBitcoinConstructor;
+    | RequestGetAddressAndPublicKeyBitcoinConstructor | RequestGetExtendedPublicKeyBitcoinConstructor
+    | RequestSignTransactionBitcoinConstructor;
 /* eslint-enable @typescript-eslint/indent */
 type Request = InstanceType<RequestConstructor>;
 
@@ -43,11 +46,14 @@ type PublicKeyNimiq = import('@nimiq/core-web').PublicKey;
 type TransactionInfoNimiq = import('./requests/nimiq/request-sign-transaction-nimiq').TransactionInfoNimiq;
 type TransactionNimiq = import('@nimiq/core-web').Transaction;
 
+type TransactionInfoBitcoin = import('./requests/bitcoin/request-sign-transaction-bitcoin').TransactionInfoBitcoin;
+
 export { isSupported, TransportType };
 export { getBip32Path, parseBip32Path };
 export { ErrorType, ErrorState };
 export { Coin, AddressTypeBitcoin, Network };
 export { CoinAppConnection, RequestTypeNimiq, RequestTypeBitcoin };
+export { TransactionInfoNimiq, TransactionInfoBitcoin };
 
 export enum StateType {
     IDLE = 'idle',
@@ -175,6 +181,18 @@ export default class LedgerApi {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetExtendedPublicKeyBitcoinConstructor>(
                 import('./requests/bitcoin/request-get-extended-public-key-bitcoin'),
                 keyPath, walletId,
+            ));
+        },
+
+        /**
+         * Sign a transaction. See type declaration of TransactionInfoBitcoin in request-sign-transaction-bitcoin.ts
+         * for documentation of the transaction format. Optionally expect a specific walletId. The signed transaction
+         * is returned in hex-encoded serialized form ready to be broadcast to the network.
+         */
+        async signTransaction(transaction: TransactionInfoBitcoin, walletId?: string): Promise<string> {
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignTransactionBitcoinConstructor>(
+                import('./requests/bitcoin/request-sign-transaction-bitcoin'),
+                transaction, walletId,
             ));
         },
     };

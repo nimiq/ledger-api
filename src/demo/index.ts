@@ -176,6 +176,55 @@ window.addEventListener('load', () => {
                     </div>
                 </div>
             </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Sign Transaction</h2>
+                <div class="nq-card-body">
+                    <textarea class="nq-input" id="tx-info-textarea-bitcoin">`
+                        /* eslint-disable no-multi-spaces */
+                        + '{\n'
+                        + '    "inputs": [{\n'
+                        + '        "transaction": "020000000001015fd6b1d5315141cf77edbc06d8da1d2a0b164c0f9f5d4ea08edc35'
+                        +              '240bd763340100000017160014126f057c3e0c29770dd44ca13417873ca8ba8640feffffff02348'
+                        +              '31e000000000016001438673bdd1248c29c32c96b112f0a5cc61ce3aaea40420f00000000001600'
+                        +              '145713787559453114fbed627ca8a5a396ffd4492502473044022077ab82661bf71658da41d804b'
+                        +              '36236496f34b6d338ec95abd9808b98848400d302202c20450e9d315ccfe230a51a98c4659e5582'
+                        +              '59d6d3041bdf9209a050f23f45df0121030b33659acb140264603ce5ffe22096d4691e3d6bbbffb'
+                        +              'f0b7935b010f025e523b6751c00",\n'
+                        + '        "index": 1,\n'
+                        + '        "keyPath": "84\'/1\'/0\'/0/0"\n'
+                        + '    }],\n'
+                        + '    "outputs": [{\n'
+                        + '        "amount": 700000,\n'
+                        + '        "outputScript": "0014e3ee474b8b6e074fb99a6f0aa83ceed4b00d5703"\n'
+                        + '    }, {\n'
+                        + '        "amount": 299859,\n'
+                        + '        "outputScript": "0014b522554d71145448e4123099abc491e4b5ae1fc6"\n'
+                        + '    }],\n'
+                        + '    "changePath": "84\'/1\'/0\'/1/0",\n'
+                        + '    "segwit": true,\n'
+                        + '    "nativeSegwitInput": true\n'
+                        + '}'
+                        /* eslint-enable no-multi-spaces */
+                    + `</textarea>
+                    <div class="nq-text">
+                        <button class="nq-button-s" id="sign-tx-button-bitcoin">Sign Transaction</button>
+                    </div>
+                    <div class="nq-text">
+                        Signed transaction:
+                        <span id="signed-tx-bitcoin" class="mono"></span>
+                    </div>
+                    <div class="nq-text">
+                        Use for example
+                        <a href="https://live.blockcypher.com/btc/decodetx/" target="_blank">blockcypher</a>
+                        or
+                        <a href="https://github.com/bitcoinjs/bitcoinjs-lib" target="_blank">bitcoinjs-lib</a>
+                        to decode the transaction and
+                        <a href="https://github.com/nimiq/electrum-client" target="_blank">Nimiq's electrum client</a>
+                        to broadcast the transaction.
+                    </div>
+                </div>
+            </section>
         </div>
 
         <style>
@@ -205,12 +254,17 @@ window.addEventListener('load', () => {
             }
 
             .nq-card-header {
-                padding-top: 2rem;
                 margin-bottom: 0;
             }
 
             .nq-input {
                 margin-right: 2rem;
+            }
+            
+            textarea.nq-input {
+                min-width: 100%;
+                max-width: 100%;
+                min-height: 78rem;
             }
 
             .mono {
@@ -267,6 +321,9 @@ window.addEventListener('load', () => {
     const $bip32PathExtendedPublicKeyInputBitcoin = getInputElement('#bip32-path-extended-public-key-input-bitcoin');
     const $getExtendedPublicKeyButtonBitcoin = document.getElementById('get-extended-public-key-button-bitcoin')!;
     const $extendedPublicKeyBitcoin = document.getElementById('extended-public-key-bitcoin')!;
+    const $txInfoTextareaBitcoin = document.getElementById('tx-info-textarea-bitcoin') as HTMLTextAreaElement;
+    const $signTxButtonBitcoin = document.getElementById('sign-tx-button-bitcoin')!;
+    const $signedTxBitcoin = document.getElementById('signed-tx-bitcoin')!;
 
     function displayStatus(msg: string) {
         console.log(msg);
@@ -537,6 +594,24 @@ window.addEventListener('load', () => {
         }
     }
 
+    async function signTransactionBitcoin() {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
+        try {
+            $signedTxBitcoin.textContent = '';
+            const txInfo = JSON.parse($txInfoTextareaBitcoin.value);
+            const api = await createApi();
+            if (api instanceof LowLevelApi) throw new Error('Bitcoin not supported by LowLevelApi');
+            displayStatus('Signing transaction...');
+            const signedTransactionHex = await api.Bitcoin.signTransaction(txInfo);
+            $signedTxBitcoin.textContent = signedTransactionHex;
+            displayStatus('Signed transaction');
+            return signedTransactionHex;
+        } catch (error) {
+            displayStatus(`Failed to sign transaction: ${error}`);
+            throw error;
+        }
+    }
+
     function init() {
         console.log('Nimiq Ledger Api demo. Note that another great place to directly experiment with the apis'
             + ' provided by Ledger is https://ledger-repl.now.sh/');
@@ -557,6 +632,7 @@ window.addEventListener('load', () => {
         $getAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(false));
         $confirmAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(true));
         $getExtendedPublicKeyButtonBitcoin.addEventListener('click', () => getExtendedPublicKeyBitcoin());
+        $signTxButtonBitcoin.addEventListener('click', signTransactionBitcoin);
 
         switchApi();
         switchCoin();
