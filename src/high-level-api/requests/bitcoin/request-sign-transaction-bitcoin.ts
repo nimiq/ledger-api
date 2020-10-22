@@ -1,5 +1,5 @@
 import RequestBitcoin from './request-bitcoin';
-import { Coin, RequestTypeBitcoin } from '../../constants';
+import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../constants';
 import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 
@@ -11,7 +11,8 @@ type FixedSerializeTransactionOutputs =
     => ReturnType<import('@ledgerhq/hw-app-btc').default['serializeTransactionOutputs']>;
 
 export interface TransactionInfoBitcoin {
-    // The inputs to consume for this transaction (prev outs)
+    // The inputs to consume for this transaction (prev outs). All inputs have to be of the same type (native segwit,
+    // p2sh segwit or legacy), determined from their key paths.
     inputs: Array<{
         // hex of the full transaction of which to take the output as input
         transaction: string,
@@ -26,15 +27,16 @@ export interface TransactionInfoBitcoin {
         sequence?: number,
     }>;
     // the serialized outputs as hex or the separate outputs specified by amount and outputScript. Note that if you are
-    // sending part of the funds back to an address as change, that output also needs to be included here. Input coins
-    // which are not sent to an output are considered as fee.
+    // sending part of the funds back to an address as change, that output also needs to be included here. Arbitrary
+    // output types can be used, also differing from input type and among themselves. Input coins which are not sent to
+    // an output are considered fee.
     outputs: string | Array<{
         amount: number, // in Satoshi; non-fractional and non-negative
         outputScript: string, // hex encoded serialized output script
     }>;
     // optional bip32 path of potential change output. If your outputs include a change output back to this ledger, you
     // should specify that key's bip32 path here such that the Ledger can verify the change output's correctness and
-    // doesn't need the user to confirm the change output.
+    // doesn't need the user to confirm the change output. The change type can also be different than the input type.
     changePath?: string;
     // optional lockTime; 0 by default
     lockTime?: number;
@@ -61,23 +63,53 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
         this.transaction = transaction;
 
         try {
+            const { inputs, outputs, changePath } = transaction;
+
+            if (!inputs.length) {
+                throw new Error('No inputs specified');
+            }
+            if (!outputs.length) {
+                throw new Error('No outputs specified');
+            }
+
             // verify key paths
             // TODO mainnet and testnet BTC app are both able to sign mainnet and testnet transactions and generate the
             //  same signature, however they display the address only in the respective format of the network they are
             //  intended for, therefore using them interchangeably should be blocked.
-            // TODO Legacy and P2SH addresses supported?
-            if (transaction.changePath && parseBip32Path(transaction.changePath).coin !== Coin.BITCOIN) {
-                throw new Error(`${transaction.changePath} not a Bitcoin bip32 path following bip44`);
-            }
-            for (const { keyPath } of transaction.inputs) {
-                if (parseBip32Path(keyPath).coin !== Coin.BITCOIN) {
+            const keyPaths = [
+                ...inputs.map((input) => input.keyPath),
+                ...(changePath ? [changePath] : []),
+            ];
+            let network: Network | null = null;
+            let inputType: AddressTypeBitcoin | null = null;
+            for (const keyPath of keyPaths) {
+                const parsedKeyPath = parseBip32Path(keyPath);
+                if (parsedKeyPath.coin !== Coin.BITCOIN) {
                     throw new Error(`${keyPath} not a Bitcoin bip32 path following bip44`);
                 }
+
+                // Note that we don't have to verify the network of outputs. They will be displayed on the ledger screen
+                // depending on whether Bitcoin mainnet or testnet app is used. User will spot differences.
+                if (network && parsedKeyPath.network !== network) {
+                    throw new Error('Not all key paths specify keys on the same network');
+                }
+                network = parsedKeyPath.network;
+
+                // Note that we don't have to verify the address type of outputs and change; these can be arbitrary.
+                // Inputs must all be of the same type because Ledger's signing of input depends on parameter segwit and
+                // whether bech32 is set as an additional, i.e. all inputs are treated the same and signed according to
+                // these parameters. The transaction could be split and each input be signed separately but that would
+                // be a lot of work.
+                if (keyPath === changePath) continue; // could still also be an input, but we ignore that corner case
+                if (inputType && parsedKeyPath.addressType !== inputType) {
+                    throw new Error('Must not use mixed input types');
+                }
+                inputType = parsedKeyPath.addressType;
             }
         } catch (e) {
             throw new ErrorState(
                 ErrorType.REQUEST_ASSERTION_FAILED,
-                `Invalid keyPath: ${e.message || e}`,
+                `Invalid request: ${e.message || e}`,
                 this,
             );
         }
