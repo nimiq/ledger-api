@@ -4,6 +4,8 @@ import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 
 type Transport = import('@ledgerhq/hw-transport').default;
+type BitcoinJsTransaction = import('bitcoinjs-lib').Transaction;
+type BitcoinLib = typeof import('./bitcoin-lib');
 type CreateTransactionArg = Parameters<import('@ledgerhq/hw-app-btc').default['createPaymentTransactionNew']>[0];
 // serializeTransactionOutputs is typed unnecessarily strict as it only uses the outputs of a transaction
 type FixedSerializeTransactionOutputs =
@@ -14,8 +16,9 @@ export interface TransactionInfoBitcoin {
     // The inputs to consume for this transaction (prev outs). All inputs have to be of the same type (native segwit,
     // p2sh segwit or legacy), determined from their key paths.
     inputs: Array<{
-        // hex of the full transaction of which to take the output as input
-        transaction: string,
+        // full input transaction of which to take the output as input, either as serialized hex or in bitcoinjs-lib
+        // transaction format
+        transaction: string | BitcoinJsTransaction,
         // index of the transaction's output which is now to be used as input
         index: number,
         // bip32 path of the key which is able to redeem the input (the previous "recipient")
@@ -26,14 +29,21 @@ export interface TransactionInfoBitcoin {
         // optional sequence number to use for this input when using replace by fee (RBF)
         sequence?: number,
     }>;
-    // the serialized outputs as hex or the separate outputs specified by amount and outputScript. Note that if you are
-    // sending part of the funds back to an address as change, that output also needs to be included here. Arbitrary
-    // output types can be used, also differing from input type and among themselves. Input coins which are not sent to
-    // an output are considered fee.
+    // the serialized outputs as hex or the separate outputs specified by amount and outputScript or address. Note that
+    // if you are sending part of the funds back to an address as change, that output also needs to be included here.
+    // Arbitrary output types can be used, also differing from input type and among themselves. Input coins which are
+    // not sent to an output are considered fee.
     outputs: string | Array<{
-        amount: number, // in Satoshi; non-fractional and non-negative
+        // amount in Satoshi; non-fractional positive number
+        amount: number,
+    } & ({
         outputScript: string, // hex encoded serialized output script
-    }>;
+    } | {
+        // bitcoin recipient address. This address gets transformed into an output script. If you already have the
+        // output script available or a library loaded for calculating it, it's preferable to provide the outputScript
+        // instead of the address to avoid the need to load an additional library for conversion here.
+        address: string,
+    })>;
     // optional bip32 path of potential change output. If your outputs include a change output back to this ledger, you
     // should specify that key's bip32 path here such that the Ledger can verify the change output's correctness and
     // doesn't need the user to confirm the change output. The change type can also be different than the input type.
@@ -52,6 +62,7 @@ export interface TransactionInfoBitcoin {
 
 export default class RequestSignTransactionBitcoin extends RequestBitcoin<string> {
     public readonly transaction: TransactionInfoBitcoin;
+    private _network: Network;
     private _inputType: AddressTypeBitcoin;
 
     constructor(transaction: TransactionInfoBitcoin, walletId?: string) {
@@ -103,6 +114,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                 }
                 inputType = parsedKeyPath.addressType;
             }
+            this._network = network!;
             this._inputType = inputType!;
         } catch (e) {
             throw new ErrorState(
@@ -111,6 +123,9 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                 this,
             );
         }
+
+        // Preload Bitcoin lib if needed. Ledger Bitcoin api is already preloaded by parent class. Ignore errors.
+        this._loadBitcoinLibIfNeeded().catch(() => {});
     }
 
     public async call(transport: Transport): Promise<string> {
@@ -139,7 +154,10 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
         //   https://live.blockcypher.com/btc/decodetx/
         // - The demo page and code of this lib for demo usage
 
-        const api = await RequestBitcoin._getLowLevelApi(transport);
+        const [api, bitcoinLib] = await Promise.all([
+            RequestBitcoin._getLowLevelApi(transport),
+            this._loadBitcoinLibIfNeeded(),
+        ]);
         let parsedTransaction: CreateTransactionArg;
 
         try {
@@ -155,7 +173,10 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
 
             parsedTransaction = {
                 inputs: inputs.map(({ transaction, index, redeemScript, sequence }) => [
-                    api.splitTransaction(transaction, this._inputType !== AddressTypeBitcoin.LEGACY),
+                    api.splitTransaction(
+                        typeof transaction === 'string' ? transaction : transaction.toHex(),
+                        this._inputType !== AddressTypeBitcoin.LEGACY,
+                    ),
                     index,
                     redeemScript || null,
                     sequence || null,
@@ -166,15 +187,26 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                     : (api.serializeTransactionOutputs as FixedSerializeTransactionOutputs)({
                         outputs: outputs.map((output) => {
                             // inspired by how outputs are encoded in __toBuffer in bitcoinjs-lib/transaction.ts
-                            const { amount, outputScript } = output;
+                            const { amount } = output;
                             if (Math.floor(amount) !== amount || amount < 0 || amount > 21e9) {
                                 throw new Error(`Invalid Satoshi amount: ${amount}`);
                             }
                             const amountBuffer = Buffer.alloc(8);
                             amountBuffer.writeInt32LE(amount & -1, 0); // eslint-disable-line no-bitwise
                             amountBuffer.writeUInt32LE(Math.floor(amount / 0x100000000), 4);
-                            const scriptBuffer = Buffer.from(outputScript, 'hex');
-                            return { amount: amountBuffer, script: scriptBuffer };
+
+                            let outputScript: Buffer;
+                            if ('outputScript' in output) {
+                                outputScript = Buffer.from(output.outputScript, 'hex');
+                            } else {
+                                outputScript = bitcoinLib!.address.toOutputScript(
+                                    output.address,
+                                    this._network === Network.MAINNET
+                                        ? bitcoinLib!.networks.bitcoin
+                                        : bitcoinLib!.networks.testnet,
+                                );
+                            }
+                            return { amount: amountBuffer, script: outputScript };
                         }),
                     }).toString('hex'),
                 segwit: this._inputType !== AddressTypeBitcoin.LEGACY,
@@ -202,5 +234,14 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
         // Note: We make api calls outside of the try...catch block to let the exceptions fall through such that
         // _callLedger can decide how to behave depending on the api error.
         return api.createPaymentTransactionNew(parsedTransaction);
+    }
+
+    private async _loadBitcoinLibIfNeeded(): Promise<null | BitcoinLib> {
+        // If we need bitcoinjs for address to output script conversion, load it.
+        if (Array.isArray(this.transaction.outputs)
+            && this.transaction.outputs.some((output) => 'address' in output && !!output.address)) {
+            return RequestBitcoin._loadBitcoinLib();
+        }
+        return null;
     }
 }

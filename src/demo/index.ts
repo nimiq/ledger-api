@@ -196,10 +196,10 @@ window.addEventListener('load', () => {
                         + '    }],\n'
                         + '    "outputs": [{\n'
                         + '        "amount": 700000,\n'
-                        + '        "outputScript": "0014e3ee474b8b6e074fb99a6f0aa83ceed4b00d5703"\n'
+                        + '        "address": "tb1qu0hywjutdcr5lwv6du92s08w6jcq64cryha7vp"\n'
                         + '    }, {\n'
-                        + '        "amount": 299859,\n'
-                        + '        "outputScript": "0014b522554d71145448e4123099abc491e4b5ae1fc6"\n'
+                        + '        "amount": 299000,\n'
+                        + '        "address": "tb1qk5392nt3z32y3eqjxzv6h3y3uj66u87xh5wwnh"\n'
                         + '    }],\n'
                         + '    "changePath": "84\'/1\'/0\'/1/0"\n'
                         + '}'
@@ -219,7 +219,8 @@ window.addEventListener('load', () => {
                         <a href="https://github.com/bitcoinjs/bitcoinjs-lib" target="_blank">bitcoinjs-lib</a>
                         to decode the transaction and
                         <a href="https://github.com/nimiq/electrum-client" target="_blank">Nimiq's electrum client</a>
-                        to broadcast the transaction.
+                        to broadcast the transaction. If you want to broadcast the transaction, use a high enough fee
+                        (difference between inputs and outputs).
                     </div>
                 </div>
             </section>
