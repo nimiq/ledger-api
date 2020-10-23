@@ -44,10 +44,6 @@ export interface TransactionInfoBitcoin {
     // make sure in https://github.com/LedgerHQ/app-bitcoin/blob/master/src/btchip_apdu_hash_sign.c that your desired
     // sigHashType is supported.
     sigHashType?: number;
-    // use segwit? Set to true if your input is segwit, false by default
-    segwit?: boolean;
-    // set true if input is from native segwit prevouts (bech32 address), false by default
-    nativeSegwitInput?: boolean;
     // Enforce input amount verification also for segwit inputs. Note that on Bitcoin app >= 1.4.0 a warning is
     // displayed on the Ledger screen for unverified native segwit inputs and that for app versions < 1.4.0 setting
     // useTrustedInputForSegwit is not supported. By default it's automatically set according to connected app version.
@@ -56,6 +52,7 @@ export interface TransactionInfoBitcoin {
 
 export default class RequestSignTransactionBitcoin extends RequestBitcoin<string> {
     public readonly transaction: TransactionInfoBitcoin;
+    private _inputType: AddressTypeBitcoin;
 
     constructor(transaction: TransactionInfoBitcoin, walletId?: string) {
         super(RequestTypeBitcoin.SIGN_TRANSACTION, walletId);
@@ -106,6 +103,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                 }
                 inputType = parsedKeyPath.addressType;
             }
+            this._inputType = inputType!;
         } catch (e) {
             throw new ErrorState(
                 ErrorType.REQUEST_ASSERTION_FAILED,
@@ -152,14 +150,12 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                 changePath,
                 lockTime,
                 sigHashType,
-                segwit,
-                nativeSegwitInput,
                 useTrustedInputForSegwit,
             } = this.transaction;
 
             parsedTransaction = {
                 inputs: inputs.map(({ transaction, index, redeemScript, sequence }) => [
-                    api.splitTransaction(transaction, segwit),
+                    api.splitTransaction(transaction, this._inputType !== AddressTypeBitcoin.LEGACY),
                     index,
                     redeemScript || null,
                     sequence || null,
@@ -181,7 +177,8 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                             return { amount: amountBuffer, script: scriptBuffer };
                         }),
                     }).toString('hex'),
-                additionals: nativeSegwitInput ? ['bech32'] : [],
+                segwit: this._inputType !== AddressTypeBitcoin.LEGACY,
+                additionals: this._inputType === AddressTypeBitcoin.NATIVE_SEGWIT ? ['bech32'] : [],
             };
 
             // Set optional properties. Note that we did not use ...this.transaction via object spreading above to avoid
@@ -194,9 +191,6 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
             }
             if (sigHashType !== undefined && sigHashType !== null) {
                 parsedTransaction.sigHashType = sigHashType;
-            }
-            if (segwit !== undefined && segwit !== null) {
-                parsedTransaction.segwit = segwit;
             }
             if (useTrustedInputForSegwit !== undefined && useTrustedInputForSegwit !== null) {
                 parsedTransaction.useTrustedInputForSegwit = useTrustedInputForSegwit;

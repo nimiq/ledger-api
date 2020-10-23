@@ -201,9 +201,7 @@ window.addEventListener('load', () => {
                         + '        "amount": 299859,\n'
                         + '        "outputScript": "0014b522554d71145448e4123099abc491e4b5ae1fc6"\n'
                         + '    }],\n'
-                        + '    "changePath": "84\'/1\'/0\'/1/0",\n'
-                        + '    "segwit": true,\n'
-                        + '    "nativeSegwitInput": true\n'
+                        + '    "changePath": "84\'/1\'/0\'/1/0"\n'
                         + '}'
                         /* eslint-enable no-multi-spaces */
                     + `</textarea>
@@ -264,7 +262,7 @@ window.addEventListener('load', () => {
             textarea.nq-input {
                 min-width: 100%;
                 max-width: 100%;
-                min-height: 78rem;
+                min-height: 70rem;
             }
 
             .mono {
