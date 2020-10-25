@@ -175,7 +175,11 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                 inputs: inputs.map(({ transaction, index, redeemScript, sequence }) => [
                     api.splitTransaction(
                         typeof transaction === 'string' ? transaction : transaction.toHex(),
-                        this._inputType !== AddressTypeBitcoin.LEGACY,
+                        // Set segwit support always to true because then transactions with and without witnesses are
+                        // correctly parsed (compare bitcoinjs/transaction). Also we can't set it depending on whether
+                        // our own input (transaction's output) is not segwit because it's input might be. Specifically
+                        // fixes parsing legacy inputs which came from segwit inputs.
+                        true,
                     ),
                     index,
                     redeemScript || null,
