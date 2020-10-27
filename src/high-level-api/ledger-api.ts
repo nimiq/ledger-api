@@ -486,7 +486,8 @@ export default class LedgerApi {
                             return;
                         }
                         // On other errors try again
-                        if (!/busy|outdated|connection aborted|user gesture|dependencies|wrong ledger/i.test(message)
+                        if (!/busy|outdated|connection aborted|user gesture|dependencies|wrong app|wrong ledger/i
+                            .test(message)
                             && !isTimeout && !isLocked && !isConnectedToDashboard) {
                             console.warn('Unknown Ledger Error', e);
                         }

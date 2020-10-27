@@ -1,5 +1,6 @@
 import Request, { CoinAppConnection } from '../request';
 import { Coin, RequestTypeNimiq } from '../../constants';
+import { getAppAndVersion } from '../../ledger-utils';
 import { getBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 import { loadNimiqCore, loadNimiqCryptography } from '../../../lib/load-nimiq';
@@ -68,23 +69,37 @@ export default abstract class RequestNimiq<T> extends Request<T> {
     }
 
     public async checkCoinAppConnection(transport: Transport): Promise<CoinAppConnection> {
+        const apiPromise = RequestNimiq._getLowLevelApi(transport);
         const nimiqPromise = RequestNimiq._loadNimiq();
-        const api = await RequestNimiq._getLowLevelApi(transport);
 
-        // To check whether the connection to Nimiq app is established and to calculate the wallet id. Set
-        // validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger
-        // app, see transport-comparison.md. Using getPublicKey and not getAppConfiguration, as other apps also
-        // respond to getAppConfiguration (for example the Ethereum app).
+        const { name: app, version: appVersion } = await getAppAndVersion(transport, 'w0w');
+        if (app !== 'Nimiq') {
+            // avoid potential uncaught promise rejections
+            Promise.all([apiPromise, nimiqPromise]).catch(() => {});
+            throw new ErrorState(
+                ErrorType.WRONG_APP,
+                `Wrong app connected: ${app}`,
+                this,
+            );
+        }
+        if (!Request._isAppVersionSupported(appVersion, this.minRequiredAppVersion)) {
+            // avoid potential uncaught promise rejections
+            Promise.all([apiPromise, nimiqPromise]).catch(() => {});
+            throw new ErrorState(
+                ErrorType.APP_OUTDATED,
+                `Ledger ${app} app is outdated: ${appVersion}, required: ${this.minRequiredAppVersion}`,
+                this,
+            );
+        }
+
+        // For calculating the wallet id. Set validate to false as otherwise the call is much slower. For U2F this can
+        // also unfreeze the ledger app, see transport-comparison.md.
+        const api = await apiPromise; // throws LOADING_DEPENDENCIES_FAILED on failure
         const { publicKey: firstAddressPubKeyBytes } = await api.getPublicKey(
             getBip32Path({ coin: Coin.NIMIQ, addressIndex: 0 }),
             false, // validate
             false, // display
         );
-        const { version } = await api.getAppConfiguration();
-
-        if (!RequestNimiq._isAppVersionSupported(version, this.minRequiredAppVersion)) {
-            throw new ErrorState(ErrorType.APP_OUTDATED, 'Ledger Nimiq App is outdated.');
-        }
 
         let Nimiq: Nimiq;
         try {
@@ -93,6 +108,7 @@ export default abstract class RequestNimiq<T> extends Request<T> {
             throw new ErrorState(
                 ErrorType.LOADING_DEPENDENCIES_FAILED,
                 `Failed loading dependencies: ${e.message || e}`,
+                this,
             );
         }
 

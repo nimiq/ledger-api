@@ -60,6 +60,6 @@ export default abstract class Request<T> extends Observable {
 
     protected _checkExpectedWalletId(walletId: string) {
         if (this.walletId === undefined || this.walletId === walletId) return;
-        throw new ErrorState(ErrorType.WRONG_LEDGER, 'Wrong Ledger connected');
+        throw new ErrorState(ErrorType.WRONG_LEDGER, 'Wrong Ledger connected', this);
     }
 }

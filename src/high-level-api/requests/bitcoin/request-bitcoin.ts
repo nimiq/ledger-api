@@ -1,5 +1,7 @@
 import Request, { CoinAppConnection } from '../request';
-import { Coin, RequestTypeBitcoin } from '../../constants';
+import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../constants';
+import { getAppAndVersion } from '../../ledger-utils';
+import { getBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 
 type Transport = import('@ledgerhq/hw-transport').default;
@@ -56,35 +58,70 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         super(
             Coin.BITCOIN,
             type,
-            [1, 4, 3], // first tested version
+            [1, 3, 8], // first version with WebUSB
             walletId,
         );
+        // Preload dependencies. Do not preload bitcoin lib as it's not used by all requests. Ignore errors.
+        Promise.all([
+            RequestBitcoin._loadLowLevelApi(),
+            import('sha.js/sha256'), // used for walletId calculation
+        ]).catch(() => {});
+    }
 
-        if (walletId) {
-            // TODO remove in the future
+    public async checkCoinAppConnection(transport: Transport): Promise<CoinAppConnection> {
+        const apiPromise = RequestBitcoin._getLowLevelApi(transport);
+        // Note that loading sha here only for walletId calculation is not really wasteful as it's also imported by the
+        // ledger api and bitcoinjs.
+        const shaPromise = import('sha.js/sha256');
+
+        const { name: app, version: appVersion } = await getAppAndVersion(transport, 'BTC');
+        if (!/^Bitcoin(?: Test)?$/.test(app)) {
+            // avoid potential uncaught promise rejections
+            Promise.all([apiPromise, shaPromise]).catch(() => {});
             throw new ErrorState(
-                ErrorType.REQUEST_ASSERTION_FAILED,
-                'Expecting a specific wallet id is not implemented yet.',
+                ErrorType.WRONG_APP,
+                `Wrong app connected: ${app}`,
+                this,
+            );
+        }
+        if (!Request._isAppVersionSupported(appVersion, this.minRequiredAppVersion)) {
+            // avoid potential uncaught promise rejections
+            Promise.all([apiPromise, shaPromise]).catch(() => {});
+            throw new ErrorState(
+                ErrorType.APP_OUTDATED,
+                `Ledger ${app} app is outdated: ${appVersion}, required: ${this.minRequiredAppVersion}`,
                 this,
             );
         }
 
-        // Preload dependencies. Do not preload bitcoin lib as it's not sed by all requests. Ignore errors.
-        RequestBitcoin._loadLowLevelApi().catch(() => {});
-    }
-
-    public async checkCoinAppConnection(/* transport: Transport */): Promise<CoinAppConnection> {
         // TODO
-        //  We could fetch a bitcoin public key here and hash it to a wallet id as we do for Nimiq. However, for u2f
-        //  and WebAuthn, the Ledger displays a confirmation screen to get the public key if the user has this privacy
-        //  setting enabled. So should we do it?
-        //  For getting the app name and version we could use getAppAndVersion (see @ledgerhq/hw-app-btc) whcih is not
-        //  exposed in the api though.
-        //  Note that the get public key functionality also supports setting a permission token which however is also
-        //  not implemented in @ledgerhq/hw-app-btc and therefore needs to be implemented manually.
-        const walletId = 'dummy-bitcoin-wallet-id';
+        //  For u2f and WebAuthn, the Ledger displays a confirmation screen to get the public key if the user has this
+        //  privacy setting enabled. The get public key functionality also supports setting a permission token which
+        //  however is not implemented in @ledgerhq/hw-app-btc and therefore would need to be implemented manually.
+        const api = await apiPromise;
+        const { publicKey } = await api.getWalletPublicKey(getBip32Path({
+            coin: Coin.BITCOIN,
+            addressType: AddressTypeBitcoin.LEGACY,
+            network: Network.MAINNET,
+            accountIndex: 0,
+            addressIndex: 0,
+            isInternal: false,
+        }));
 
-        // this._checkExpectedWalletId(walletId);
+        let Sha256: typeof import('sha.js/sha256').default;
+        try {
+            Sha256 = (await shaPromise).default;
+        } catch (e) {
+            throw new ErrorState(
+                ErrorType.LOADING_DEPENDENCIES_FAILED,
+                `Failed loading dependencies: ${e.message || e}`,
+                this,
+            );
+        }
+
+        const walletId = new Sha256().update(publicKey, 'hex').digest('base64');
+
+        this._checkExpectedWalletId(walletId);
         return { coin: this.coin, walletId };
     }
 }

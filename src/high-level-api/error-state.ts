@@ -10,6 +10,7 @@ export enum ErrorType {
     BROWSER_UNSUPPORTED = 'browser-unsupported',
     APP_OUTDATED = 'app-outdated',
     WRONG_LEDGER = 'wrong-ledger',
+    WRONG_APP = 'wrong-app',
     REQUEST_ASSERTION_FAILED = 'request-specific-error',
 }
 
