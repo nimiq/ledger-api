@@ -58,7 +58,8 @@ export default abstract class RequestNimiq<T> extends Request<T> {
         super(
             Coin.NIMIQ,
             type,
-            [1, 4, 2], // first version supporting web usb
+            'Nimiq',
+            '1.4.2', // first version supporting web usb
             walletId,
         );
         // Preload dependencies. Ignore errors.
@@ -73,12 +74,12 @@ export default abstract class RequestNimiq<T> extends Request<T> {
         const nimiqPromise = RequestNimiq._loadNimiq();
 
         const { name: app, version: appVersion } = await getAppAndVersion(transport, 'w0w');
-        if (app !== 'Nimiq') {
+        if (app !== this.requiredApp) {
             // avoid potential uncaught promise rejections
             Promise.all([apiPromise, nimiqPromise]).catch(() => {});
             throw new ErrorState(
                 ErrorType.WRONG_APP,
-                `Wrong app connected: ${app}`,
+                `Wrong app connected: ${app}, required: ${this.requiredApp}`,
                 this,
             );
         }
@@ -116,6 +117,6 @@ export default abstract class RequestNimiq<T> extends Request<T> {
         const walletId = Nimiq.Hash.sha256(firstAddressPubKeyBytes).toBase64();
 
         this._checkExpectedWalletId(walletId);
-        return { coin: this.coin, walletId };
+        return { coin: this.coin, walletId, app, appVersion };
     }
 }

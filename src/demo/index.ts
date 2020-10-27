@@ -150,7 +150,7 @@ window.addEventListener('load', () => {
             <section class="nq-text nq-card">
                 <h2 class="nq-card-header nq-h2">Get Address and Public Key</h2>
                 <div class="nq-card-body">
-                    <input class="nq-input" id="bip32-path-address-input-bitcoin" value="84'/0'/0'/0/0"
+                    <input class="nq-input" id="bip32-path-address-input-bitcoin" value="84'/1'/0'/0/0"
                         style="max-width: 20rem">
                     <button class="nq-button-s" id="get-address-button-bitcoin">Get Address and Public Key</button>
                     <button class="nq-button-s" id="confirm-address-button-bitcoin">Confirm Address</button>
@@ -164,7 +164,7 @@ window.addEventListener('load', () => {
             <section class="nq-text nq-card">
                 <h2 class="nq-card-header nq-h2">Get Extended Public Key</h2>
                 <div class="nq-card-body">
-                    <input class="nq-input" id="bip32-path-extended-public-key-input-bitcoin" value="84'/0'/0'"
+                    <input class="nq-input" id="bip32-path-extended-public-key-input-bitcoin" value="84'/1'/0'"
                         style="max-width: 20rem">
                     <button class="nq-button-s" id="get-extended-public-key-button-bitcoin">
                         Get Extended Public Key

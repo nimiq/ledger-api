@@ -8,6 +8,8 @@ type RequestType = RequestTypeNimiq | RequestTypeBitcoin;
 export interface CoinAppConnection {
     coin: Coin;
     walletId: string;
+    app: string;
+    appVersion: string;
 }
 
 export default abstract class Request<T> extends Observable {
@@ -15,24 +17,33 @@ export default abstract class Request<T> extends Observable {
 
     public readonly coin: Coin;
     public readonly type: RequestType;
-    public readonly minRequiredAppVersion: number[];
+    public readonly requiredApp: string;
+    public readonly minRequiredAppVersion: string;
     public readonly walletId?: string;
 
     private _cancelled: boolean = false;
 
-    protected static _isAppVersionSupported(versionString: string, minRequiredVersion: number[]): boolean {
+    protected static _isAppVersionSupported(versionString: string, minRequiredVersion: string): boolean {
         const version = versionString.split('.').map((part) => parseInt(part, 10));
+        const parsedMinRequiredVersion = minRequiredVersion.split('.').map((part) => parseInt(part, 10));
         for (let i = 0; i < minRequiredVersion.length; ++i) {
-            if (typeof version[i] === 'undefined' || version[i] < minRequiredVersion[i]) return false;
-            if (version[i] > minRequiredVersion[i]) return true;
+            if (typeof version[i] === 'undefined' || version[i] < parsedMinRequiredVersion[i]) return false;
+            if (version[i] > parsedMinRequiredVersion[i]) return true;
         }
         return true;
     }
 
-    protected constructor(coin: Coin, type: RequestType, minRequiredAppVersion: number[], walletId?: string) {
+    protected constructor(
+        coin: Coin,
+        type: RequestType,
+        requiredApp: string,
+        minRequiredAppVersion: string,
+        walletId?: string,
+    ) {
         super();
         this.coin = coin;
         this.type = type;
+        this.requiredApp = requiredApp;
         this.minRequiredAppVersion = minRequiredAppVersion;
         this.walletId = walletId;
     }
@@ -43,6 +54,13 @@ export default abstract class Request<T> extends Observable {
 
     public abstract async checkCoinAppConnection(transport: Transport): Promise<CoinAppConnection>;
     public abstract async call(transport: Transport): Promise<T>;
+
+    public canReuseCoinAppConnection(coinAppConnection: CoinAppConnection): boolean {
+        return coinAppConnection.coin === this.coin
+            && coinAppConnection.app === this.requiredApp
+            && Request._isAppVersionSupported(coinAppConnection.appVersion, this.minRequiredAppVersion)
+            && (!this.walletId || coinAppConnection.walletId === this.walletId);
+    }
 
     public cancel(): void {
         if (this._cancelled) return;
@@ -58,7 +76,7 @@ export default abstract class Request<T> extends Observable {
         super.on(type, callback);
     }
 
-    protected _checkExpectedWalletId(walletId: string) {
+    protected _checkExpectedWalletId(walletId: string): void {
         if (this.walletId === undefined || this.walletId === walletId) return;
         throw new ErrorState(ErrorType.WRONG_LEDGER, 'Wrong Ledger connected', this);
     }

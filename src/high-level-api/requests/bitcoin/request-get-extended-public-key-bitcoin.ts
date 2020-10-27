@@ -16,8 +16,8 @@ const KEY_PATH_REGEX = new RegExp(
 
 export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<string> {
     public readonly keyPath: string;
+    public readonly network: Network;
     private readonly _addressType: AddressTypeBitcoin;
-    private readonly _network: Network;
 
     constructor(keyPath: string, walletId?: string) {
         super(RequestTypeBitcoin.GET_EXTENDED_PUBLIC_KEY, walletId);
@@ -41,7 +41,7 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
             49: AddressTypeBitcoin.P2SH_SEGWIT,
             84: AddressTypeBitcoin.NATIVE_SEGWIT,
         }[purposeId as '44' | '49' | '84'];
-        this._network = {
+        this.network = {
             0: Network.MAINNET,
             1: Network.TESTNET,
         }[networkId as '0' | '1'];
@@ -100,10 +100,8 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
         try {
             // Note getNetworkInfo is only async because it lazy loads the bitcoin lib, which is already loaded at this
             // point. Therefore putting it into the Promise.all has no further upside and errors within the call should
-            // become REQUEST_ASSERTION_FAILED exceptions. Note that for testnet the Ledger has a separate testnet app,
-            // however as the public key does not differ between mainnet and testnet, both the mainnet and testnet app
-            // can be used for generating mainnet and testnet xpubs.
-            const networkInfo = await getNetworkInfo(this._network, this._addressType);
+            // become REQUEST_ASSERTION_FAILED exceptions.
+            const networkInfo = await getNetworkInfo(this.network, this._addressType);
             const parent = bip32.fromPublicKey(parentPubKey, parentChainCode, networkInfo);
             const parentFingerprint = parent.fingerprint.readUInt32BE(0); // this is calculated from the pub key only
             const keyPathParts = this.keyPath.split('/');
@@ -147,8 +145,7 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
 
             // Verify that the generated xpub is correct by deriving an example child and comparing it to the result
             // calculated by the Ledger device. Do not verify the Ledger generated address as it is derived from the
-            // pub key anyways and the address retrieved from the Ledger app differs depending on whether the Ledger
-            // Bitcoin testnet or mainnet app is used.
+            // pub key anyways.
             const verificationDerivation = extendedPubKey.derivePath(verificationPath);
             if (!verificationDerivation.publicKey.equals(verificationPubKey)
                 || !verificationDerivation.chainCode.equals(verificationChainCode)) {

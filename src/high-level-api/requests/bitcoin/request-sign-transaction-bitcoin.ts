@@ -62,7 +62,7 @@ export interface TransactionInfoBitcoin {
 
 export default class RequestSignTransactionBitcoin extends RequestBitcoin<string> {
     public readonly transaction: TransactionInfoBitcoin;
-    private _network: Network;
+    public readonly network: Network;
     private _inputType: AddressTypeBitcoin;
 
     constructor(transaction: TransactionInfoBitcoin, walletId?: string) {
@@ -81,9 +81,6 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
             }
 
             // verify key paths
-            // TODO mainnet and testnet BTC app are both able to sign mainnet and testnet transactions and generate the
-            //  same signature, however they display the address only in the respective format of the network they are
-            //  intended for, therefore using them interchangeably should be blocked.
             const keyPaths = [
                 ...inputs.map((input) => input.keyPath),
                 ...(changePath ? [changePath] : []),
@@ -114,7 +111,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                 }
                 inputType = parsedKeyPath.addressType;
             }
-            this._network = network!;
+            this.network = network!;
             this._inputType = inputType!;
         } catch (e) {
             throw new ErrorState(
@@ -205,7 +202,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                             } else {
                                 outputScript = bitcoinLib!.address.toOutputScript(
                                     output.address,
-                                    this._network === Network.MAINNET
+                                    this.network === Network.MAINNET
                                         ? bitcoinLib!.networks.bitcoin
                                         : bitcoinLib!.networks.testnet,
                                 );

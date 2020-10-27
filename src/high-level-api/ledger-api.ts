@@ -534,7 +534,7 @@ export default class LedgerApi {
 
         // Establish / verify the connection.
         // This takes <300ms for a pre-authorized device via WebUSB, WebHID or WebBLE and <1s for WebAuthn or U2F.
-        if (!LedgerApi._currentConnection || LedgerApi._currentConnection.coin !== request.coin) {
+        if (!LedgerApi._currentConnection || !request.canReuseCoinAppConnection(LedgerApi._currentConnection)) {
             const connectStart = Date.now();
             LedgerApi._setState(StateType.CONNECTING);
             LedgerApi._currentConnection = null;
