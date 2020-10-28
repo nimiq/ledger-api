@@ -86,11 +86,12 @@ export default class LedgerApi {
 
     public static readonly Nimiq = {
         /**
-         * Get the 32 byte walletId of the currently connected wallet / coin app as base64. See documentation of
-         * _getWalletId for more details.
+         * Get the 32 byte walletId of the currently connected Nimiq wallet as base64.
          */
         async getWalletId(): Promise<string> {
-            return LedgerApi._getWalletId(Coin.NIMIQ);
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetWalletIdNimiqConstructor>(
+                import('./requests/nimiq/request-get-wallet-id-nimiq'),
+            ));
         },
 
         /**
@@ -259,9 +260,37 @@ export default class LedgerApi {
             if (/connection aborted|not supported/i.test(e.message || e)) return false;
         }
         try {
-            // Use _getWalletId to detect when the ledger is connected.
-            await LedgerApi._getWalletId(coin);
-            return true;
+            // detect current connection
+            if (LedgerApi._currentConnection && LedgerApi._currentConnection.coin === coin) {
+                return true;
+            }
+            if (LedgerApi._currentRequest && LedgerApi._currentRequest.coin === coin) {
+                // already a request for coin going on. Just wait for it to connect.
+                await new Promise<void>((resolve, reject) => {
+                    const onConnect = () => {
+                        LedgerApi.off(EventType.CONNECTED, onConnect);
+                        LedgerApi.off(EventType.REQUEST_CANCELLED, onCancel);
+                        resolve();
+                    };
+                    const onCancel = () => {
+                        LedgerApi.off(EventType.CONNECTED, onConnect);
+                        LedgerApi.off(EventType.REQUEST_CANCELLED, onCancel);
+                        reject(new Error('Request cancelled')); // request cancelled via api before ledger connected
+                    };
+                    LedgerApi.on(EventType.CONNECTED, onConnect);
+                    LedgerApi.on(EventType.REQUEST_CANCELLED, onCancel);
+                });
+                return true;
+            }
+            // Send a request to detect when the ledger is connected.
+            // Note that if the api is already busy with a request for another coin false will be returned.
+            switch (coin) {
+                case Coin.NIMIQ:
+                    await LedgerApi.Nimiq.getWalletId();
+                    return true;
+                default:
+                    throw new Error(`Unsupported coin: ${coin}`);
+            }
         } catch (e) {
             return false;
         }
@@ -315,51 +344,6 @@ export default class LedgerApi {
     private static _currentConnection: CoinAppConnection | null = null;
     private static _connectionAborted: boolean = false;
     private static readonly _observable = new Observable();
-
-    /**
-     * Get the 32 byte walletId of the currently connected wallet / coin app as base64.
-     * If no ledger is connected, it waits for one to be connected.
-     * Throws, if the request is cancelled or the wrong coin wallet connected.
-     *
-     * If currently a request to the ledger is in process, this call does not require an additional
-     * request to the Ledger. Thus, if you want to know the walletId in conjunction with another
-     * request, try to call this method after initiating the other request but before it finishes.
-     *
-     * @returns The walletId of the currently connected ledger as base 64.
-     */
-    private static async _getWalletId(coin: Coin): Promise<string> {
-        if (LedgerApi._currentConnection && LedgerApi._currentConnection.coin === coin) {
-            return LedgerApi._currentConnection.walletId;
-        }
-        // we have to wait for connection of ongoing request or initiate a call ourselves
-        if (LedgerApi._currentRequest && LedgerApi._currentRequest.coin === coin) {
-            // already a request for coin going on. Just wait for it to connect.
-            return new Promise<string>((resolve, reject) => {
-                const onConnect = (connection: CoinAppConnection) => {
-                    LedgerApi.off(EventType.CONNECTED, onConnect);
-                    LedgerApi.off(EventType.REQUEST_CANCELLED, onCancel);
-                    resolve(connection.walletId);
-                };
-                const onCancel = () => {
-                    LedgerApi.off(EventType.CONNECTED, onConnect);
-                    LedgerApi.off(EventType.REQUEST_CANCELLED, onCancel);
-                    reject(new Error('Request cancelled'));
-                };
-                LedgerApi.on(EventType.CONNECTED, onConnect);
-                LedgerApi.on(EventType.REQUEST_CANCELLED, onCancel);
-            });
-        }
-        // We have to send a request ourselves.
-        // Note that if the api is already busy with a request for another coin, a LEDGER_BUSY error will be thrown.
-        switch (coin) {
-            case Coin.NIMIQ:
-                return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetWalletIdNimiqConstructor>(
-                    import('./requests/nimiq/request-get-wallet-id-nimiq'),
-                ));
-            default:
-                throw new Error(`Unsupported coin: ${coin}`);
-        }
-    }
 
     private static async _createRequest<RC extends RequestConstructor>(
         requestConstructor: (new (...params: ConstructorParameters<RC>) => InstanceType<RC>)
@@ -527,7 +511,7 @@ export default class LedgerApi {
 
     private static async _connect(transport: Transport, request: Request): Promise<Transport> {
         // Resolves when connected to unlocked ledger with open coin app otherwise throws an exception after timeout,
-        // in contrast to the public connect method which uses _getWalletId to listen for a connection or to try to
+        // in contrast to the public connect method which just listens for a connection or uses getWalletId to try to
         // connect repeatedly until success via _callLedger which uses the private _connect under the hood. Also this
         // method is not publicly exposed to avoid that it could be invoked multiple times in parallel which the ledger
         // requests called here do not allow.
