@@ -8,19 +8,20 @@ type PublicKey = import('@nimiq/core-web').PublicKey;
 export default class RequestGetPublicKeyNimiq extends RequestWithKeyPathNimiq<PublicKey> {
     constructor(keyPath: string, walletId?: string) {
         super(RequestTypeNimiq.GET_PUBLIC_KEY, keyPath, walletId);
+
+        // Preload Nimiq lib. Ledger Nimiq api is already preloaded by parent class. Ignore errors.
+        RequestNimiq._loadNimiq().catch(() => {});
     }
 
     public async call(transport: Transport): Promise<PublicKey> {
-        const api = await RequestNimiq._getLowLevelApi(transport);
+        const api = await RequestNimiq._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
         const { publicKey } = await api.getPublicKey(
             this.keyPath,
             true, // validate
             false, // display
         );
 
-        // Note that the actual load of the Nimiq core and cryptography is triggered in checkCoinAppConnection with
-        // error handling. The call here is just used to get the reference to the Nimiq object and can not fail.
-        const Nimiq = await RequestNimiq._loadNimiq();
+        const Nimiq = await RequestNimiq._loadNimiq(); // throws LOADING_DEPENDENCIES_FAILED on failure
 
         return new Nimiq.PublicKey(publicKey);
     }

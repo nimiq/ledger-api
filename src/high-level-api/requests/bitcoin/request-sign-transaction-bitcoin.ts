@@ -152,6 +152,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
         // - The demo page and code of this lib for demo usage
 
         const [api, bitcoinLib] = await Promise.all([
+            // these throw LOADING_DEPENDENCIES_FAILED on failure
             RequestBitcoin._getLowLevelApi(transport),
             this._loadBitcoinLibIfNeeded(),
         ]);

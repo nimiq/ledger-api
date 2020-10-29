@@ -1,6 +1,5 @@
 import Request, { CoinAppConnection } from '../request';
 import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../constants';
-import { getAppAndVersion } from '../../ledger-utils';
 import { getBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 
@@ -78,44 +77,25 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
             '1.3.8', // first version with WebUSB
             walletId,
         );
-        // Preload dependencies. Do not preload bitcoin lib as it's not used by all requests. Ignore errors.
+
+        // Preload dependencies. Bitcoin lib is preloaded individually by request child classes that need it.
+        // Ignore errors.
         Promise.all([
-            RequestBitcoin._loadLowLevelApi(),
-            import('sha.js/sha256'), // used for walletId calculation
+            RequestBitcoin._loadLowLevelApi(), // needed by all requests
+            this._isWalletIdDerivationRequired ? import('sha.js/sha256') : null,
         ]).catch(() => {});
     }
 
     public async checkCoinAppConnection(transport: Transport): Promise<CoinAppConnection> {
-        const apiPromise = RequestBitcoin._getLowLevelApi(transport);
-        // Note that loading sha here only for walletId calculation is not really wasteful as it's also imported by the
-        // ledger api and bitcoinjs.
-        const shaPromise = import('sha.js/sha256');
+        const coinAppConnection = await super.checkCoinAppConnection(transport, 'BTC');
+        if (!this._isWalletIdDerivationRequired) return coinAppConnection; // skip wallet id derivation
 
-        const { name: app, version: appVersion } = await getAppAndVersion(transport, 'BTC');
-        if (app !== this.requiredApp) {
-            // avoid potential uncaught promise rejections
-            Promise.all([apiPromise, shaPromise]).catch(() => {});
-            throw new ErrorState(
-                ErrorType.WRONG_APP,
-                `Wrong app connected: ${app}, required: ${this.requiredApp}`,
-                this,
-            );
-        }
-        if (!Request._isAppVersionSupported(appVersion, this.minRequiredAppVersion)) {
-            // avoid potential uncaught promise rejections
-            Promise.all([apiPromise, shaPromise]).catch(() => {});
-            throw new ErrorState(
-                ErrorType.APP_OUTDATED,
-                `Ledger ${app} app is outdated: ${appVersion}, required: ${this.minRequiredAppVersion}`,
-                this,
-            );
-        }
-
-        // TODO
-        //  For u2f and WebAuthn, the Ledger displays a confirmation screen to get the public key if the user has this
-        //  privacy setting enabled. The get public key functionality also supports setting a permission token which
-        //  however is not implemented in @ledgerhq/hw-app-btc and therefore would need to be implemented manually.
-        const api = await apiPromise;
+        // Note that api and sha256 are preloaded in the constructor, therefore we don't need to optimize for load order
+        // or execution order here.
+        const api = await RequestBitcoin._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
+        // TODO For u2f and WebAuthn, the Ledger displays a confirmation screen to get the public key if the user has
+        //  this privacy setting enabled. The get public key functionality also supports setting a permission token
+        //  which however is not implemented in @ledgerhq/hw-app-btc and therefore would need to be implemented manually
         const { publicKey } = await api.getWalletPublicKey(getBip32Path({
             coin: Coin.BITCOIN,
             addressType: AddressTypeBitcoin.LEGACY,
@@ -127,7 +107,9 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
 
         let Sha256: typeof import('sha.js/sha256').default;
         try {
-            Sha256 = (await shaPromise).default;
+            // Note that loading sha here only for walletId calculation is not really wasteful as it's also imported
+            // by the ledger api and bitcoinjs.
+            Sha256 = (await import('sha.js/sha256')).default;
         } catch (e) {
             throw new ErrorState(
                 ErrorType.LOADING_DEPENDENCIES_FAILED,
@@ -137,8 +119,8 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         }
 
         const walletId = new Sha256().update(publicKey, 'hex').digest('base64');
-
         this._checkExpectedWalletId(walletId);
-        return { coin: this.coin, walletId, app, appVersion };
+        coinAppConnection.walletId = walletId;
+        return coinAppConnection;
     }
 }

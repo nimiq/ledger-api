@@ -63,7 +63,7 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
             { bip32 },
             [parentPubKey, parentChainCode, pubKey, chainCode, verificationPubKey, verificationChainCode],
         ] = await Promise.all([
-            RequestBitcoin._loadBitcoinLib(),
+            RequestBitcoin._loadBitcoinLib(), // throws LOADING_DEPENDENCIES_FAILED on failure
             (async () => {
                 // Fetch the data from Ledger required for xpub calculation
                 // TODO Requesting the public key causes a confirmation screen to be displayed on the Ledger for u2f and
@@ -71,7 +71,7 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
                 //  Subsequent requests can provide a permission token in _getLowLevelApi to avoid this screen (see
                 //  https://github.com/LedgerHQ/app-bitcoin/blob/master/doc/btc.asc#get-wallet-public-key). This token
                 //  is however not supported in @ledgerhq/hw-app-btc and therefore has to be implemented by ourselves.
-                const api = await RequestBitcoin._getLowLevelApi(transport);
+                const api = await RequestBitcoin._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED
                 const parentPath = this.keyPath.substring(0, this.keyPath.lastIndexOf('/'));
                 // ledger requests have to be sent sequentially as ledger can only perform one request at a time
                 const {

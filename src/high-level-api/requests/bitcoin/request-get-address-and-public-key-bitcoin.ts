@@ -38,7 +38,7 @@ export default class RequestGetAddressAndPublicKeyBitcoin extends RequestBitcoin
     }
 
     public async call(transport: Transport): Promise<BtcAddressInfo> {
-        const api = await RequestBitcoin._getLowLevelApi(transport);
+        const api = await RequestBitcoin._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
 
         const format = {
             [AddressTypeBitcoin.LEGACY]: 'legacy' as 'legacy',

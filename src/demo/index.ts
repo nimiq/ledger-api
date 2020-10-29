@@ -399,9 +399,10 @@ window.addEventListener('load', () => {
                         ? `: ${state.errorType}` : ''}`;
                 });
                 window._api.on(EventType.CONNECTED, (connection: CoinAppConnection) => {
-                    console.log(`%cConnected to coin ${connection.coin}, wallet ${connection.walletId}`, 'color: teal');
-                    $highLevelApiLastEvent.textContent = `Connected to coin ${connection.coin},`
-                        + ` wallet ${connection.walletId}`;
+                    const message = `Connected to coin ${connection.coin}`
+                        + `${connection.walletId ? `, wallet ${connection.walletId}` : ''}`;
+                    console.log(`%c${message}`, 'color: teal');
+                    $highLevelApiLastEvent.textContent = message;
                 });
                 window._api.on(EventType.REQUEST_SUCCESSFUL, (...args) => {
                     console.log('%cRequest successful', 'color: teal', ...args);

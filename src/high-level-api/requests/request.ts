@@ -1,15 +1,16 @@
 import { Coin, RequestTypeNimiq, RequestTypeBitcoin, REQUEST_EVENT_CANCEL } from '../constants';
-import Observable, { EventListener } from '../../lib/observable';
+import { getAppAndVersion } from '../ledger-utils';
 import ErrorState, { ErrorType } from '../error-state';
+import Observable, { EventListener } from '../../lib/observable';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type RequestType = RequestTypeNimiq | RequestTypeBitcoin;
 
 export interface CoinAppConnection {
     coin: Coin;
-    walletId: string;
     app: string;
     appVersion: string;
+    walletId?: string;
 }
 
 export default abstract class Request<T> extends Observable {
@@ -52,7 +53,6 @@ export default abstract class Request<T> extends Observable {
         return this._cancelled;
     }
 
-    public abstract async checkCoinAppConnection(transport: Transport): Promise<CoinAppConnection>;
     public abstract async call(transport: Transport): Promise<T>;
 
     public canReuseCoinAppConnection(coinAppConnection: CoinAppConnection): boolean {
@@ -74,6 +74,30 @@ export default abstract class Request<T> extends Observable {
             callback();
         }
         super.on(type, callback);
+    }
+
+    protected async checkCoinAppConnection(transport: Transport, scrambleKey: string): Promise<CoinAppConnection> {
+        const { name: app, version: appVersion } = await getAppAndVersion(transport, scrambleKey);
+        if (app !== this.requiredApp) {
+            throw new ErrorState(
+                ErrorType.WRONG_APP,
+                `Wrong app connected: ${app}, required: ${this.requiredApp}`,
+                this,
+            );
+        }
+        if (!Request._isAppVersionSupported(appVersion, this.minRequiredAppVersion)) {
+            throw new ErrorState(
+                ErrorType.APP_OUTDATED,
+                `Ledger ${app} app is outdated: ${appVersion}, required: ${this.minRequiredAppVersion}`,
+                this,
+            );
+        }
+
+        return { coin: this.coin, app, appVersion };
+    }
+
+    protected get _isWalletIdDerivationRequired() {
+        return !!this.walletId;
     }
 
     protected _checkExpectedWalletId(walletId: string): void {

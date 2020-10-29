@@ -26,7 +26,7 @@ export default class RequestDeriveAddressesNimiq extends RequestNimiq<Array<{ ad
     }
 
     public async call(transport: Transport): Promise<Array<{ address: string, keyPath: string }>> {
-        const api = await RequestNimiq._getLowLevelApi(transport);
+        const api = await RequestNimiq._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
         const addressRecords = [];
         for (const keyPath of this.pathsToDerive) {
             if (this.cancelled) return addressRecords;

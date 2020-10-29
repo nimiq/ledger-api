@@ -28,10 +28,13 @@ export default class RequestSignTransactionNimiq extends RequestWithKeyPathNimiq
     constructor(keyPath: string, transaction: TransactionInfoNimiq, walletId?: string) {
         super(RequestTypeNimiq.SIGN_TRANSACTION, keyPath, walletId);
         this.transaction = transaction;
+
+        // Preload Nimiq lib. Ledger Nimiq api is already preloaded by parent class. Ignore errors.
+        RequestNimiq._loadNimiq().catch(() => {});
     }
 
     public async call(transport: Transport): Promise<Transaction> {
-        const api = await RequestNimiq._getLowLevelApi(transport);
+        const api = await RequestNimiq._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
         // Note: We make api calls outside of try...catch blocks to let the exceptions fall through such that
         // _callLedger can decide how to behave depending on the api error. All other errors are converted to
         // REQUEST_ASSERTION_FAILED errors which stop the execution of the request.
@@ -41,9 +44,7 @@ export default class RequestSignTransactionNimiq extends RequestWithKeyPathNimiq
             false, // display
         );
 
-        // Note that the actual load of the Nimiq core and cryptography is triggered in checkCoinAppConnection with
-        // error handling. The call here is just used to get the reference to the Nimiq object and can not fail.
-        const Nimiq = await RequestNimiq._loadNimiq();
+        const Nimiq = await RequestNimiq._loadNimiq(); // throws LOADING_DEPENDENCIES_FAILED on failure
 
         let nimiqTx: Transaction;
         let signerPubKey: PublicKey;
