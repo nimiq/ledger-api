@@ -48,7 +48,7 @@ export default abstract class RequestNimiq<T> extends Request<T> {
             // Note that we don't need to cache a promise as loadNimiqCore and loadNimiqCryptography already do that.
             const [Nimiq] = await Promise.all([
                 loadNimiqCore(),
-                // needed for walletId hashing and pub key to address derivation in SignatureProof and BasicTransaction
+                // needed for wallet id hashing and pub key to address derivation in SignatureProof and BasicTransaction
                 loadNimiqCryptography(),
             ]);
             return Nimiq;
@@ -60,13 +60,13 @@ export default abstract class RequestNimiq<T> extends Request<T> {
         }
     }
 
-    protected constructor(type: RequestTypeNimiq, walletId?: string) {
+    protected constructor(type: RequestTypeNimiq, expectedWalletId?: string) {
         super(
             Coin.NIMIQ,
             type,
             'Nimiq',
             '1.4.2', // first version supporting web usb
-            walletId,
+            expectedWalletId,
         );
 
         // Preload dependencies. Nimiq lib is preloaded individually by request child classes that need it.

@@ -17,8 +17,8 @@ export default class RequestGetAddressAndPublicKeyBitcoin extends RequestBitcoin
     public readonly network: Network;
     private readonly _addressType: AddressTypeBitcoin;
 
-    constructor(keyPath: string, display?: boolean, expectedAddress?: string, walletId?: string) {
-        super(RequestTypeBitcoin.GET_ADDRESS_AND_PUBLIC_KEY, walletId);
+    constructor(keyPath: string, display?: boolean, expectedAddress?: string, expectedWalletId?: string) {
+        super(RequestTypeBitcoin.GET_ADDRESS_AND_PUBLIC_KEY, expectedWalletId);
         this.keyPath = keyPath;
         this.display = display;
         this.expectedAddress = expectedAddress;

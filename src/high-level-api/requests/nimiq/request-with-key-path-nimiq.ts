@@ -6,8 +6,8 @@ import ErrorState, { ErrorType } from '../../error-state';
 export default abstract class RequestWithKeyPathNimiq<T> extends RequestNimiq<T> {
     public readonly keyPath: string;
 
-    protected constructor(type: RequestTypeNimiq, keyPath: string, walletId?: string) {
-        super(type, walletId);
+    protected constructor(type: RequestTypeNimiq, keyPath: string, expectedWalletId?: string) {
+        super(type, expectedWalletId);
 
         this.keyPath = keyPath;
         try {

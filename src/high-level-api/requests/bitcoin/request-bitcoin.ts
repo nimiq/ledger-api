@@ -69,13 +69,13 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         // ignore
     }
 
-    protected constructor(type: RequestTypeBitcoin, walletId?: string) {
+    protected constructor(type: RequestTypeBitcoin, expectedWalletId?: string) {
         super(
             Coin.BITCOIN,
             type,
             'unknown', // app name is determined via getter
             '1.3.8', // first version with WebUSB
-            walletId,
+            expectedWalletId,
         );
 
         // Preload dependencies. Bitcoin lib is preloaded individually by request child classes that need it.
@@ -107,7 +107,7 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
 
         let Sha256: typeof import('sha.js/sha256').default;
         try {
-            // Note that loading sha here only for walletId calculation is not really wasteful as it's also imported
+            // Note that loading sha here only for wallet id calculation is not really wasteful as it's also imported
             // by the ledger api and bitcoinjs.
             Sha256 = (await import('sha.js/sha256')).default;
         } catch (e) {

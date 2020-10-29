@@ -86,7 +86,7 @@ export default class LedgerApi {
 
     public static readonly Nimiq = {
         /**
-         * Get the 32 byte walletId of the currently connected Nimiq wallet as base64.
+         * Get the 32 byte wallet id of the currently connected Nimiq wallet as base64.
          */
         async getWalletId(): Promise<string> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetWalletIdNimiqConstructor>(
@@ -95,56 +95,56 @@ export default class LedgerApi {
         },
 
         /**
-         * Get the public key for a given bip32 key path. Optionally expect a specific walletId.
+         * Get the public key for a given bip32 key path. Optionally expect a specific wallet id.
          */
-        async getPublicKey(keyPath: string, walletId?: string): Promise<PublicKeyNimiq> {
+        async getPublicKey(keyPath: string, expectedWalletId?: string): Promise<PublicKeyNimiq> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetPublicKeyNimiqConstructor>(
                 import('./requests/nimiq/request-get-public-key-nimiq'),
-                keyPath, walletId,
+                keyPath, expectedWalletId,
             ));
         },
 
         /**
          * Get the address for a given bip32 key path. Optionally display the address on the Ledger screen for
-         * verification, expect a specific address or expect a specific walletId.
+         * verification, expect a specific address or expect a specific wallet id.
          */
-        async getAddress(keyPath: string, display = false, expectedAddress?: string, walletId?: string)
+        async getAddress(keyPath: string, display = false, expectedAddress?: string, expectedWalletId?: string)
             : Promise<string> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetAddressNimiqConstructor>(
                 import('./requests/nimiq/request-get-address-nimiq'),
-                keyPath, display, expectedAddress, walletId,
+                keyPath, display, expectedAddress, expectedWalletId,
             ));
         },
 
         /**
          * Utility function that directly gets a confirmed address.
          */
-        async getConfirmedAddress(keyPath: string, walletId?: string): Promise<string> {
-            const address = await LedgerApi.Nimiq.getAddress(keyPath, false, undefined, walletId);
-            return LedgerApi.Nimiq.getAddress(keyPath, true, address, walletId);
+        async getConfirmedAddress(keyPath: string, expectedWalletId?: string): Promise<string> {
+            const address = await LedgerApi.Nimiq.getAddress(keyPath, false, undefined, expectedWalletId);
+            return LedgerApi.Nimiq.getAddress(keyPath, true, address, expectedWalletId);
         },
 
         /**
-         * Derive addresses for given bip32 key paths. Optionally expect a specific walletId.
+         * Derive addresses for given bip32 key paths. Optionally expect a specific wallet id.
          */
-        async deriveAddresses(pathsToDerive: Iterable<string>, walletId?: string)
+        async deriveAddresses(pathsToDerive: Iterable<string>, expectedWalletId?: string)
             : Promise<Array<{ address: string, keyPath: string }>> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestDeriveAddressesNimiqConstructor>(
                 import('./requests/nimiq/request-derive-addresses-nimiq'),
-                pathsToDerive, walletId,
+                pathsToDerive, expectedWalletId,
             ));
         },
 
         /**
          * Sign a transaction for a signing key specified by its bip32 key path. Note that the signing key /
          * corresponding address does not necessarily need to be the transaction's sender address for example for
-         * transactions sent from vesting contracts. Optionally expect a specific walletId.
+         * transactions sent from vesting contracts. Optionally expect a specific wallet id.
          */
-        async signTransaction(transaction: TransactionInfoNimiq, keyPath: string, walletId?: string)
+        async signTransaction(transaction: TransactionInfoNimiq, keyPath: string, expectedWalletId?: string)
             : Promise<TransactionNimiq> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignTransactionNimiqConstructor>(
                 import('./requests/nimiq/request-sign-transaction-nimiq'),
-                keyPath, transaction, walletId,
+                keyPath, transaction, expectedWalletId,
             ));
         },
     };
@@ -152,14 +152,18 @@ export default class LedgerApi {
     public static readonly Bitcoin = {
         /**
          * Get the public key, address and bip32 chain code for a given bip32 key path. Optionally display the address
-         * on the Ledger screen for verification, expect a specific address or expect a specific walletId.
+         * on the Ledger screen for verification, expect a specific address or expect a specific wallet id.
          */
-        async getAddressAndPublicKey(keyPath: string, display = false, expectedAddress?: string, walletId?: string)
-            : Promise<{ publicKey: string, address: string, chainCode: string }> {
+        async getAddressAndPublicKey(
+            keyPath: string,
+            display = false,
+            expectedAddress?: string,
+            expectedWalletId?: string,
+        ): Promise<{ publicKey: string, address: string, chainCode: string }> {
             return LedgerApi._callLedger(
                 await LedgerApi._createRequest<RequestGetAddressAndPublicKeyBitcoinConstructor>(
                     import('./requests/bitcoin/request-get-address-and-public-key-bitcoin'),
-                    keyPath, display, expectedAddress, walletId,
+                    keyPath, display, expectedAddress, expectedWalletId,
                 ),
             );
         },
@@ -167,33 +171,38 @@ export default class LedgerApi {
         /**
          * Utility function that directly gets a confirmed address.
          */
-        async getConfirmedAddressAndPublicKey(keyPath: string, walletId?: string)
+        async getConfirmedAddressAndPublicKey(keyPath: string, expectedWalletId?: string)
             : Promise<{ publicKey: string, address: string, chainCode: string }> {
-            const { address } = await LedgerApi.Bitcoin.getAddressAndPublicKey(keyPath, false, undefined, walletId);
-            return LedgerApi.Bitcoin.getAddressAndPublicKey(keyPath, true, address, walletId);
+            const { address } = await LedgerApi.Bitcoin.getAddressAndPublicKey(
+                keyPath,
+                false,
+                undefined,
+                expectedWalletId,
+            );
+            return LedgerApi.Bitcoin.getAddressAndPublicKey(keyPath, true, address, expectedWalletId);
         },
 
         /**
          * Get the extended public key for a bip32 path from which addresses can be derived, encoded as specified in
          * bip32. The key path must follow the bip44 specification and at least be defined to the account level.
-         * Optionally expect a specific walletId.
+         * Optionally expect a specific wallet id.
          */
-        async getExtendedPublicKey(keyPath: string, walletId?: string): Promise<string> {
+        async getExtendedPublicKey(keyPath: string, expectedWalletId?: string): Promise<string> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetExtendedPublicKeyBitcoinConstructor>(
                 import('./requests/bitcoin/request-get-extended-public-key-bitcoin'),
-                keyPath, walletId,
+                keyPath, expectedWalletId,
             ));
         },
 
         /**
          * Sign a transaction. See type declaration of TransactionInfoBitcoin in request-sign-transaction-bitcoin.ts
-         * for documentation of the transaction format. Optionally expect a specific walletId. The signed transaction
+         * for documentation of the transaction format. Optionally expect a specific wallet id. The signed transaction
          * is returned in hex-encoded serialized form ready to be broadcast to the network.
          */
-        async signTransaction(transaction: TransactionInfoBitcoin, walletId?: string): Promise<string> {
+        async signTransaction(transaction: TransactionInfoBitcoin, expectedWalletId?: string): Promise<string> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignTransactionBitcoinConstructor>(
                 import('./requests/bitcoin/request-sign-transaction-bitcoin'),
-                transaction, walletId,
+                transaction, expectedWalletId,
             ));
         },
     };
@@ -470,7 +479,7 @@ export default class LedgerApi {
                             return;
                         }
                         // On other errors try again
-                        if (!/busy|outdated|connection aborted|user gesture|dependencies|wrong app|wrong ledger/i
+                        if (!/busy|outdated|connection aborted|user gesture|dependencies|wrong app|wrong wallet/i
                             .test(message)
                             && !isTimeout && !isLocked && !isConnectedToDashboard) {
                             console.warn('Unknown Ledger Error', e);

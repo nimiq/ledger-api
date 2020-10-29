@@ -9,8 +9,8 @@ export default class RequestGetAddressNimiq extends RequestWithKeyPathNimiq<stri
     public readonly display?: boolean;
     public readonly expectedAddress?: string;
 
-    constructor(keyPath: string, display?: boolean, expectedAddress?: string, walletId?: string) {
-        super(RequestTypeNimiq.GET_ADDRESS, keyPath, walletId);
+    constructor(keyPath: string, display?: boolean, expectedAddress?: string, expectedWalletId?: string) {
+        super(RequestTypeNimiq.GET_ADDRESS, keyPath, expectedWalletId);
         this.display = display;
         this.expectedAddress = expectedAddress;
     }

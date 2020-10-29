@@ -6,8 +6,8 @@ type Transport = import('@ledgerhq/hw-transport').default;
 type PublicKey = import('@nimiq/core-web').PublicKey;
 
 export default class RequestGetPublicKeyNimiq extends RequestWithKeyPathNimiq<PublicKey> {
-    constructor(keyPath: string, walletId?: string) {
-        super(RequestTypeNimiq.GET_PUBLIC_KEY, keyPath, walletId);
+    constructor(keyPath: string, expectedWalletId?: string) {
+        super(RequestTypeNimiq.GET_PUBLIC_KEY, keyPath, expectedWalletId);
 
         // Preload Nimiq lib. Ledger Nimiq api is already preloaded by parent class. Ignore errors.
         RequestNimiq._loadNimiq().catch(() => {});

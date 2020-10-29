@@ -65,8 +65,8 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
     public readonly network: Network;
     private _inputType: AddressTypeBitcoin;
 
-    constructor(transaction: TransactionInfoBitcoin, walletId?: string) {
-        super(RequestTypeBitcoin.SIGN_TRANSACTION, walletId);
+    constructor(transaction: TransactionInfoBitcoin, expectedWalletId?: string) {
+        super(RequestTypeBitcoin.SIGN_TRANSACTION, expectedWalletId);
 
         this.transaction = transaction;
 

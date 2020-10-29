@@ -20,7 +20,7 @@ export default abstract class Request<T> extends Observable {
     public readonly type: RequestType;
     public readonly requiredApp: string;
     public readonly minRequiredAppVersion: string;
-    public readonly walletId?: string;
+    public readonly expectedWalletId?: string;
 
     private _cancelled: boolean = false;
 
@@ -39,14 +39,14 @@ export default abstract class Request<T> extends Observable {
         type: RequestType,
         requiredApp: string,
         minRequiredAppVersion: string,
-        walletId?: string,
+        expectedWalletId?: string,
     ) {
         super();
         this.coin = coin;
         this.type = type;
         this.requiredApp = requiredApp;
         this.minRequiredAppVersion = minRequiredAppVersion;
-        this.walletId = walletId;
+        this.expectedWalletId = expectedWalletId;
     }
 
     public get cancelled(): boolean {
@@ -59,7 +59,7 @@ export default abstract class Request<T> extends Observable {
         return coinAppConnection.coin === this.coin
             && coinAppConnection.app === this.requiredApp
             && Request._isAppVersionSupported(coinAppConnection.appVersion, this.minRequiredAppVersion)
-            && (!this.walletId || coinAppConnection.walletId === this.walletId);
+            && (!this.expectedWalletId || coinAppConnection.walletId === this.expectedWalletId);
     }
 
     public cancel(): void {
@@ -97,11 +97,11 @@ export default abstract class Request<T> extends Observable {
     }
 
     protected get _isWalletIdDerivationRequired() {
-        return !!this.walletId;
+        return !!this.expectedWalletId;
     }
 
     protected _checkExpectedWalletId(walletId: string): void {
-        if (this.walletId === undefined || this.walletId === walletId) return;
-        throw new ErrorState(ErrorType.WRONG_LEDGER, 'Wrong Ledger connected', this);
+        if (this.expectedWalletId === undefined || this.expectedWalletId === walletId) return;
+        throw new ErrorState(ErrorType.WRONG_WALLET, 'Wrong wallet or Ledger connected', this);
     }
 }

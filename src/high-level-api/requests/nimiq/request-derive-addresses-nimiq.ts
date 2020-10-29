@@ -8,8 +8,8 @@ type Transport = import('@ledgerhq/hw-transport').default;
 export default class RequestDeriveAddressesNimiq extends RequestNimiq<Array<{ address: string, keyPath: string }>> {
     public readonly pathsToDerive: Iterable<string>;
 
-    constructor(pathsToDerive: Iterable<string>, walletId?: string) {
-        super(RequestTypeNimiq.DERIVE_ADDRESSES, walletId);
+    constructor(pathsToDerive: Iterable<string>, expectedWalletId?: string) {
+        super(RequestTypeNimiq.DERIVE_ADDRESSES, expectedWalletId);
         this.pathsToDerive = pathsToDerive;
 
         for (const keyPath of pathsToDerive) {

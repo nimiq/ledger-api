@@ -19,8 +19,8 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
     public readonly network: Network;
     private readonly _addressType: AddressTypeBitcoin;
 
-    constructor(keyPath: string, walletId?: string) {
-        super(RequestTypeBitcoin.GET_EXTENDED_PUBLIC_KEY, walletId);
+    constructor(keyPath: string, expectedWalletId?: string) {
+        super(RequestTypeBitcoin.GET_EXTENDED_PUBLIC_KEY, expectedWalletId);
         this.keyPath = keyPath;
 
         // Check for keyPath validity. Not using parseBip32Path from bip32-utils as we allow exporting xpubs at

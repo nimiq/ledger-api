@@ -9,7 +9,7 @@ export enum ErrorType {
     CONNECTION_ABORTED = 'connection-aborted',
     BROWSER_UNSUPPORTED = 'browser-unsupported',
     APP_OUTDATED = 'app-outdated',
-    WRONG_LEDGER = 'wrong-ledger',
+    WRONG_WALLET = 'wrong-wallet',
     WRONG_APP = 'wrong-app',
     REQUEST_ASSERTION_FAILED = 'request-specific-error',
 }
