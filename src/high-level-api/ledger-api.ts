@@ -3,12 +3,12 @@ import { autoDetectTransportTypeToUse, isSupported, loadTransportLibrary, Transp
 import { getBip32Path, parseBip32Path } from './bip32-utils';
 import ErrorState, { ErrorType } from './error-state';
 import {
-    Coin,
     AddressTypeBitcoin,
+    Coin,
     Network,
     REQUEST_EVENT_CANCEL,
-    RequestTypeNimiq,
     RequestTypeBitcoin,
+    RequestTypeNimiq,
 } from './constants';
 
 type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
@@ -25,6 +25,7 @@ type RequestGetAddressNimiqConstructor = typeof import('./requests/nimiq/request
 type RequestDeriveAddressesNimiqConstructor = typeof import('./requests/nimiq/request-derive-addresses-nimiq').default;
 type RequestSignTransactionNimiqConstructor = typeof import('./requests/nimiq/request-sign-transaction-nimiq').default;
 
+type RequestGetWalletIdBitcoinConstructor = typeof import('./requests/bitcoin/request-get-wallet-id-bitcoin').default;
 type RequestGetAddressAndPublicKeyBitcoinConstructor =
     typeof import('./requests/bitcoin/request-get-address-and-public-key-bitcoin').default;
 type RequestGetExtendedPublicKeyBitcoinConstructor =
@@ -37,8 +38,8 @@ type RequestSignTransactionBitcoinConstructor =
 type RequestConstructor = RequestGetWalletIdNimiqConstructor | RequestGetPublicKeyNimiqConstructor
     | RequestGetAddressNimiqConstructor | RequestDeriveAddressesNimiqConstructor
     | RequestSignTransactionNimiqConstructor
-    | RequestGetAddressAndPublicKeyBitcoinConstructor | RequestGetExtendedPublicKeyBitcoinConstructor
-    | RequestSignTransactionBitcoinConstructor;
+    | RequestGetWalletIdBitcoinConstructor | RequestGetAddressAndPublicKeyBitcoinConstructor
+    | RequestGetExtendedPublicKeyBitcoinConstructor | RequestSignTransactionBitcoinConstructor;
 /* eslint-enable @typescript-eslint/indent */
 type Request = InstanceType<RequestConstructor>;
 
@@ -151,6 +152,16 @@ export default class LedgerApi {
 
     public static readonly Bitcoin = {
         /**
+         * Get the 32 byte wallet id of the currently connected Bitcoin wallet / app for a specific network as base64.
+         */
+        async getWalletId(network: Network): Promise<string> {
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetWalletIdBitcoinConstructor>(
+                import('./requests/bitcoin/request-get-wallet-id-bitcoin'),
+                network,
+            ));
+        },
+
+        /**
          * Get the public key, address and bip32 chain code for a given bip32 key path. Optionally display the address
          * on the Ledger screen for verification, expect a specific address or expect a specific wallet id.
          */
@@ -256,9 +267,12 @@ export default class LedgerApi {
      * However, if that connection fails due to a required user interaction / user gesture, you can manually connect in
      * the context of a user interaction, for example a click.
      * @param coin - Which Ledger coin app to connect to.
+     * @param [network] - Only for Bitcoin: whether to connect to the mainnet or testnet app. Mainnet by default.
      * @returns Whether connecting to the Ledger succeeded.
      */
-    public static async connect(coin: Coin): Promise<boolean> {
+    public static async connect(coin: Coin): Promise<boolean>;
+    public static async connect(coin: Coin.BITCOIN, network: Network): Promise<boolean>;
+    public static async connect(coin: Coin, network: Network = Network.MAINNET): Promise<boolean> {
         LedgerApi._connectionAborted = false; // reset aborted flag on manual connection
         try {
             // Initialize the transport again if it failed previously, for example due to missing user interaction.
@@ -270,10 +284,13 @@ export default class LedgerApi {
         }
         try {
             // detect current connection
-            if (LedgerApi._currentConnection && LedgerApi._currentConnection.coin === coin) {
+            const { currentRequest, _currentConnection: currentConnection } = LedgerApi;
+            const expectedApp = coin === Coin.NIMIQ ? 'Nimiq' : `Bitcoin${network === Network.TESTNET ? ' Test' : ''}`;
+            if (currentConnection && currentConnection.coin === coin && currentConnection.app === expectedApp) {
                 return true;
             }
-            if (LedgerApi._currentRequest && LedgerApi._currentRequest.coin === coin) {
+            if (currentRequest && currentRequest.coin === coin
+                && (!('network' in currentRequest) || currentRequest.network === network)) {
                 // already a request for coin going on. Just wait for it to connect.
                 await new Promise<void>((resolve, reject) => {
                     const onConnect = () => {
@@ -296,6 +313,9 @@ export default class LedgerApi {
             switch (coin) {
                 case Coin.NIMIQ:
                     await LedgerApi.Nimiq.getWalletId();
+                    return true;
+                case Coin.BITCOIN:
+                    await LedgerApi.Bitcoin.getWalletId(network);
                     return true;
                 default:
                     throw new Error(`Unsupported coin: ${coin}`);

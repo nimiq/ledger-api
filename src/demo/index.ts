@@ -12,6 +12,7 @@ import HighLevelApi, {
     CoinAppConnection,
     ErrorState,
     EventType,
+    Network,
     State,
     TransportType,
 } from '../../dist/high-level-api/ledger-api';
@@ -143,6 +144,15 @@ window.addEventListener('load', () => {
                     <div class="nq-text">Signature: <span id="signature-nimiq" class="mono"></span></div>
                     </div>
             </section>
+
+            <section class="nq-text nq-card show-${ApiType.HIGH_LEVEL}">
+                <h2 class="nq-card-header nq-h2">Get Wallet Id</h2>
+                <div class="nq-card-body">
+                    <button class="nq-button-s" id="get-wallet-id-button-nimiq">Get Wallet Id</button>
+                    <br>
+                    <div class="nq-text">Wallet Id: <span id="wallet-id-nimiq" class="mono"></span></div>
+                </div>
+            </section>
         </div>
 
         <!-- Bitcoin requests -->
@@ -222,6 +232,26 @@ window.addEventListener('load', () => {
                         to broadcast the transaction. If you want to broadcast the transaction, use a high enough fee
                         (difference between inputs and outputs).
                     </div>
+                </div>
+            </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Get Wallet Id</h2>
+                <div class="nq-card-body">
+                    <span id="wallet-id-network-selector-bitcoin" class="selector" style="margin-right: 2rem">
+                        <label>
+                            <input type="radio" name="wallet-id-network-selector-bitcoin" value="${Network.MAINNET}"
+                                checked>
+                            Mainnet
+                        </label>
+                        <label>
+                            <input type="radio" name="wallet-id-network-selector-bitcoin" value="${Network.TESTNET}">
+                            Testnet
+                        </label>
+                    </span>
+                    <button class="nq-button-s" id="get-wallet-id-button-bitcoin">Get Wallet Id</button>
+                    <br>
+                    <div class="nq-text">Wallet Id: <span id="wallet-id-bitcoin" class="mono"></span></div>
                 </div>
             </section>
         </div>
@@ -309,6 +339,8 @@ window.addEventListener('load', () => {
     const $txHexInputNimiq = getInputElement('#tx-hex-input-nimiq');
     const $signTxButtonNimiq = document.getElementById('sign-tx-button-nimiq')!;
     const $signatureNimiq = document.getElementById('signature-nimiq')!;
+    const $getWalletIdButtonNimiq = document.getElementById('get-wallet-id-button-nimiq')!;
+    const $walletIdNimiq = document.getElementById('wallet-id-nimiq')!;
 
     // UI elements for Bitcoin requests
     const $bip32PathAddressInputBitcoin = getInputElement('#bip32-path-address-input-bitcoin');
@@ -323,6 +355,9 @@ window.addEventListener('load', () => {
     const $txInfoTextareaBitcoin = document.getElementById('tx-info-textarea-bitcoin') as HTMLTextAreaElement;
     const $signTxButtonBitcoin = document.getElementById('sign-tx-button-bitcoin')!;
     const $signedTxBitcoin = document.getElementById('signed-tx-bitcoin')!;
+    const $walletIdNetworkSelectorBitcoin = document.getElementById('wallet-id-network-selector-bitcoin')!;
+    const $getWalletIdButtonBitcoin = document.getElementById('get-wallet-id-button-bitcoin')!;
+    const $walletIdBitcoin = document.getElementById('wallet-id-bitcoin')!;
 
     function displayStatus(msg: string) {
         console.log(msg);
@@ -437,7 +472,12 @@ window.addEventListener('load', () => {
             displayStatus(`Connected (app version ${version}, ${deviceModel})`);
         } else {
             const coin = getInputElement(':checked', $coinSelector).value as Coin;
-            const connected = await api.connect(coin);
+            let connected: boolean;
+            if (coin === Coin.BITCOIN && api.currentRequest && 'network' in api.currentRequest) {
+                connected = await api.connect(coin, api.currentRequest.network);
+            } else {
+                connected = await api.connect(coin);
+            }
             displayStatus(connected ? 'Connected' : 'Connection cancelled');
         }
     }
@@ -551,6 +591,23 @@ window.addEventListener('load', () => {
         }
     }
 
+    async function getWalletIdNimiq() {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
+        try {
+            $walletIdNimiq.textContent = '';
+            const api = await createApi();
+            displayStatus('Getting wallet id...');
+            if (api instanceof LowLevelApi) throw new Error('getWalletId not supported by LowLevelApi');
+            const walletId = await api.Nimiq.getWalletId();
+            $walletIdNimiq.textContent = walletId;
+            displayStatus('Received wallet id');
+            return walletId;
+        } catch (error) {
+            displayStatus(`Failed to get wallet id: ${error}`);
+            throw error;
+        }
+    }
+
     async function getAddressAndPublicKeyBitcoin(confirm: boolean) {
         if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         try {
@@ -612,6 +669,24 @@ window.addEventListener('load', () => {
         }
     }
 
+    async function getWalletIdBitcoin() {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
+        try {
+            $walletIdBitcoin.textContent = '';
+            const api = await createApi();
+            displayStatus('Getting wallet id...');
+            if (api instanceof LowLevelApi) throw new Error('getWalletId not supported by LowLevelApi');
+            const network = getInputElement(':checked', $walletIdNetworkSelectorBitcoin).value as Network;
+            const walletId = await api.Bitcoin.getWalletId(network);
+            $walletIdBitcoin.textContent = walletId;
+            displayStatus('Received wallet id');
+            return walletId;
+        } catch (error) {
+            displayStatus(`Failed to get wallet id: ${error}`);
+            throw error;
+        }
+    }
+
     function init() {
         console.log('Nimiq Ledger Api demo. Note that another great place to directly experiment with the apis'
             + ' provided by Ledger is https://ledger-repl.now.sh/');
@@ -628,11 +703,13 @@ window.addEventListener('load', () => {
         $getAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(false));
         $confirmAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(true));
         $signTxButtonNimiq.addEventListener('click', signTransactionNimiq);
+        $getWalletIdButtonNimiq.addEventListener('click', getWalletIdNimiq);
 
         $getAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(false));
         $confirmAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(true));
-        $getExtendedPublicKeyButtonBitcoin.addEventListener('click', () => getExtendedPublicKeyBitcoin());
+        $getExtendedPublicKeyButtonBitcoin.addEventListener('click', getExtendedPublicKeyBitcoin);
         $signTxButtonBitcoin.addEventListener('click', signTransactionBitcoin);
+        $getWalletIdButtonBitcoin.addEventListener('click', getWalletIdBitcoin);
 
         switchApi();
         switchCoin();
