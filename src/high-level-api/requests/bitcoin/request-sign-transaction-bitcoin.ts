@@ -61,12 +61,13 @@ export interface TransactionInfoBitcoin {
 }
 
 export default class RequestSignTransactionBitcoin extends RequestBitcoin<string> {
+    public readonly type: RequestTypeBitcoin.SIGN_TRANSACTION = RequestTypeBitcoin.SIGN_TRANSACTION;
     public readonly transaction: TransactionInfoBitcoin;
     public readonly network: Network;
     private _inputType: AddressTypeBitcoin;
 
     constructor(transaction: TransactionInfoBitcoin, expectedWalletId?: string) {
-        super(RequestTypeBitcoin.SIGN_TRANSACTION, expectedWalletId);
+        super(expectedWalletId);
 
         this.transaction = transaction;
 

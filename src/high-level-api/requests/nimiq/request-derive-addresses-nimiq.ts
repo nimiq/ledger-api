@@ -6,10 +6,11 @@ import { parseBip32Path } from '../../bip32-utils';
 type Transport = import('@ledgerhq/hw-transport').default;
 
 export default class RequestDeriveAddressesNimiq extends RequestNimiq<Array<{ address: string, keyPath: string }>> {
+    public readonly type: RequestTypeNimiq.DERIVE_ADDRESSES = RequestTypeNimiq.DERIVE_ADDRESSES;
     public readonly pathsToDerive: Iterable<string>;
 
     constructor(pathsToDerive: Iterable<string>, expectedWalletId?: string) {
-        super(RequestTypeNimiq.DERIVE_ADDRESSES, expectedWalletId);
+        super(expectedWalletId);
         this.pathsToDerive = pathsToDerive;
 
         for (const keyPath of pathsToDerive) {

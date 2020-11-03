@@ -1,13 +1,13 @@
 import RequestNimiq from './request-nimiq';
-import { Coin, RequestTypeNimiq } from '../../constants';
+import { Coin } from '../../constants';
 import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 
 export default abstract class RequestWithKeyPathNimiq<T> extends RequestNimiq<T> {
     public readonly keyPath: string;
 
-    protected constructor(type: RequestTypeNimiq, keyPath: string, expectedWalletId?: string) {
-        super(type, expectedWalletId);
+    protected constructor(keyPath: string, expectedWalletId?: string) {
+        super(expectedWalletId);
 
         this.keyPath = keyPath;
         try {

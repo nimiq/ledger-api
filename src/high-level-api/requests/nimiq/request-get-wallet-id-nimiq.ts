@@ -5,10 +5,12 @@ import { RequestTypeNimiq } from '../../constants';
 type Transport = import('@ledgerhq/hw-transport').default;
 
 export default class RequestGetWalletIdNimiq extends RequestNimiq<string> {
+    public readonly type: RequestTypeNimiq.GET_WALLET_ID = RequestTypeNimiq.GET_WALLET_ID;
     private _coinAppConnection: CoinAppConnection | null = null;
 
-    constructor() {
-        super(RequestTypeNimiq.GET_WALLET_ID);
+    public constructor() {
+        // public constructor calling the parent protected constructor
+        super();
     }
 
     public async call(transport: Transport): Promise<string> {

@@ -11,6 +11,7 @@ type BtcAddressInfo = {
 };
 
 export default class RequestGetAddressAndPublicKeyBitcoin extends RequestBitcoin<BtcAddressInfo> {
+    public readonly type: RequestTypeBitcoin.GET_ADDRESS_AND_PUBLIC_KEY = RequestTypeBitcoin.GET_ADDRESS_AND_PUBLIC_KEY;
     public readonly keyPath: string;
     public readonly display?: boolean;
     public readonly expectedAddress?: string;
@@ -18,7 +19,7 @@ export default class RequestGetAddressAndPublicKeyBitcoin extends RequestBitcoin
     private readonly _addressType: AddressTypeBitcoin;
 
     constructor(keyPath: string, display?: boolean, expectedAddress?: string, expectedWalletId?: string) {
-        super(RequestTypeBitcoin.GET_ADDRESS_AND_PUBLIC_KEY, expectedWalletId);
+        super(expectedWalletId);
         this.keyPath = keyPath;
         this.display = display;
         this.expectedAddress = expectedAddress;

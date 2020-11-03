@@ -60,14 +60,12 @@ export default abstract class RequestNimiq<T> extends Request<T> {
         }
     }
 
-    protected constructor(type: RequestTypeNimiq, expectedWalletId?: string) {
-        super(
-            Coin.NIMIQ,
-            type,
-            'Nimiq',
-            '1.4.2', // first version supporting web usb
-            expectedWalletId,
-        );
+    public readonly coin: Coin.NIMIQ = Coin.NIMIQ;
+    public readonly requiredApp: string = 'Nimiq';
+    public readonly minRequiredAppVersion: string = '1.4.2'; // first version supporting web usb
+
+    protected constructor(expectedWalletId?: string) {
+        super(expectedWalletId);
 
         // Preload dependencies. Nimiq lib is preloaded individually by request child classes that need it.
         // Ignore errors.

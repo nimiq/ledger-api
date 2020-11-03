@@ -16,10 +16,14 @@ export interface CoinAppConnection {
 export default abstract class Request<T> extends Observable {
     public static readonly EVENT_CANCEL = REQUEST_EVENT_CANCEL;
 
-    public readonly coin: Coin;
-    public readonly type: RequestType;
-    public readonly requiredApp: string;
-    public readonly minRequiredAppVersion: string;
+    // Abstract properties here are constants specific for a request type or coin. They are not passed as constructor
+    // parameters but set by child class as properties to be usable as typescript type guards for inferring a request's
+    // type. Enables accessing request specific properties after a type guard, for example accessing expectedAddress in
+    // `if (request.type === RequestTypeNimiq.GET_ADDRESS) console.log(request.expectedAddress);`
+    public abstract readonly coin: Coin;
+    public abstract readonly type: RequestType;
+    public abstract readonly requiredApp: string;
+    public abstract readonly minRequiredAppVersion: string;
     public readonly expectedWalletId?: string;
 
     private _cancelled: boolean = false;
@@ -34,18 +38,8 @@ export default abstract class Request<T> extends Observable {
         return true;
     }
 
-    protected constructor(
-        coin: Coin,
-        type: RequestType,
-        requiredApp: string,
-        minRequiredAppVersion: string,
-        expectedWalletId?: string,
-    ) {
+    protected constructor(expectedWalletId?: string) {
         super();
-        this.coin = coin;
-        this.type = type;
-        this.requiredApp = requiredApp;
-        this.minRequiredAppVersion = minRequiredAppVersion;
         this.expectedWalletId = expectedWalletId;
     }
 

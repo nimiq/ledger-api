@@ -5,11 +5,12 @@ import { Network, RequestTypeBitcoin } from '../../constants';
 type Transport = import('@ledgerhq/hw-transport').default;
 
 export default class RequestGetWalletIdBitcoin extends RequestBitcoin<string> {
+    public readonly type: RequestTypeBitcoin.GET_WALLET_ID = RequestTypeBitcoin.GET_WALLET_ID;
     public readonly network: Network;
     private _coinAppConnection: CoinAppConnection | null = null;
 
     constructor(network: Network) {
-        super(RequestTypeBitcoin.GET_WALLET_ID);
+        super();
         this.network = network;
     }
 

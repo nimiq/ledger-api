@@ -15,12 +15,13 @@ const KEY_PATH_REGEX = new RegExp(
 );
 
 export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<string> {
+    public readonly type: RequestTypeBitcoin.GET_EXTENDED_PUBLIC_KEY = RequestTypeBitcoin.GET_EXTENDED_PUBLIC_KEY;
     public readonly keyPath: string;
     public readonly network: Network;
     private readonly _addressType: AddressTypeBitcoin;
 
     constructor(keyPath: string, expectedWalletId?: string) {
-        super(RequestTypeBitcoin.GET_EXTENDED_PUBLIC_KEY, expectedWalletId);
+        super(expectedWalletId);
         this.keyPath = keyPath;
 
         // Check for keyPath validity. Not using parseBip32Path from bip32-utils as we allow exporting xpubs at

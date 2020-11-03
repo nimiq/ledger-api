@@ -53,6 +53,8 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         }
     }
 
+    public readonly coin: Coin.BITCOIN = Coin.BITCOIN;
+    public readonly minRequiredAppVersion: string = '1.3.8'; // first version supporting web usb
     public readonly abstract network: Network;
 
     public get requiredApp(): string {
@@ -65,18 +67,8 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         return `Bitcoin${this.network === Network.TESTNET ? ' Test' : ''}`;
     }
 
-    public set requiredApp(requiredApp: string) {
-        // ignore
-    }
-
-    protected constructor(type: RequestTypeBitcoin, expectedWalletId?: string) {
-        super(
-            Coin.BITCOIN,
-            type,
-            'unknown', // app name is determined via getter
-            '1.3.8', // first version with WebUSB
-            expectedWalletId,
-        );
+    protected constructor(expectedWalletId?: string) {
+        super(expectedWalletId);
 
         // Preload dependencies. Bitcoin lib is preloaded individually by request child classes that need it.
         // Ignore errors.

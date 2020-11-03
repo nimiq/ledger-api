@@ -6,11 +6,12 @@ import ErrorState, { ErrorType } from '../../error-state';
 type Transport = import('@ledgerhq/hw-transport').default;
 
 export default class RequestGetAddressNimiq extends RequestWithKeyPathNimiq<string> {
+    public readonly type: RequestTypeNimiq.GET_ADDRESS = RequestTypeNimiq.GET_ADDRESS;
     public readonly display?: boolean;
     public readonly expectedAddress?: string;
 
     constructor(keyPath: string, display?: boolean, expectedAddress?: string, expectedWalletId?: string) {
-        super(RequestTypeNimiq.GET_ADDRESS, keyPath, expectedWalletId);
+        super(keyPath, expectedWalletId);
         this.display = display;
         this.expectedAddress = expectedAddress;
     }

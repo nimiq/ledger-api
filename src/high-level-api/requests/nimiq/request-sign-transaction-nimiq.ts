@@ -23,10 +23,11 @@ export interface TransactionInfoNimiq {
 }
 
 export default class RequestSignTransactionNimiq extends RequestWithKeyPathNimiq<Transaction> {
+    public readonly type: RequestTypeNimiq.SIGN_TRANSACTION = RequestTypeNimiq.SIGN_TRANSACTION;
     public readonly transaction: TransactionInfoNimiq;
 
     constructor(keyPath: string, transaction: TransactionInfoNimiq, expectedWalletId?: string) {
-        super(RequestTypeNimiq.SIGN_TRANSACTION, keyPath, expectedWalletId);
+        super(keyPath, expectedWalletId);
         this.transaction = transaction;
 
         // Preload Nimiq lib. Ledger Nimiq api is already preloaded by parent class. Ignore errors.
