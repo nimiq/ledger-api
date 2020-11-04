@@ -53,7 +53,7 @@ export { isSupported, TransportType };
 export { getBip32Path, parseBip32Path };
 export { ErrorType, ErrorState };
 export { Coin, AddressTypeBitcoin, Network };
-export { CoinAppConnection, RequestTypeNimiq, RequestTypeBitcoin };
+export { CoinAppConnection, RequestTypeNimiq, RequestTypeBitcoin, RequestType, Request };
 export { TransactionInfoNimiq, TransactionInfoBitcoin };
 
 export enum StateType {
@@ -76,8 +76,11 @@ export enum EventType {
 }
 
 export type State = {
-    type: Exclude<StateType, StateType.ERROR>,
+    type: StateType.IDLE | StateType.LOADING | StateType.CONNECTING,
     request?: Request,
+} | {
+    type: StateType.REQUEST_PROCESSING | StateType.REQUEST_CANCELLING,
+    request: Request,
 } | ErrorState;
 
 export default class LedgerApi {
@@ -275,23 +278,17 @@ export default class LedgerApi {
     public static async connect(coin: Coin, network: Network = Network.MAINNET): Promise<boolean> {
         LedgerApi._connectionAborted = false; // reset aborted flag on manual connection
         try {
-            // Initialize the transport again if it failed previously, for example due to missing user interaction.
-            await LedgerApi._getTransport();
-        } catch (e) {
-            // Silently continue on errors, same as the other API methods. Error was reported by _getTransport as error
-            // state instead. Only if user aborted the connection or browser is not supported, don't continue.
-            if (/connection aborted|not supported/i.test(e.message || e)) return false;
-        }
-        try {
-            // detect current connection
             const { currentRequest, _currentConnection: currentConnection } = LedgerApi;
             const expectedApp = coin === Coin.NIMIQ ? 'Nimiq' : `Bitcoin${network === Network.TESTNET ? ' Test' : ''}`;
             if (currentConnection && currentConnection.coin === coin && currentConnection.app === expectedApp) {
+                // Already connected.
                 return true;
             }
             if (currentRequest && currentRequest.coin === coin
                 && (!('network' in currentRequest) || currentRequest.network === network)) {
-                // already a request for coin going on. Just wait for it to connect.
+                // Wait for the ongoing request for coin to connect.
+                // Initialize the transport again if it failed previously, for example due to missing user interaction.
+                await LedgerApi._getTransport(currentRequest);
                 await new Promise<void>((resolve, reject) => {
                     const onConnect = () => {
                         LedgerApi.off(EventType.CONNECTED, onConnect);
@@ -308,7 +305,7 @@ export default class LedgerApi {
                 });
                 return true;
             }
-            // Send a request to detect when the ledger is connected.
+            // Send a request to establish a connection and detect when the ledger is connected.
             // Note that if the api is already busy with a request for another coin false will be returned.
             switch (coin) {
                 case Coin.NIMIQ:
@@ -321,6 +318,9 @@ export default class LedgerApi {
                     throw new Error(`Unsupported coin: ${coin}`);
             }
         } catch (e) {
+            if (e instanceof ErrorState) {
+                LedgerApi._setState(e);
+            }
             return false;
         }
     }
@@ -391,6 +391,7 @@ export default class LedgerApi {
                 const error = new ErrorState(
                     ErrorType.LOADING_DEPENDENCIES_FAILED,
                     `Failed loading dependencies: ${e.message || e}`,
+                    undefined,
                 );
                 LedgerApi._setState(error);
                 throw error;
@@ -441,7 +442,7 @@ export default class LedgerApi {
                 });
                 while (!request.cancelled) {
                     try {
-                        const transport = await LedgerApi._getTransport();
+                        const transport = await LedgerApi._getTransport(request);
                         if (request.cancelled) break;
                         await LedgerApi._connect(transport, request);
                         if (request.cancelled) break;
@@ -556,21 +557,23 @@ export default class LedgerApi {
                 LedgerApi._currentConnection = await request.checkCoinAppConnection(transport);
             } catch (e) {
                 const message = (e.message || e || '').toLowerCase();
-                if (e instanceof ErrorState) {
-                    LedgerApi._setState(e);
-                } else if (message.indexOf('busy') !== -1) {
-                    const error = new ErrorState(ErrorType.LEDGER_BUSY, `Only one call to Ledger at a time allowed: ${
-                        e}`); // important to rethrow original message for handling of the 'busy' keyword in _callLedger
-                    LedgerApi._setState(error);
-                    throw error;
+                if (message.indexOf('busy') !== -1) {
+                    throw new ErrorState(
+                        ErrorType.LEDGER_BUSY,
+                        // important to rethrow original message for handling of the 'busy' keyword in _callLedger
+                        `Only one call to Ledger at a time allowed: ${e}`,
+                        request,
+                    );
                 } else if (LedgerApi._isWebAuthnOrU2fCancellation(message, connectStart)) {
                     LedgerApi._connectionAborted = true;
-                    const error = new ErrorState(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
-                    LedgerApi._setState(error);
-                    throw error;
+                    throw new ErrorState(
+                        ErrorType.CONNECTION_ABORTED,
+                        `Connection aborted: ${message}`,
+                        request,
+                    );
                 }
 
-                // Just rethrow other errors that just keep the API retrying (like timeout, dongle locked).
+                // Rethrow other errors that just keep the API retrying (like timeout, dongle locked) or error states.
                 throw e;
             }
         }
@@ -579,7 +582,7 @@ export default class LedgerApi {
         return transport;
     }
 
-    private static async _getTransport(): Promise<Transport> {
+    private static async _getTransport(request: Request): Promise<Transport> {
         if (LedgerApi._connectionAborted) {
             // When the connection was aborted, don't retry creating a transport until a manual connection is requested.
             // Throw as normal error and not as error state as error state had already been reported.
@@ -592,9 +595,11 @@ export default class LedgerApi {
         LedgerApi._transportPromise = LedgerApi._transportPromise || (async () => {
             // Check browser support for current transport. Note that when transport changes during connect, we recurse.
             if (!transportType || !isSupported(transportType)) {
-                const error = new ErrorState(ErrorType.BROWSER_UNSUPPORTED, 'Ledger not supported by browser.');
-                LedgerApi._setState(error);
-                throw error;
+                throw new ErrorState(
+                    ErrorType.BROWSER_UNSUPPORTED,
+                    'Ledger not supported by browser.',
+                    request,
+                );
             }
 
             // Load transport lib.
@@ -605,12 +610,11 @@ export default class LedgerApi {
                 TransportLib = await loadTransportLibrary(transportType!);
             } catch (e) {
                 if (transportType === LedgerApi._transportType) {
-                    const error = new ErrorState(
+                    throw new ErrorState(
                         ErrorType.LOADING_DEPENDENCIES_FAILED,
                         `Failed loading dependencies: ${e.message || e}`,
+                        request,
                     );
-                    LedgerApi._setState(error);
-                    throw error;
                 }
             } finally {
                 clearTimeout(delayedLoadingStateTimeout);
@@ -634,28 +638,24 @@ export default class LedgerApi {
                             //  Windows or WebHID is more broadly available.
                             const fallback = [TransportType.WEB_AUTHN, TransportType.U2F].find(isSupported);
                             if (!fallback) {
-                                const error = new ErrorState(
+                                throw new ErrorState(
                                     ErrorType.BROWSER_UNSUPPORTED,
                                     'Ledger not supported by browser.',
+                                    request,
                                 );
-                                LedgerApi._setState(error);
-                                throw error;
                             }
                             console.warn(`LedgerApi: switching to ${fallback} as fallback`);
                             LedgerApi.setTransportType(fallback!);
                         } else {
                             LedgerApi._connectionAborted = true;
-                            const error = new ErrorState(
+                            throw new ErrorState(
                                 ErrorType.CONNECTION_ABORTED,
                                 `Connection aborted: ${message}`,
+                                request,
                             );
-                            LedgerApi._setState(error);
-                            throw error;
                         }
                     } else if (message.indexOf('user gesture') !== -1) {
-                        const error = new ErrorState(ErrorType.USER_INTERACTION_REQUIRED, e);
-                        LedgerApi._setState(error);
-                        throw error;
+                        throw new ErrorState(ErrorType.USER_INTERACTION_REQUIRED, e, request);
                     } else {
                         throw e; // rethrow unknown exception
                     }
@@ -688,7 +688,7 @@ export default class LedgerApi {
             LedgerApi._transportPromise = null;
             if (transportType === LedgerApi._transportType) throw e;
             // Transport type changed while we were connecting; ignore error and rerun
-            return LedgerApi._getTransport();
+            return LedgerApi._getTransport(request);
         }
     }
 
@@ -704,7 +704,7 @@ export default class LedgerApi {
     private static _setState(state: State | Exclude<StateType, StateType.ERROR>): void {
         if (typeof state === 'string') {
             // it's an entry from LedgerApi.StateType enum
-            state = { type: state };
+            state = { type: state } as State;
         }
         state.request = !state.request && LedgerApi._currentRequest ? LedgerApi._currentRequest : state.request;
 

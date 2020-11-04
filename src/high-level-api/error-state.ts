@@ -1,6 +1,7 @@
 type StateTypeError = import('./ledger-api').StateType.ERROR;
 
-type Request<T> = import('./requests/request').default<T>;
+type RequestBase = import('./requests/request').default<any>;
+type SpecificRequest = import('./ledger-api').Request;
 
 export enum ErrorType {
     LEDGER_BUSY = 'ledger-busy',
@@ -14,12 +15,19 @@ export enum ErrorType {
     REQUEST_ASSERTION_FAILED = 'request-specific-error',
 }
 
-export default class ErrorState extends Error {
+export default class ErrorState<T extends ErrorType = ErrorType> extends Error {
     public readonly type: StateTypeError = 'error' as StateTypeError; // state type
-    public readonly errorType: ErrorType;
-    public request?: Request<any>;
+    public readonly errorType: T;
+    // request specified as SpecificRequest instead of RequestBase such that an app using the api knows what request
+    // types to expect here.
+    public request: T extends ErrorType.LOADING_DEPENDENCIES_FAILED ? SpecificRequest | undefined : SpecificRequest;
 
-    constructor(errorType: ErrorType, messageOrError: string | Error, request?: Request<any>) {
+    constructor(
+        errorType: T,
+        messageOrError: string | Error,
+        // request specified as RequestBase here to allow simple throwing from a SpecificRequest parent class.
+        request: T extends ErrorType.LOADING_DEPENDENCIES_FAILED ? RequestBase | undefined : RequestBase,
+    ) {
         super(messageOrError.toString());
 
         if (messageOrError instanceof Error && messageOrError.stack) {
@@ -32,6 +40,6 @@ export default class ErrorState extends Error {
 
         this.name = 'LedgerErrorState';
         this.errorType = errorType;
-        this.request = request;
+        this.request = request as any;
     }
 }

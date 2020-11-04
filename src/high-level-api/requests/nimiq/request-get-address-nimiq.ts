@@ -1,4 +1,3 @@
-import RequestNimiq from './request-nimiq';
 import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
 import { RequestTypeNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
@@ -17,7 +16,7 @@ export default class RequestGetAddressNimiq extends RequestWithKeyPathNimiq<stri
     }
 
     public async call(transport: Transport): Promise<string> {
-        const api = await RequestNimiq._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
+        const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
         const { address } = await api.getAddress(
             this.keyPath,
             true, // validate

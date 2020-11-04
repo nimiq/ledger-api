@@ -154,7 +154,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
 
         const [api, bitcoinLib] = await Promise.all([
             // these throw LOADING_DEPENDENCIES_FAILED on failure
-            RequestBitcoin._getLowLevelApi(transport),
+            this._getLowLevelApi(transport),
             this._loadBitcoinLibIfNeeded(),
         ]);
         let parsedTransaction: CreateTransactionArg;
@@ -243,7 +243,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
         // If we need bitcoinjs for address to output script conversion, load it.
         if (Array.isArray(this.transaction.outputs)
             && this.transaction.outputs.some((output) => 'address' in output && !!output.address)) {
-            return RequestBitcoin._loadBitcoinLib();
+            return this._loadBitcoinLib();
         }
         return null;
     }

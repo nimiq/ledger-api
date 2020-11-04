@@ -1,4 +1,3 @@
-import RequestNimiq from './request-nimiq';
 import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
 import { RequestTypeNimiq } from '../../constants';
 
@@ -12,18 +11,18 @@ export default class RequestGetPublicKeyNimiq extends RequestWithKeyPathNimiq<Pu
         super(keyPath, expectedWalletId);
 
         // Preload Nimiq lib. Ledger Nimiq api is already preloaded by parent class. Ignore errors.
-        RequestNimiq._loadNimiq().catch(() => {});
+        this._loadNimiq().catch(() => {});
     }
 
     public async call(transport: Transport): Promise<PublicKey> {
-        const api = await RequestNimiq._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
+        const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
         const { publicKey } = await api.getPublicKey(
             this.keyPath,
             true, // validate
             false, // display
         );
 
-        const Nimiq = await RequestNimiq._loadNimiq(); // throws LOADING_DEPENDENCIES_FAILED on failure
+        const Nimiq = await this._loadNimiq(); // throws LOADING_DEPENDENCIES_FAILED on failure
 
         return new Nimiq.PublicKey(publicKey);
     }
