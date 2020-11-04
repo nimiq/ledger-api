@@ -5,12 +5,14 @@ import ErrorState, { ErrorType } from '../../error-state';
 type Transport = import('@ledgerhq/hw-transport').default;
 
 export default class RequestGetAddressNimiq extends RequestWithKeyPathNimiq<string> {
-    public readonly type: RequestTypeNimiq.GET_ADDRESS = RequestTypeNimiq.GET_ADDRESS;
+    public readonly type: RequestTypeNimiq.GET_ADDRESS;
     public readonly display?: boolean;
     public readonly expectedAddress?: string;
 
     constructor(keyPath: string, display?: boolean, expectedAddress?: string, expectedWalletId?: string) {
-        super(keyPath, expectedWalletId);
+        const type = RequestTypeNimiq.GET_ADDRESS;
+        super(keyPath, expectedWalletId, { type, display, expectedAddress });
+        this.type = type;
         this.display = display;
         this.expectedAddress = expectedAddress;
     }
