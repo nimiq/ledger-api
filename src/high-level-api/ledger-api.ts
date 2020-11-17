@@ -328,13 +328,18 @@ export default class LedgerApi {
     /**
      * Disconnect the api and clean up.
      * @param cancelRequest - Whether to cancel an ongoing request.
-     * @param requestTypeToDisconnect - If specified, only disconnect if no request is going on or if the ongoing
+     * @param requestTypesToDisconnect - If specified, only disconnect if no request is going on or if the ongoing
      *  request is of the specified type.
      */
-    public static async disconnect(cancelRequest = true, requestTypeToDisconnect?: RequestType) {
+    public static async disconnect(cancelRequest = true, requestTypesToDisconnect?: RequestType | RequestType[]) {
         const { currentRequest } = LedgerApi;
         if (currentRequest) {
-            if (requestTypeToDisconnect !== undefined && currentRequest.type !== requestTypeToDisconnect) return;
+            if (requestTypesToDisconnect !== undefined) {
+                requestTypesToDisconnect = Array.isArray(requestTypesToDisconnect)
+                    ? requestTypesToDisconnect
+                    : [requestTypesToDisconnect];
+                if (!requestTypesToDisconnect.includes(currentRequest.type)) return;
+            }
             if (cancelRequest) {
                 currentRequest.cancel();
             }
