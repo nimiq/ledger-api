@@ -21,11 +21,14 @@ export interface TransactionInfoBitcoin {
         transaction: string | BitcoinJsTransaction,
         // index of the transaction's output which is now to be used as input
         index: number,
-        // bip32 path of the key which is able to redeem the input (the previous "recipient")
+        // bip32 path of the key which needs to sign for redeeming the input (e.g. the previous "recipient")
         keyPath: string,
-        // hex, optional redeem script to use when consuming a Segregated Witness input. You'll typically not need to
-        // set this yourself as the ledger lib generates the appropriate default script from the public key at keyPath.
-        redeemScript?: string,
+        // hex, optional custom script to be signed for consuming an input. This can be a witness script for segwit
+        // transactions (native segwit or p2sh segwit), or a redeem script for other p2sh transactions. Use this for
+        // example to redeem from contracts or multisigs. For regular transaction you'll typically not need to set this
+        // yourself as sensible defaults are used: for legacy transactions the prevOut output script is used; for segwit
+        // transactions an appropriate default script from the public key at keyPath.
+        customScript?: string,
         // optional sequence number to use for this input when using replace by fee (RBF)
         sequence?: number,
     }>;
@@ -171,7 +174,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
             } = this.transaction;
 
             parsedTransaction = {
-                inputs: inputs.map(({ transaction, index, redeemScript, sequence }) => [
+                inputs: inputs.map(({ transaction, index, customScript, sequence }) => [
                     api.splitTransaction(
                         typeof transaction === 'string' ? transaction : transaction.toHex(),
                         // Set segwit support always to true because then transactions with and without witnesses are
@@ -181,7 +184,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                         true,
                     ),
                     index,
-                    redeemScript || null,
+                    customScript || null,
                     sequence || null,
                 ]),
                 associatedKeysets: inputs.map(({ keyPath }) => keyPath),
