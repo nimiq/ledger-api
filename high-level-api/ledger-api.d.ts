@@ -1,18 +1,31 @@
 import { EventListener } from '../lib/observable';
 import { isSupported, TransportType } from './transport-utils';
-import LedgerApiRequest, { RequestParams, RequestType } from './ledger-api-request';
-declare type Address = import('@nimiq/core-web').Address;
-declare type AccountType = import('@nimiq/core-web').Account.Type;
-declare type Transaction = import('@nimiq/core-web').Transaction;
-declare type PublicKey = import('@nimiq/core-web').PublicKey;
-export { RequestType, RequestParams };
+import { getBip32Path, parseBip32Path } from './bip32-utils';
+import ErrorState, { ErrorType } from './error-state';
+import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin, RequestTypeNimiq } from './constants';
+declare type CoinAppConnection = import('./requests/request').CoinAppConnection;
+declare type RequestType = RequestTypeNimiq | RequestTypeBitcoin;
+declare type RequestGetWalletIdNimiqConstructor = typeof import('./requests/nimiq/request-get-wallet-id-nimiq').default;
+declare type RequestGetPublicKeyNimiqConstructor = typeof import('./requests/nimiq/request-get-public-key-nimiq').default;
+declare type RequestGetAddressNimiqConstructor = typeof import('./requests/nimiq/request-get-address-nimiq').default;
+declare type RequestDeriveAddressesNimiqConstructor = typeof import('./requests/nimiq/request-derive-addresses-nimiq').default;
+declare type RequestSignTransactionNimiqConstructor = typeof import('./requests/nimiq/request-sign-transaction-nimiq').default;
+declare type RequestGetWalletIdBitcoinConstructor = typeof import('./requests/bitcoin/request-get-wallet-id-bitcoin').default;
+declare type RequestGetAddressAndPublicKeyBitcoinConstructor = typeof import('./requests/bitcoin/request-get-address-and-public-key-bitcoin').default;
+declare type RequestGetExtendedPublicKeyBitcoinConstructor = typeof import('./requests/bitcoin/request-get-extended-public-key-bitcoin').default;
+declare type RequestSignTransactionBitcoinConstructor = typeof import('./requests/bitcoin/request-sign-transaction-bitcoin').default;
+declare type RequestConstructor = RequestGetWalletIdNimiqConstructor | RequestGetPublicKeyNimiqConstructor | RequestGetAddressNimiqConstructor | RequestDeriveAddressesNimiqConstructor | RequestSignTransactionNimiqConstructor | RequestGetWalletIdBitcoinConstructor | RequestGetAddressAndPublicKeyBitcoinConstructor | RequestGetExtendedPublicKeyBitcoinConstructor | RequestSignTransactionBitcoinConstructor;
+declare type Request = InstanceType<RequestConstructor>;
+declare type PublicKeyNimiq = import('@nimiq/core-web').PublicKey;
+declare type TransactionInfoNimiq = import('./requests/nimiq/request-sign-transaction-nimiq').TransactionInfoNimiq;
+declare type TransactionNimiq = import('@nimiq/core-web').Transaction;
+declare type TransactionInfoBitcoin = import('./requests/bitcoin/request-sign-transaction-bitcoin').TransactionInfoBitcoin;
 export { isSupported, TransportType };
-export declare enum EventType {
-    STATE_CHANGE = "state-change",
-    REQUEST_SUCCESSFUL = "request-successful",
-    REQUEST_CANCELLED = "request-cancelled",
-    CONNECTED = "connected"
-}
+export { getBip32Path, parseBip32Path };
+export { ErrorType, ErrorState };
+export { Coin, AddressTypeBitcoin, Network };
+export { CoinAppConnection, RequestTypeNimiq, RequestTypeBitcoin, RequestType, Request };
+export { TransactionInfoNimiq, TransactionInfoBitcoin };
 export declare enum StateType {
     IDLE = "idle",
     LOADING = "loading",
@@ -21,44 +34,91 @@ export declare enum StateType {
     REQUEST_CANCELLING = "request-cancelling",
     ERROR = "error"
 }
-export declare enum ErrorType {
-    LEDGER_BUSY = "ledger-busy",
-    LOADING_DEPENDENCIES_FAILED = "loading-dependencies-failed",
-    USER_INTERACTION_REQUIRED = "user-interaction-required",
-    CONNECTION_ABORTED = "connection-aborted",
-    NO_BROWSER_SUPPORT = "no-browser-support",
-    APP_OUTDATED = "app-outdated",
-    WRONG_LEDGER = "wrong-ledger",
-    REQUEST_ASSERTION_FAILED = "request-specific-error"
+export declare enum EventType {
+    STATE_CHANGE = "state-change",
+    REQUEST_SUCCESSFUL = "request-successful",
+    REQUEST_CANCELLED = "request-cancelled",
+    CONNECTED = "connected"
 }
-export interface State {
-    type: StateType;
-    error?: {
-        type: ErrorType;
-        message: string;
-    };
-    request?: LedgerApiRequest<any>;
-}
-export interface TransactionInfo {
-    sender: Address;
-    senderType?: AccountType;
-    recipient: Address;
-    recipientType?: AccountType;
-    value: number;
-    fee?: number;
-    validityStartHeight: number;
-    network?: 'main' | 'test' | 'dev';
-    flags?: number;
-    extraData?: Uint8Array;
-}
+export declare type State = {
+    type: StateType.IDLE | StateType.LOADING | StateType.CONNECTING;
+    request?: Request;
+} | {
+    type: StateType.REQUEST_PROCESSING | StateType.REQUEST_CANCELLING;
+    request: Request;
+} | ErrorState;
 export default class LedgerApi {
-    static readonly BIP32_BASE_PATH = "44'/242'/0'/";
-    static readonly BIP32_PATH_REGEX: RegExp;
-    static readonly MIN_REQUIRED_APP_VERSION: number[];
     static readonly WAIT_TIME_AFTER_TIMEOUT = 1500;
     static readonly WAIT_TIME_AFTER_ERROR = 500;
+    static readonly Nimiq: {
+        /**
+         * Get the 32 byte wallet id of the currently connected Nimiq wallet as base64.
+         */
+        getWalletId(): Promise<string>;
+        /**
+         * Get the public key for a given bip32 key path. Optionally expect a specific wallet id.
+         */
+        getPublicKey(keyPath: string, expectedWalletId?: string | undefined): Promise<PublicKeyNimiq>;
+        /**
+         * Get the address for a given bip32 key path. Optionally display the address on the Ledger screen for
+         * verification, expect a specific address or expect a specific wallet id.
+         */
+        getAddress(keyPath: string, display?: boolean, expectedAddress?: string | undefined, expectedWalletId?: string | undefined): Promise<string>;
+        /**
+         * Utility function that directly gets a confirmed address.
+         */
+        getConfirmedAddress(keyPath: string, expectedWalletId?: string | undefined): Promise<string>;
+        /**
+         * Derive addresses for given bip32 key paths. Optionally expect a specific wallet id.
+         */
+        deriveAddresses(pathsToDerive: Iterable<string>, expectedWalletId?: string | undefined): Promise<Array<{
+            address: string;
+            keyPath: string;
+        }>>;
+        /**
+         * Sign a transaction for a signing key specified by its bip32 key path. Note that the signing key /
+         * corresponding address does not necessarily need to be the transaction's sender address for example for
+         * transactions sent from vesting contracts. Optionally expect a specific wallet id.
+         */
+        signTransaction(transaction: TransactionInfoNimiq, keyPath: string, expectedWalletId?: string | undefined): Promise<TransactionNimiq>;
+    };
+    static readonly Bitcoin: {
+        /**
+         * Get the 32 byte wallet id of the currently connected Bitcoin wallet / app for a specific network as base64.
+         */
+        getWalletId(network: Network): Promise<string>;
+        /**
+         * Get the public key, address and bip32 chain code for a given bip32 key path. Optionally display the address
+         * on the Ledger screen for verification, expect a specific address or expect a specific wallet id.
+         */
+        getAddressAndPublicKey(keyPath: string, display?: boolean, expectedAddress?: string | undefined, expectedWalletId?: string | undefined): Promise<{
+            publicKey: string;
+            address: string;
+            chainCode: string;
+        }>;
+        /**
+         * Utility function that directly gets a confirmed address.
+         */
+        getConfirmedAddressAndPublicKey(keyPath: string, expectedWalletId?: string | undefined): Promise<{
+            publicKey: string;
+            address: string;
+            chainCode: string;
+        }>;
+        /**
+         * Get the extended public key for a bip32 path from which addresses can be derived, encoded as specified in
+         * bip32. The key path must follow the bip44 specification and at least be defined to the account level.
+         * Optionally expect a specific wallet id.
+         */
+        getExtendedPublicKey(keyPath: string, expectedWalletId?: string | undefined): Promise<string>;
+        /**
+         * Sign a transaction. See type declaration of TransactionInfoBitcoin in request-sign-transaction-bitcoin.ts
+         * for documentation of the transaction format. Optionally expect a specific wallet id. The signed transaction
+         * is returned in hex-encoded serialized form ready to be broadcast to the network.
+         */
+        signTransaction(transaction: TransactionInfoBitcoin, expectedWalletId?: string | undefined): Promise<string>;
+    };
     static get currentState(): State;
-    static get currentRequest(): LedgerApiRequest<any> | null;
+    static get currentRequest(): Request | null;
     static get isBusy(): boolean;
     static get transportType(): TransportType | null;
     /**
@@ -78,106 +138,34 @@ export default class LedgerApi {
      * Manually connect to a Ledger. Typically, this is not required as all requests establish a connection themselves.
      * However, if that connection fails due to a required user interaction / user gesture, you can manually connect in
      * the context of a user interaction, for example a click.
+     * @param coin - Which Ledger coin app to connect to.
+     * @param [network] - Only for Bitcoin: whether to connect to the mainnet or testnet app. Mainnet by default.
      * @returns Whether connecting to the Ledger succeeded.
      */
-    static connect(): Promise<boolean>;
+    static connect(coin: Coin): Promise<boolean>;
+    static connect(coin: Coin.BITCOIN, network: Network): Promise<boolean>;
     /**
      * Disconnect the api and clean up.
      * @param cancelRequest - Whether to cancel an ongoing request.
-     * @param requestTypeToDisconnect - If specified, only disconnect if no request is going on or if the ongoing
+     * @param requestTypesToDisconnect - If specified, only disconnect if no request is going on or if the ongoing
      *  request is of the specified type.
      */
-    static disconnect(cancelRequest?: boolean, requestTypeToDisconnect?: RequestType): Promise<void>;
-    /**
-     * Get the 32 byte walletId of the currently connected ledger as base64.
-     * If no ledger is connected, it waits for one to be connected.
-     * Throws, if the request is cancelled.
-     *
-     * If currently a request to the ledger is in process, this call does not require an additional
-     * request to the Ledger. Thus, if you want to know the walletId in conjunction with another
-     * request, try to call this method after initiating the other request but before it finishes.
-     *
-     * @returns The walletId of the currently connected ledger as base 64.
-     */
-    static getWalletId(): Promise<string>;
+    static disconnect(cancelRequest?: boolean, requestTypesToDisconnect?: RequestType | RequestType[]): Promise<void>;
     static on(eventType: EventType, listener: EventListener): void;
     static off(eventType: EventType, listener: EventListener): void;
     static once(eventType: EventType, listener: EventListener): void;
-    /**
-     * Convert an address's index / keyId to the full Nimiq bip32 path.
-     * @param keyId - The address's index.
-     * @returns The full bip32 path.
-     */
-    static getBip32PathForKeyId(keyId: number): string;
-    /**
-     * Extract an address's index / keyId from its bip32 path.
-     * @param path - The address's bip32 path.
-     * @returns The address's index or null if the provided path is not a valid Nimiq key bip32 path.
-     */
-    static getKeyIdForBip32Path(path: string): number | null;
-    /**
-     * Derive addresses for given bip32 key paths.
-     * @param pathsToDerive - The paths for which to derive addresses.
-     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-     * @returns The derived addresses and their corresponding key paths.
-     */
-    static deriveAddresses(pathsToDerive: Iterable<string>, walletId?: string): Promise<Array<{
-        address: string;
-        keyPath: string;
-    }>>;
-    /**
-     * Get the public key for a given bip32 key path.
-     * @param keyPath - The path for which to derive the public key.
-     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-     * @returns The derived public key.
-     */
-    static getPublicKey(keyPath: string, walletId?: string): Promise<PublicKey>;
-    /**
-     * Get the address for a given bip32 key path.
-     * @param keyPath - The path for which to derive the address.
-     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-     * @returns The derived address.
-     */
-    static getAddress(keyPath: string, walletId?: string): Promise<string>;
-    /**
-     * Confirm that an address belongs to the connected Ledger and display the address to the user on the Ledger screen.
-     * @param userFriendlyAddress - The address to check.
-     * @param keyPath - The address's bip32 key path.
-     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-     * @returns The confirmed address.
-     */
-    static confirmAddress(userFriendlyAddress: string, keyPath: string, walletId?: string): Promise<string>;
-    /**
-     * Utility function that combines getAddress and confirmAddress to directly get a confirmed address.
-     * @param keyPath - The bip32 key path for which to get and confirm the address.
-     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-     * @returns The confirmed address.
-     */
-    static getConfirmedAddress(keyPath: string, walletId?: string): Promise<string>;
-    /**
-     * Sign a transaction for a signing key specified by its bip32 key path. Note that the signing key / corresponding
-     * address does not necessarily need to be the transaction's sender address for example for transactions sent from
-     * vesting contracts.
-     * @param transaction - Transaction details, see interface TransactionInfo.
-     * @param keyPath - The signing address's bip32 key path.
-     * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-     * @returns The signed transaction.
-     */
-    static signTransaction(transaction: TransactionInfo, keyPath: string, walletId?: string): Promise<Transaction>;
     private static _transportType;
-    private static _lowLevelApiPromise;
+    private static _transportPromise;
     private static _currentState;
     private static _currentRequest;
-    private static _currentlyConnectedWalletId;
+    private static _currentConnection;
     private static _connectionAborted;
-    private static _observable;
+    private static readonly _observable;
+    private static _createRequest;
     private static _callLedger;
     private static _connect;
-    private static _initializeLowLevelApi;
-    private static _loadNimiq;
+    private static _getTransport;
     private static _isWebAuthnOrU2fCancellation;
-    private static _isAppVersionSupported;
     private static _setState;
-    private static _throwError;
     private static _fire;
 }

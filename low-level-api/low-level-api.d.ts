@@ -20,11 +20,12 @@ declare global {
 export default class LowLevelApi {
     private _transport;
     constructor(transport: Transport);
+    get transport(): Transport;
     /**
      * Close the transport instance. Note that this does not emit a disconnect. Disconnects are only emitted when the
      * device actually disconnects (or switches it's descriptor which happens when switching to the dashboard or apps).
      */
-    close(): void;
+    close(): Promise<void>;
     /**
      * Get the version of the connected Ledger Nimiq App. Note that some other apps like the Ethereum app also respond
      * to this call.

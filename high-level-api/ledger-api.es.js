@@ -1,259 +1,3 @@
-import { B as Buffer } from './lazy-chunk-buffer.es.js';
-
-// Use jsdelivr instead of nimiq cdn to avoid getting blocked by ad blockers.
-const coreBasePath = 'https://cdn.jsdelivr.net/npm/@nimiq/core-web/';
-let nimiqCorePromise = null;
-/**
- * Lazy-load the Nimiq core api from the cdn server if it's not loaded yet.
- */
-async function loadNimiqCore(coreVariant = 'web-offline') {
-    // @ts-ignore Return global Nimiq if already loaded.
-    if (window.Nimiq)
-        return window.Nimiq;
-    nimiqCorePromise = nimiqCorePromise || new Promise((resolve, reject) => {
-        const $head = document.getElementsByTagName('head')[0];
-        const $script = document.createElement('script');
-        $script.type = 'text/javascript';
-        $script.onload = () => {
-            $script.parentNode.removeChild($script);
-            resolve();
-        };
-        $script.onerror = (e) => {
-            $script.parentNode.removeChild($script);
-            reject(e);
-        };
-        $script.src = `${coreBasePath}${coreVariant}.js`;
-        $head.appendChild($script);
-    }).then(() => {
-        // @ts-ignore Nimiq is global but to discourage usage as global var we did not declare a global type.
-        const { Nimiq } = window;
-        return Nimiq;
-    }, (e) => {
-        nimiqCorePromise = null;
-        return Promise.reject(e);
-    });
-    return nimiqCorePromise;
-}
-/**
- * Load the WebAssembly and module for cryptographic functions. You will have to do this before calculating hashes,
- * deriving keys or addresses, signing transactions or messages, etc.
- */
-async function loadNimiqCryptography() {
-    // Note that there is no need to cache a promise like in loadNimiqCore for this call, as loadNimiqCore and doImport
-    // already do that themselves.
-    const Nimiq = await loadNimiqCore();
-    await Nimiq.WasmHelper.doImport();
-}
-//# sourceMappingURL=load-nimiq.js.map
-
-function parsePath(path) {
-    if (!path.startsWith('44\'/242\'')) {
-        throw new Error(`Not a Nimiq BIP32 path. Path: ${path}. The Nimiq app is authorized only for paths starting with 44'/242'. `
-            + ' Example: 44\'/242\'/0\'/0\'');
-    }
-    const pathParts = path.split('/').map((part) => {
-        let number = parseInt(part, 10);
-        if (Number.isNaN(number)) {
-            throw new Error(`Invalid path: ${path}`);
-        }
-        if (part.endsWith('\'')) {
-            number += 0x80000000;
-        }
-        else {
-            throw new Error('Detected a non-hardened path element in requested BIP32 path.'
-                + ' Non-hardended paths are not supported at this time. Please use an all-hardened path.'
-                + ' Example: 44\'/242\'/0\'/0\'');
-        }
-        return number;
-    });
-    const pathBuffer = Buffer.alloc(1 + pathParts.length * 4);
-    pathBuffer[0] = pathParts.length;
-    pathParts.forEach((element, index) => {
-        pathBuffer.writeUInt32BE(element, 1 + 4 * index);
-    });
-    return pathBuffer;
-}
-async function publicKeyToAddress(publicKey) {
-    const [Nimiq] = await Promise.all([
-        loadNimiqCore(),
-        loadNimiqCryptography(),
-    ]);
-    return Nimiq.PublicKey.unserialize(new Nimiq.SerialBuffer(publicKey)).toAddress().toUserFriendlyAddress();
-}
-async function verifySignature(data, signature, publicKey) {
-    const [Nimiq] = await Promise.all([loadNimiqCore(), loadNimiqCryptography()]);
-    const nimiqSignature = Nimiq.Signature.unserialize(new Nimiq.SerialBuffer(signature));
-    const nimiqPublicKey = Nimiq.PublicKey.unserialize(new Nimiq.SerialBuffer(publicKey));
-    return nimiqSignature.verify(nimiqPublicKey, data);
-}
-
-const CLA = 0xe0;
-const INS_GET_PK = 0x02;
-const INS_SIGN_TX = 0x04;
-const INS_GET_CONF = 0x06;
-const INS_KEEP_ALIVE = 0x08;
-const APDU_MAX_SIZE = 150;
-const P1_FIRST_APDU = 0x00;
-const P1_MORE_APDU = 0x80;
-const P1_NO_VALIDATE = 0x00;
-const P1_VALIDATE = 0x01;
-const P2_LAST_APDU = 0x00;
-const P2_MORE_APDU = 0x80;
-const P2_NO_CONFIRM = 0x00;
-const P2_CONFIRM = 0x01;
-const SW_OK = 0x9000;
-const SW_CANCEL = 0x6985;
-const SW_KEEP_ALIVE = 0x6e02;
-/**
- * Nimiq API
- *
- * Low level api for communication with the Ledger wallet Nimiq app. This lib is compatible with all @ledgerhq/transport
- * libraries but does on the other hand not include optimizations for specific transport types and returns raw bytes.
- *
- * This library is in nature similar to other hw-app packages in @ledgerhq/ledgerjs and partially based on their code,
- * licenced under the Apache 2.0 licence.
- *
- * @example
- * const nim = new LowLevelApi(transport)
- */
-class LowLevelApi {
-    constructor(transport) {
-        this._transport = transport;
-        transport.decorateAppAPIMethods(this, ['getAppConfiguration', 'getPublicKey', 'signTransaction'], 'w0w');
-    }
-    /**
-     * Close the transport instance. Note that this does not emit a disconnect. Disconnects are only emitted when the
-     * device actually disconnects (or switches it's descriptor which happens when switching to the dashboard or apps).
-     */
-    close() {
-        try {
-            this._transport.close();
-        }
-        catch (e) {
-            // Ignore. Transport might already be closed.
-        }
-    }
-    /**
-     * Get the version of the connected Ledger Nimiq App. Note that some other apps like the Ethereum app also respond
-     * to this call.
-     */
-    async getAppConfiguration() {
-        // Note that no heartbeat is required here as INS_GET_CONF is not interactive but thus answers directly
-        const [, major, minor, patch] = await this._transport.send(CLA, INS_GET_CONF, 0x00, 0x00);
-        const version = `${major}.${minor}.${patch}`;
-        return { version };
-    }
-    /**
-     * Get Nimiq address for a given BIP 32 path.
-     * @param path - A path in BIP 32 format.
-     * @param boolValidate - Optionally enable key pair validation.
-     * @param boolDisplay - Optionally display the address on the ledger.
-     * @returns An object with the address.
-     * @example
-     * nim.getAddress("44'/242'/0'/0'").then(o => o.address)
-     */
-    async getAddress(path, boolValidate = true, boolDisplay = false) {
-        // start loading Nimiq core later needed for transforming public key to address and optional validation
-        loadNimiqCore();
-        loadNimiqCryptography();
-        const { publicKey } = await this.getPublicKey(path, boolValidate, boolDisplay);
-        const address = await publicKeyToAddress(Buffer.from(publicKey));
-        return { address };
-    }
-    /**
-     * Get Nimiq public key for a given BIP 32 path.
-     * @param path - A path in BIP 32 format.
-     * @param boolValidate - Optionally enable key pair validation.
-     * @param boolDisplay - Optionally display the corresponding address on the ledger.
-     * @returns An object with the publicKey.
-     * @example
-     * nim.getPublicKey("44'/242'/0'/0'").then(o => o.publicKey)
-     */
-    async getPublicKey(path, boolValidate = true, boolDisplay = false) {
-        if (boolValidate) {
-            // start loading Nimiq core later needed for validation
-            loadNimiqCore();
-            loadNimiqCryptography();
-        }
-        const pathBuffer = parsePath(path);
-        const verifyMsg = Buffer.from('p=np?', 'ascii');
-        const data = Buffer.concat([pathBuffer, verifyMsg]);
-        let response;
-        response = await this._transport.send(CLA, INS_GET_PK, boolValidate ? P1_VALIDATE : P1_NO_VALIDATE, boolDisplay ? P2_CONFIRM : P2_NO_CONFIRM, data, [SW_OK, SW_KEEP_ALIVE]);
-        // handle heartbeat
-        while (response.slice(response.length - 2).readUInt16BE(0) === SW_KEEP_ALIVE) {
-            // eslint-disable-next-line no-await-in-loop
-            response = await this._transport.send(CLA, INS_KEEP_ALIVE, 0, 0, undefined, [SW_OK, SW_KEEP_ALIVE]);
-        }
-        let offset = 0;
-        const publicKey = response.slice(offset, offset + 32);
-        offset += 32;
-        if (boolValidate) {
-            const signature = response.slice(offset, offset + 64);
-            if (!await verifySignature(verifyMsg, signature, publicKey)) {
-                throw new Error('Bad signature. Keypair is invalid. Please report this.');
-            }
-        }
-        return { publicKey };
-    }
-    /**
-     * Sign a Nimiq transaction.
-     * @param path - A path in BIP 32 format.
-     * @param txContent - Transaction content in serialized form.
-     * @returns An object with the signature.
-     * @example
-     * nim.signTransaction("44'/242'/0'/0'", signatureBase).then(o => o.signature)
-     */
-    async signTransaction(path, txContent) {
-        const pathBuffer = parsePath(path);
-        const transaction = Buffer.from(txContent);
-        const apdus = [];
-        let chunkSize = APDU_MAX_SIZE - pathBuffer.length;
-        if (transaction.length <= chunkSize) {
-            // it fits in a single apdu
-            apdus.push(Buffer.concat([pathBuffer, transaction]));
-        }
-        else {
-            // we need to send multiple apdus to transmit the entire transaction
-            let chunk = Buffer.alloc(chunkSize);
-            let offset = 0;
-            transaction.copy(chunk, 0, offset, chunkSize);
-            apdus.push(Buffer.concat([pathBuffer, chunk]));
-            offset += chunkSize;
-            while (offset < transaction.length) {
-                const remaining = transaction.length - offset;
-                chunkSize = remaining < APDU_MAX_SIZE ? remaining : APDU_MAX_SIZE;
-                chunk = Buffer.alloc(chunkSize);
-                transaction.copy(chunk, 0, offset, offset + chunkSize);
-                offset += chunkSize;
-                apdus.push(chunk);
-            }
-        }
-        let isHeartbeat = false;
-        let chunkIndex = 0;
-        let status;
-        let response;
-        do {
-            const data = apdus[chunkIndex];
-            // eslint-disable-next-line no-await-in-loop
-            response = await this._transport.send(CLA, isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_TX, chunkIndex === 0 ? P1_FIRST_APDU : P1_MORE_APDU, // note that for heartbeat p1, p2 and data are ignored
-            chunkIndex === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU, data, [SW_OK, SW_CANCEL, SW_KEEP_ALIVE]);
-            status = response.slice(response.length - 2).readUInt16BE(0);
-            isHeartbeat = status === SW_KEEP_ALIVE;
-            if (!isHeartbeat) {
-                // we can continue sending data or end the loop when all data was sent
-                ++chunkIndex;
-            }
-        } while (isHeartbeat || chunkIndex < apdus.length);
-        if (status !== SW_OK)
-            throw new Error('Transaction approval request was rejected');
-        const signature = Buffer.from(response.slice(0, response.length - 2));
-        return {
-            signature: Uint8Array.from(signature),
-        };
-    }
-}
-
 class Observable {
     constructor() {
         this._listeners = new Map();
@@ -360,62 +104,199 @@ function autoDetectTransportTypeToUse() {
 async function loadTransportLibrary(transportType) {
     switch (transportType) {
         case TransportType.WEB_HID:
-            return (await import('./lazy-chunk-TransportWebHID.es.js')).default;
+            return (await [import('./lazy-chunk-buffer-es6.es.js'), import('./lazy-chunk-events.es.js'), import('./lazy-chunk-index.es.js'), import('./lazy-chunk-_commonjsHelpers.es.js'), import('./lazy-chunk-hid-framing.es.js'), import('./lazy-chunk-index.es2.js'), import('./lazy-chunk-TransportWebHID.es.js')][6]).default;
         case TransportType.WEB_USB:
-            return (await import('./lazy-chunk-TransportWebUSB.es.js')).default;
+            return (await [import('./lazy-chunk-buffer-es6.es.js'), import('./lazy-chunk-events.es.js'), import('./lazy-chunk-index.es.js'), import('./lazy-chunk-_commonjsHelpers.es.js'), import('./lazy-chunk-hid-framing.es.js'), import('./lazy-chunk-index.es2.js'), import('./lazy-chunk-TransportWebUSB.es.js')][6]).default;
         case TransportType.WEB_BLE:
-            return (await import('./lazy-chunk-TransportWebBLE.es.js')).default;
+            return (await [import('./lazy-chunk-buffer-es6.es.js'), import('./lazy-chunk-events.es.js'), import('./lazy-chunk-index.es.js'), import('./lazy-chunk-_commonjsHelpers.es.js'), import('./lazy-chunk-index.es2.js'), import('./lazy-chunk-TransportWebBLE.es.js')][5]).default;
         case TransportType.WEB_AUTHN:
-            return (await import('./lazy-chunk-TransportWebAuthn.es.js')).default;
+            return (await [import('./lazy-chunk-buffer-es6.es.js'), import('./lazy-chunk-events.es.js'), import('./lazy-chunk-index.es.js'), import('./lazy-chunk-_commonjsHelpers.es.js'), import('./lazy-chunk-TransportWebAuthn.es.js')][4]).default;
         case TransportType.U2F:
-            return (await import('./lazy-chunk-TransportU2F.es.js')).default;
+            return (await [import('./lazy-chunk-buffer-es6.es.js'), import('./lazy-chunk-events.es.js'), import('./lazy-chunk-index.es.js'), import('./lazy-chunk-_commonjsHelpers.es.js'), import('./lazy-chunk-TransportU2F.es.js')][4]).default;
         default:
             throw new Error(`Unknown transport type ${transportType}`);
     }
 }
 
-var RequestType;
-(function (RequestType) {
-    RequestType["GET_WALLET_ID"] = "get-wallet-id";
-    RequestType["DERIVE_ADDRESSES"] = "derive-addresses";
-    RequestType["GET_PUBLIC_KEY"] = "get-public-key";
-    RequestType["GET_ADDRESS"] = "get-address";
-    RequestType["CONFIRM_ADDRESS"] = "confirm-address";
-    RequestType["SIGN_TRANSACTION"] = "sign-transaction";
-})(RequestType || (RequestType = {}));
-let LedgerApiRequest = /** @class */ (() => {
-    class LedgerApiRequest extends Observable {
-        constructor(type, call, params) {
-            super();
-            this._cancelled = false;
-            this.type = type;
-            this._call = call;
-            this.params = params;
-        }
-        get cancelled() {
-            return this._cancelled;
-        }
-        async call(api) {
-            return this._call.call(this, api, this.params);
-        }
-        cancel() {
-            if (this._cancelled)
-                return;
-            this._cancelled = true;
-            this.fire(LedgerApiRequest.EVENT_CANCEL);
-        }
-        on(type, callback) {
-            if (type === LedgerApiRequest.EVENT_CANCEL && this._cancelled) {
-                // trigger callback directly
-                callback();
-            }
-            return super.on(type, callback);
-        }
-    }
-    LedgerApiRequest.EVENT_CANCEL = 'cancel';
-    return LedgerApiRequest;
-})();
+// Constants needed in lazy chunks and the main chunk.
+// As a separate file to be able to use these constants in the main chunk without the need to import the entire lazy
+// chunks and to avoid circular dependencies between main entry and other files.
+var Coin;
+(function (Coin) {
+    Coin["NIMIQ"] = "Nimiq";
+    Coin["BITCOIN"] = "Bitcoin";
+})(Coin || (Coin = {}));
+var Network;
+(function (Network) {
+    Network["MAINNET"] = "main";
+    Network["TESTNET"] = "test";
+})(Network || (Network = {}));
+var AddressTypeBitcoin;
+(function (AddressTypeBitcoin) {
+    AddressTypeBitcoin["LEGACY"] = "legacy-bitcoin";
+    AddressTypeBitcoin["P2SH_SEGWIT"] = "p2sh-segwit-bitcoin";
+    AddressTypeBitcoin["NATIVE_SEGWIT"] = "native-segwit-bitcoin";
+})(AddressTypeBitcoin || (AddressTypeBitcoin = {}));
+const REQUEST_EVENT_CANCEL = 'cancel';
+var RequestTypeNimiq;
+(function (RequestTypeNimiq) {
+    RequestTypeNimiq["GET_WALLET_ID"] = "get-wallet-id-nimiq";
+    RequestTypeNimiq["DERIVE_ADDRESSES"] = "derive-addresses-nimiq";
+    RequestTypeNimiq["GET_PUBLIC_KEY"] = "get-public-key-nimiq";
+    RequestTypeNimiq["GET_ADDRESS"] = "get-address-nimiq";
+    RequestTypeNimiq["SIGN_TRANSACTION"] = "sign-transaction-nimiq";
+})(RequestTypeNimiq || (RequestTypeNimiq = {}));
+var RequestTypeBitcoin;
+(function (RequestTypeBitcoin) {
+    RequestTypeBitcoin["GET_WALLET_ID"] = "get-wallet-id-bitcoin";
+    RequestTypeBitcoin["GET_ADDRESS_AND_PUBLIC_KEY"] = "get-address-and-public-key-bitcoin";
+    RequestTypeBitcoin["GET_EXTENDED_PUBLIC_KEY"] = "get-extended-public-key-bitcoin";
+    RequestTypeBitcoin["SIGN_TRANSACTION"] = "sign-transaction-bitcoin";
+})(RequestTypeBitcoin || (RequestTypeBitcoin = {}));
 
+// See BIP44
+const PATH_REGEX = new RegExp('^'
+    + '(\\d+)\'' // purpose id; BIP44 (BTC legacy or Nimiq) / BIP49 (BTC nested SegWit) / BIP84 (BTC native SegWit)
+    + '/(\\d+)\'' // coin type; 0 for Bitcoin Mainnet, 1 for Bitcoin Testnet, 242 for Nimiq
+    + '/(\\d+)\'' // account index
+    + '(?:/(\\d+))?' // 0 for external or 1 for internal address (change); non-hardened; unset for Nimiq
+    + '/(\\d+)(\'?)' // address index; non-hardened for BTC, hardened for Nimiq
+    + '$');
+const PURPOSE_ID_MAP_BITCOIN = new Map([
+    [AddressTypeBitcoin.LEGACY, 44],
+    [AddressTypeBitcoin.P2SH_SEGWIT, 49],
+    [AddressTypeBitcoin.NATIVE_SEGWIT, 84],
+]);
+/**
+ * Generate a bip32 path according to path layout specified in bip44 for the specified parameters.
+ */
+function getBip32Path(params) {
+    // set defaults
+    params = {
+        accountIndex: 0,
+        ...params,
+    };
+    switch (params.coin) {
+        case Coin.NIMIQ:
+            return `44'/242'/${params.accountIndex}'/${params.addressIndex}'`; // Nimiq paths are fully hardened
+        case Coin.BITCOIN: {
+            // set bitcoin specific defaults
+            params = {
+                addressType: AddressTypeBitcoin.NATIVE_SEGWIT,
+                network: Network.MAINNET,
+                isInternal: false,
+                ...params,
+            };
+            const purposeId = PURPOSE_ID_MAP_BITCOIN.get(params.addressType);
+            const coinType = params.network === Network.TESTNET ? 1 : 0;
+            const changeType = params.isInternal ? 1 : 0;
+            return `${purposeId}'/${coinType}'/${params.accountIndex}'/${changeType}/${params.addressIndex}`;
+        }
+        default:
+            throw new Error(`Unsupported coin: ${params.coin}`);
+    }
+}
+/**
+ * Parse bip32 path according to path layout specified in bip44.
+ */
+function parseBip32Path(path) {
+    const pathMatch = path.match(PATH_REGEX);
+    if (!pathMatch)
+        throw new Error(`${path} is not a supported bip32 path.`);
+    const purposeId = parseInt(pathMatch[1], 10);
+    const coinType = parseInt(pathMatch[2], 10);
+    const accountIndex = parseInt(pathMatch[3], 10);
+    const changeType = pathMatch[4];
+    const addressIndex = parseInt(pathMatch[5], 10);
+    const isAddressIndexHardened = !!pathMatch[6];
+    // Check indices for validity according to bip32. No need to check for negative or fractional numbers, as these are
+    // not accepted by the regex.
+    if (accountIndex >= 2 ** 31 || addressIndex >= 2 ** 31)
+        throw new Error('Invalid index');
+    switch (coinType) {
+        case 242:
+            // Nimiq
+            if (purposeId !== 44)
+                throw new Error('Purpose id must be 44 for Nimiq');
+            if (changeType !== undefined)
+                throw new Error('Specifying a change type is not supported for Nimiq');
+            if (!isAddressIndexHardened)
+                throw new Error('Address index must be hardened for Nimiq');
+            return {
+                coin: Coin.NIMIQ,
+                accountIndex,
+                addressIndex,
+            };
+        case 0:
+        case 1: {
+            // Bitcoin
+            const knownPurposeIds = [...PURPOSE_ID_MAP_BITCOIN.values()];
+            if (!knownPurposeIds.includes(purposeId))
+                throw new Error('Purpose id must be 44, 49 or 84 for Bitcoin');
+            if (changeType === undefined)
+                throw new Error('Specifying a change type is required for Bitcoin');
+            if (changeType !== '0' && changeType !== '1')
+                throw new Error('Invalid change type for Bitcoin');
+            if (isAddressIndexHardened)
+                throw new Error('Address index must not be hardened for Bitcoin');
+            const addressType = [...PURPOSE_ID_MAP_BITCOIN.entries()].find(([, pId]) => pId === purposeId)[0];
+            const network = coinType === 0 ? Network.MAINNET : Network.TESTNET;
+            const isInternal = changeType === '1';
+            return {
+                coin: Coin.BITCOIN,
+                accountIndex,
+                addressIndex,
+                addressType,
+                network,
+                isInternal,
+            };
+        }
+        default:
+            throw new Error(`Unsupported coin type ${coinType}`);
+    }
+}
+
+var ErrorType;
+(function (ErrorType) {
+    ErrorType["LEDGER_BUSY"] = "ledger-busy";
+    ErrorType["LOADING_DEPENDENCIES_FAILED"] = "loading-dependencies-failed";
+    ErrorType["USER_INTERACTION_REQUIRED"] = "user-interaction-required";
+    ErrorType["CONNECTION_ABORTED"] = "connection-aborted";
+    ErrorType["BROWSER_UNSUPPORTED"] = "browser-unsupported";
+    ErrorType["APP_OUTDATED"] = "app-outdated";
+    ErrorType["WRONG_WALLET"] = "wrong-wallet";
+    ErrorType["WRONG_APP"] = "wrong-app";
+    ErrorType["REQUEST_ASSERTION_FAILED"] = "request-specific-error";
+})(ErrorType || (ErrorType = {}));
+class ErrorState extends Error {
+    constructor(errorType, messageOrError, 
+    // request specified as RequestBase here to allow simple throwing from a SpecificRequest parent class.
+    request) {
+        super(messageOrError.toString());
+        this.type = 'error'; // state type
+        if (messageOrError instanceof Error && messageOrError.stack) {
+            this.stack = messageOrError.stack;
+        }
+        else if (Error.captureStackTrace) {
+            // Maintains proper stack trace for where our error was thrown (only available on V8), see
+            // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error#Custom_Error_Types
+            Error.captureStackTrace(this, ErrorState);
+        }
+        this.name = 'LedgerErrorState';
+        this.errorType = errorType;
+        this.request = request;
+    }
+}
+
+var StateType;
+(function (StateType) {
+    StateType["IDLE"] = "idle";
+    StateType["LOADING"] = "loading";
+    StateType["CONNECTING"] = "connecting";
+    StateType["REQUEST_PROCESSING"] = "request-processing";
+    StateType["REQUEST_CANCELLING"] = "request-cancelling";
+    StateType["ERROR"] = "error";
+})(StateType || (StateType = {}));
 // events appear at a single point of time while states reflect the current state of the api for a timespan ranging
 // into the future. E.g. if a request was cancelled, a REQUEST_CANCELLED event gets thrown and the state changes to
 // IDLE. Errors trigger an error state (e.g. when app outdated) and thus are a state, not an event.
@@ -426,26 +307,6 @@ var EventType;
     EventType["REQUEST_CANCELLED"] = "request-cancelled";
     EventType["CONNECTED"] = "connected";
 })(EventType || (EventType = {}));
-var StateType;
-(function (StateType) {
-    StateType["IDLE"] = "idle";
-    StateType["LOADING"] = "loading";
-    StateType["CONNECTING"] = "connecting";
-    StateType["REQUEST_PROCESSING"] = "request-processing";
-    StateType["REQUEST_CANCELLING"] = "request-cancelling";
-    StateType["ERROR"] = "error";
-})(StateType || (StateType = {}));
-var ErrorType;
-(function (ErrorType) {
-    ErrorType["LEDGER_BUSY"] = "ledger-busy";
-    ErrorType["LOADING_DEPENDENCIES_FAILED"] = "loading-dependencies-failed";
-    ErrorType["USER_INTERACTION_REQUIRED"] = "user-interaction-required";
-    ErrorType["CONNECTION_ABORTED"] = "connection-aborted";
-    ErrorType["NO_BROWSER_SUPPORT"] = "no-browser-support";
-    ErrorType["APP_OUTDATED"] = "app-outdated";
-    ErrorType["WRONG_LEDGER"] = "wrong-ledger";
-    ErrorType["REQUEST_ASSERTION_FAILED"] = "request-specific-error";
-})(ErrorType || (ErrorType = {}));
 let LedgerApi = /** @class */ (() => {
     class LedgerApi {
         static get currentState() {
@@ -488,98 +349,88 @@ let LedgerApi = /** @class */ (() => {
                 return;
             LedgerApi.setTransportType(transportType);
         }
-        /**
-         * Manually connect to a Ledger. Typically, this is not required as all requests establish a connection themselves.
-         * However, if that connection fails due to a required user interaction / user gesture, you can manually connect in
-         * the context of a user interaction, for example a click.
-         * @returns Whether connecting to the Ledger succeeded.
-         */
-        static async connect() {
+        static async connect(coin, network = Network.MAINNET) {
             LedgerApi._connectionAborted = false; // reset aborted flag on manual connection
             try {
-                // Initialize the api again if it failed previously, for example due to missing user interaction.
-                await LedgerApi._initializeLowLevelApi();
+                const { currentRequest, _currentConnection: currentConnection } = LedgerApi;
+                const expectedApp = coin === Coin.NIMIQ ? 'Nimiq' : `Bitcoin${network === Network.TESTNET ? ' Test' : ''}`;
+                if (currentConnection && currentConnection.coin === coin && currentConnection.app === expectedApp) {
+                    // Already connected.
+                    return true;
+                }
+                if (currentRequest && currentRequest.coin === coin
+                    && (!('network' in currentRequest) || currentRequest.network === network)) {
+                    // Wait for the ongoing request for coin to connect.
+                    // Initialize the transport again if it failed previously, for example due to missing user interaction.
+                    await LedgerApi._getTransport(currentRequest);
+                    await new Promise((resolve, reject) => {
+                        const onConnect = () => {
+                            LedgerApi.off(EventType.CONNECTED, onConnect);
+                            LedgerApi.off(EventType.REQUEST_CANCELLED, onCancel);
+                            resolve();
+                        };
+                        const onCancel = () => {
+                            LedgerApi.off(EventType.CONNECTED, onConnect);
+                            LedgerApi.off(EventType.REQUEST_CANCELLED, onCancel);
+                            reject(new Error('Request cancelled')); // request cancelled via api before ledger connected
+                        };
+                        LedgerApi.on(EventType.CONNECTED, onConnect);
+                        LedgerApi.on(EventType.REQUEST_CANCELLED, onCancel);
+                    });
+                    return true;
+                }
+                // Send a request to establish a connection and detect when the ledger is connected.
+                // Note that if the api is already busy with a request for another coin false will be returned.
+                switch (coin) {
+                    case Coin.NIMIQ:
+                        await LedgerApi.Nimiq.getWalletId();
+                        return true;
+                    case Coin.BITCOIN:
+                        await LedgerApi.Bitcoin.getWalletId(network);
+                        return true;
+                    default:
+                        throw new Error(`Unsupported coin: ${coin}`);
+                }
             }
             catch (e) {
-                // Silently continue on errors, same as the other API methods. Error was reported by _initializeLowLevelApi
-                // as error state instead. Only if user aborted the connection or browser is not supported, don't continue.
-                if (/connection aborted|not supported/i.test(e.message || e))
-                    return false;
-            }
-            try {
-                // Use getWalletId to detect when the ledger is connected.
-                await LedgerApi.getWalletId();
-                return true;
-            }
-            catch (e) {
+                if (e instanceof ErrorState) {
+                    LedgerApi._setState(e);
+                }
                 return false;
             }
         }
         /**
          * Disconnect the api and clean up.
          * @param cancelRequest - Whether to cancel an ongoing request.
-         * @param requestTypeToDisconnect - If specified, only disconnect if no request is going on or if the ongoing
+         * @param requestTypesToDisconnect - If specified, only disconnect if no request is going on or if the ongoing
          *  request is of the specified type.
          */
-        static async disconnect(cancelRequest = true, requestTypeToDisconnect) {
+        static async disconnect(cancelRequest = true, requestTypesToDisconnect) {
             const { currentRequest } = LedgerApi;
             if (currentRequest) {
-                if (requestTypeToDisconnect !== undefined && currentRequest.type !== requestTypeToDisconnect)
-                    return;
+                if (requestTypesToDisconnect !== undefined) {
+                    requestTypesToDisconnect = Array.isArray(requestTypesToDisconnect)
+                        ? requestTypesToDisconnect
+                        : [requestTypesToDisconnect];
+                    if (!requestTypesToDisconnect.includes(currentRequest.type))
+                        return;
+                }
                 if (cancelRequest) {
                     currentRequest.cancel();
                 }
             }
-            const apiPromise = LedgerApi._lowLevelApiPromise;
-            LedgerApi._lowLevelApiPromise = null;
-            LedgerApi._currentlyConnectedWalletId = null;
-            if (!apiPromise)
+            const transportPromise = LedgerApi._transportPromise;
+            LedgerApi._transportPromise = null;
+            LedgerApi._currentConnection = null;
+            if (!transportPromise)
                 return;
             try {
-                const api = await apiPromise;
+                const api = await transportPromise;
                 await api.close();
             }
             catch (e) {
                 // Ignore.
             }
-        }
-        /**
-         * Get the 32 byte walletId of the currently connected ledger as base64.
-         * If no ledger is connected, it waits for one to be connected.
-         * Throws, if the request is cancelled.
-         *
-         * If currently a request to the ledger is in process, this call does not require an additional
-         * request to the Ledger. Thus, if you want to know the walletId in conjunction with another
-         * request, try to call this method after initiating the other request but before it finishes.
-         *
-         * @returns The walletId of the currently connected ledger as base 64.
-         */
-        static async getWalletId() {
-            if (LedgerApi._currentlyConnectedWalletId)
-                return LedgerApi._currentlyConnectedWalletId;
-            // we have to wait for connection of ongoing request or initiate a call ourselves
-            if (LedgerApi.isBusy) {
-                // already a request going on. Just wait for it to connect.
-                return new Promise((resolve, reject) => {
-                    const onConnect = (walletId) => {
-                        LedgerApi.off(EventType.CONNECTED, onConnect);
-                        LedgerApi.off(EventType.REQUEST_CANCELLED, onCancel);
-                        resolve(walletId);
-                    };
-                    const onCancel = () => {
-                        LedgerApi.off(EventType.CONNECTED, onConnect);
-                        LedgerApi.off(EventType.REQUEST_CANCELLED, onCancel);
-                        reject(new Error('Request cancelled'));
-                    };
-                    LedgerApi.on(EventType.CONNECTED, onConnect);
-                    LedgerApi.on(EventType.REQUEST_CANCELLED, onCancel);
-                });
-            }
-            // We have to send a request ourselves
-            const request = new LedgerApiRequest(RequestType.GET_WALLET_ID, 
-            // we're connected when the request get's executed
-            () => Promise.resolve(LedgerApi._currentlyConnectedWalletId), {});
-            return LedgerApi._callLedger(request);
         }
         static on(eventType, listener) {
             LedgerApi._observable.on(eventType, listener);
@@ -590,222 +441,38 @@ let LedgerApi = /** @class */ (() => {
         static once(eventType, listener) {
             LedgerApi._observable.once(eventType, listener);
         }
-        /**
-         * Convert an address's index / keyId to the full Nimiq bip32 path.
-         * @param keyId - The address's index.
-         * @returns The full bip32 path.
-         */
-        static getBip32PathForKeyId(keyId) {
-            return `${LedgerApi.BIP32_BASE_PATH}${keyId}'`;
-        }
-        /**
-         * Extract an address's index / keyId from its bip32 path.
-         * @param path - The address's bip32 path.
-         * @returns The address's index or null if the provided path is not a valid Nimiq key bip32 path.
-         */
-        static getKeyIdForBip32Path(path) {
-            const pathMatch = LedgerApi.BIP32_PATH_REGEX.exec(path);
-            if (!pathMatch)
-                return null;
-            return parseInt(pathMatch[pathMatch.length - 1], 10);
-        }
-        /**
-         * Derive addresses for given bip32 key paths.
-         * @param pathsToDerive - The paths for which to derive addresses.
-         * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-         * @returns The derived addresses and their corresponding key paths.
-         */
-        static async deriveAddresses(pathsToDerive, walletId) {
-            const request = new LedgerApiRequest(RequestType.DERIVE_ADDRESSES, async (api, params) => {
-                const addressRecords = [];
-                for (const keyPath of params.pathsToDerive) {
-                    if (request.cancelled)
-                        return addressRecords;
-                    // eslint-disable-next-line no-await-in-loop
-                    const { address } = await api.getAddress(keyPath, true, // validate
-                    false);
-                    addressRecords.push({ address, keyPath });
-                }
-                return addressRecords;
-            }, {
-                walletId,
-                pathsToDerive,
-            });
-            // check paths outside of request to avoid endless loop in _callLedger if we'd throw for an invalid keyPath
-            for (const keyPath of pathsToDerive) {
-                if (LedgerApi.BIP32_PATH_REGEX.test(keyPath))
-                    continue;
-                this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
+        static async _createRequest(requestConstructor, ...params) {
+            if (LedgerApi.transportType) {
+                // Prepare transport dependency in parallel. Ignore errors as it's just a preparation.
+                loadTransportLibrary(LedgerApi.transportType).catch(() => { });
             }
-            return LedgerApi._callLedger(request);
-        }
-        /**
-         * Get the public key for a given bip32 key path.
-         * @param keyPath - The path for which to derive the public key.
-         * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-         * @returns The derived public key.
-         */
-        static async getPublicKey(keyPath, walletId) {
-            const request = new LedgerApiRequest(RequestType.GET_PUBLIC_KEY, async (api, params) => {
-                const { publicKey } = await api.getPublicKey(params.keyPath, true, // validate
-                false);
-                // Note that the actual load of the Nimiq core and cryptography is triggered in _connect, including
-                // error handling. The call here is just used to get the reference to the Nimiq object and can not fail.
-                const Nimiq = await this._loadNimiq();
-                return new Nimiq.PublicKey(publicKey);
-            }, {
-                walletId,
-                keyPath,
-            });
-            if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-                this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
-            }
-            return LedgerApi._callLedger(request);
-        }
-        /**
-         * Get the address for a given bip32 key path.
-         * @param keyPath - The path for which to derive the address.
-         * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-         * @returns The derived address.
-         */
-        static async getAddress(keyPath, walletId) {
-            const request = new LedgerApiRequest(RequestType.GET_ADDRESS, async (api, params) => {
-                const { address } = await api.getAddress(params.keyPath, true, // validate
-                false);
-                return address;
-            }, {
-                walletId,
-                keyPath,
-            });
-            if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-                this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
-            }
-            return LedgerApi._callLedger(request);
-        }
-        /**
-         * Confirm that an address belongs to the connected Ledger and display the address to the user on the Ledger screen.
-         * @param userFriendlyAddress - The address to check.
-         * @param keyPath - The address's bip32 key path.
-         * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-         * @returns The confirmed address.
-         */
-        static async confirmAddress(userFriendlyAddress, keyPath, walletId) {
-            const request = new LedgerApiRequest(RequestType.CONFIRM_ADDRESS, async (api, params) => {
-                const { address: confirmedAddress } = await api.getAddress(params.keyPath, true, // validate
-                true);
-                if (params.addressToConfirm.replace(/ /g, '').toUpperCase()
-                    !== confirmedAddress.replace(/ /g, '').toUpperCase()) {
-                    LedgerApi._throwError(ErrorType.REQUEST_ASSERTION_FAILED, 'Address mismatch', request);
-                }
-                return confirmedAddress;
-            }, {
-                walletId,
-                keyPath,
-                addressToConfirm: userFriendlyAddress,
-            });
-            if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-                this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
-            }
-            return LedgerApi._callLedger(request);
-        }
-        /**
-         * Utility function that combines getAddress and confirmAddress to directly get a confirmed address.
-         * @param keyPath - The bip32 key path for which to get and confirm the address.
-         * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-         * @returns The confirmed address.
-         */
-        static async getConfirmedAddress(keyPath, walletId) {
-            const address = await LedgerApi.getAddress(keyPath, walletId);
-            return this.confirmAddress(address, keyPath, walletId);
-        }
-        /**
-         * Sign a transaction for a signing key specified by its bip32 key path. Note that the signing key / corresponding
-         * address does not necessarily need to be the transaction's sender address for example for transactions sent from
-         * vesting contracts.
-         * @param transaction - Transaction details, see interface TransactionInfo.
-         * @param keyPath - The signing address's bip32 key path.
-         * @param [walletId] - Check that the connected wallet corresponds to the given walletId, otherwise throw. Optional.
-         * @returns The signed transaction.
-         */
-        static async signTransaction(transaction, keyPath, walletId) {
-            const request = new LedgerApiRequest(RequestType.SIGN_TRANSACTION, async (api, params) => {
-                // Note: We make api calls outside of try...catch blocks to let the exceptions fall through such that
-                // _callLedger can decide how to behave depending on the api error. All other errors are converted to
-                // REQUEST_ASSERTION_FAILED errors which stop the execution of the request.
-                const { publicKey: signerPubKeyBytes } = await api.getPublicKey(params.keyPath, true, // validate
-                false);
-                // Note that the actual load of the Nimiq core and cryptography is triggered in _connect, including
-                // error handling. The call here is just used to get the reference to the Nimiq object and can not fail.
-                const Nimiq = await this._loadNimiq();
-                let nimiqTx;
-                let signerPubKey;
+            if (requestConstructor instanceof Promise) {
                 try {
-                    const tx = params.transaction;
-                    signerPubKey = new Nimiq.PublicKey(signerPubKeyBytes);
-                    const senderType = tx.senderType !== undefined && tx.senderType !== null
-                        ? tx.senderType
-                        : Nimiq.Account.Type.BASIC;
-                    const recipientType = tx.recipientType !== undefined && tx.recipientType !== null
-                        ? tx.recipientType
-                        : Nimiq.Account.Type.BASIC;
-                    let { network } = tx;
-                    if (!network) {
-                        try {
-                            network = Nimiq.GenesisConfig.NETWORK_NAME;
-                        }
-                        catch (e) {
-                            // Genesis config not initialized
-                            network = 'main';
-                        }
-                    }
-                    const genesisConfig = Nimiq.GenesisConfig.CONFIGS[network];
-                    const networkId = genesisConfig.NETWORK_ID;
-                    const flags = tx.flags !== undefined && tx.flags !== null
-                        ? tx.flags
-                        : Nimiq.Transaction.Flag.NONE;
-                    const fee = tx.fee || 0;
-                    if ((tx.extraData && tx.extraData.length !== 0)
-                        || senderType !== Nimiq.Account.Type.BASIC
-                        || recipientType !== Nimiq.Account.Type.BASIC
-                        || flags !== Nimiq.Transaction.Flag.NONE) {
-                        const extraData = tx.extraData ? tx.extraData : new Uint8Array(0);
-                        nimiqTx = new Nimiq.ExtendedTransaction(tx.sender, senderType, tx.recipient, recipientType, tx.value, fee, tx.validityStartHeight, flags, extraData, 
-                        /* proof */ undefined, networkId);
-                    }
-                    else {
-                        nimiqTx = new Nimiq.BasicTransaction(signerPubKey, tx.recipient, tx.value, fee, tx.validityStartHeight, /* signature */ undefined, networkId);
-                    }
+                    requestConstructor = (await requestConstructor).default;
                 }
                 catch (e) {
-                    this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, e, request);
+                    const error = new ErrorState(ErrorType.LOADING_DEPENDENCIES_FAILED, `Failed loading dependencies: ${e.message || e}`, undefined);
+                    LedgerApi._setState(error);
+                    throw error;
                 }
-                const { signature: signatureBytes } = await api.signTransaction(params.keyPath, nimiqTx.serializeContent());
-                try {
-                    const signature = new Nimiq.Signature(signatureBytes);
-                    if (nimiqTx instanceof Nimiq.BasicTransaction) {
-                        nimiqTx.signature = signature;
-                    }
-                    else {
-                        nimiqTx.proof = Nimiq.SignatureProof.singleSig(signerPubKey, signature).serialize();
-                    }
-                }
-                catch (e) {
-                    this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, e, request);
-                }
-                return nimiqTx;
-            }, {
-                walletId,
-                keyPath,
-                transaction,
-            });
-            if (!LedgerApi.BIP32_PATH_REGEX.test(keyPath)) {
-                this._throwError(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}`, request);
             }
-            return LedgerApi._callLedger(request);
+            try {
+                // Note that the requestConstructor is typed as is instead of just RC | Promise<{ default: RC }> such that
+                // typescript can determine which exact request is being created and returned.
+                return new requestConstructor(...params); // eslint-disable-line new-cap
+            }
+            catch (e) {
+                if (e instanceof ErrorState) {
+                    LedgerApi._setState(e);
+                }
+                throw e;
+            }
         }
         static async _callLedger(request) {
             if (LedgerApi.isBusy) {
-                LedgerApi._throwError(ErrorType.LEDGER_BUSY, 'Only one call to Ledger at a time allowed', request);
+                const error = new ErrorState(ErrorType.LEDGER_BUSY, 'Only one call to Ledger at a time allowed', request);
+                LedgerApi._setState(error);
+                throw error;
             }
             LedgerApi._connectionAborted = false; // user is initiating a new request
             try {
@@ -815,13 +482,13 @@ let LedgerApi = /** @class */ (() => {
                     let lastRequestCallTime = -1;
                     let canCancelDirectly = true;
                     let cancelFired = false;
-                    request.on(LedgerApiRequest.EVENT_CANCEL, () => {
+                    request.on(REQUEST_EVENT_CANCEL, () => {
                         // If we can, reject the call right away. Otherwise just notify that the request was requested to be
                         // cancelled such that the user can cancel the call on the ledger.
                         if (canCancelDirectly) {
-                            // Note that !!_currentlyConnectedWalletId is not an indicator that we can cancel directly, as
-                            // it's just an estimate and we might not actually be disconnected or the request might already
-                            // have been sent before disconnecting.
+                            // Note that !!_currentConnection is not an indicator that we can cancel directly, as it's just
+                            // an estimate and we might not actually be disconnected or the request might already have been
+                            // sent before disconnecting.
                             if (!cancelFired) {
                                 LedgerApi._fire(EventType.REQUEST_CANCELLED, request);
                                 cancelFired = true;
@@ -834,13 +501,16 @@ let LedgerApi = /** @class */ (() => {
                     });
                     while (!request.cancelled) {
                         try {
-                            const api = await LedgerApi._connect(request.params.walletId);
+                            const transport = await LedgerApi._getTransport(request);
+                            if (request.cancelled)
+                                break;
+                            await LedgerApi._connect(transport, request);
                             if (request.cancelled)
                                 break;
                             LedgerApi._setState(StateType.REQUEST_PROCESSING);
                             lastRequestCallTime = Date.now();
                             canCancelDirectly = false; // sending request which has to be resolved / cancelled by the Ledger
-                            const result = await request.call(api);
+                            const result = await request.call(transport);
                             if (request.cancelled)
                                 break;
                             LedgerApi._fire(EventType.REQUEST_SUCCESSFUL, request, result);
@@ -849,6 +519,9 @@ let LedgerApi = /** @class */ (() => {
                         }
                         catch (e) {
                             console.debug(e);
+                            if (e instanceof ErrorState) {
+                                LedgerApi._setState(e);
+                            }
                             const message = (e.message || e || '').toLowerCase();
                             // "timeout" used to happen for u2f, it's "device_ineligible" or "other_error" now (see
                             // transport-comparison.md). "timed out" is for Chrome WebAuthn timeout; "denied permission" for
@@ -864,29 +537,32 @@ let LedgerApi = /** @class */ (() => {
                                 // For u2f / webauthn we don't get notified about disconnects therefore clear connection on
                                 // every exception. When locked clear connection for all transport types as user might
                                 // unlock with a different PIN for another wallet.
-                                LedgerApi._currentlyConnectedWalletId = null;
+                                LedgerApi._currentConnection = null;
                             }
                             // Test whether user cancelled call on ledger device or in WebAuthn / U2F browser popup
                             if (message.indexOf('denied by the user') !== -1 // user rejected confirmAddress on device
                                 || message.indexOf('request was rejected') !== -1 // user rejected signTransaction on device
-                                || LedgerApi._isWebAuthnOrU2fCancellation(message, lastRequestCallTime)) {
+                                || (LedgerApi._isWebAuthnOrU2fCancellation(message, lastRequestCallTime)
+                                    && !LedgerApi._connectionAborted)) {
                                 // Note that on _isWebAuthnOrU2fCancellation we can cancel directly and don't need the user
                                 // to cancel the request on the device as Ledger Nano S is now able to clean up old WebAuthn
                                 // and U2F requests and the the Nano X lets the Nimiq App crash anyways after the WebAuthn /
-                                // U2F host was lost.
+                                // U2F host was lost. If the web authn / u2f cancellation was during connect and caused
+                                // _connectionAborted, don't cancel the request.
                                 canCancelDirectly = true;
                                 request.cancel(); // in case the request was not marked as cancelled before
                                 break; // continue after loop where the actual cancellation happens
                             }
                             // Errors that should end the request
-                            if ((LedgerApi.currentState.error
-                                && LedgerApi.currentState.error.type === ErrorType.REQUEST_ASSERTION_FAILED)
+                            if ((LedgerApi.currentState instanceof ErrorState
+                                && LedgerApi.currentState.errorType === ErrorType.REQUEST_ASSERTION_FAILED)
                                 || message.indexOf('not supported') !== -1) { // no browser support
                                 reject(e);
                                 return;
                             }
                             // On other errors try again
-                            if (!/busy|outdated|connection aborted|user gesture|dependencies|wrong ledger/i.test(message)
+                            if (!/busy|outdated|connection aborted|user gesture|dependencies|wrong app|wrong wallet/i
+                                .test(message)
                                 && !isTimeout && !isLocked && !isConnectedToDashboard) {
                                 console.warn('Unknown Ledger Error', e);
                             }
@@ -913,79 +589,63 @@ let LedgerApi = /** @class */ (() => {
                 LedgerApi._currentRequest = null;
                 if (LedgerApi._transportType === TransportType.U2F
                     || LedgerApi._transportType === TransportType.WEB_AUTHN) {
-                    LedgerApi._currentlyConnectedWalletId = null; // reset as we don't note when Ledger gets disconnected
+                    LedgerApi._currentConnection = null; // reset as we don't note when Ledger gets disconnected
                 }
-                const errorType = LedgerApi.currentState.error ? LedgerApi.currentState.error.type : null;
-                if (errorType !== ErrorType.NO_BROWSER_SUPPORT
+                const errorType = LedgerApi._currentState instanceof ErrorState
+                    ? LedgerApi._currentState.errorType
+                    : null;
+                if (errorType !== ErrorType.BROWSER_UNSUPPORTED
                     && errorType !== ErrorType.REQUEST_ASSERTION_FAILED) {
                     LedgerApi._setState(StateType.IDLE);
                 }
             }
         }
-        static async _connect(walletId) {
-            // Resolves when connected to unlocked ledger with open Nimiq app otherwise throws an exception after timeout,
-            // in contrast to the public connect method which uses getWalletId to listen for a connection or to try to
+        static async _connect(transport, request) {
+            // Resolves when connected to unlocked ledger with open coin app otherwise throws an exception after timeout,
+            // in contrast to the public connect method which just listens for a connection or uses getWalletId to try to
             // connect repeatedly until success via _callLedger which uses the private _connect under the hood. Also this
             // method is not publicly exposed to avoid that it could be invoked multiple times in parallel which the ledger
-            // requests called here do not allow. Additionally, this method exposes the low level api which is private.
-            if (LedgerApi._connectionAborted) {
-                // When the connection was aborted, don't retry connecting until a manual connection is requested.
-                throw new Error('Connection aborted');
-            }
-            const nimiqPromise = this._loadNimiq();
-            const api = await LedgerApi._initializeLowLevelApi();
+            // requests called here do not allow.
             // Establish / verify the connection.
             // This takes <300ms for a pre-authorized device via WebUSB, WebHID or WebBLE and <1s for WebAuthn or U2F.
-            if (!LedgerApi._currentlyConnectedWalletId) {
+            if (!LedgerApi._currentConnection || !request.canReuseCoinAppConnection(LedgerApi._currentConnection)) {
                 const connectStart = Date.now();
                 LedgerApi._setState(StateType.CONNECTING);
-                let firstAddressPubKeyBytes;
-                let version;
+                LedgerApi._currentConnection = null;
                 try {
-                    // To check whether the connection to Nimiq app is established and to calculate the walletId. Set
-                    // validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger
-                    // app, see transport-comparison.md. Using getPublicKey and not getAppConfiguration, as other apps also
-                    // respond to getAppConfiguration (for example the Ethereum app).
-                    ({ publicKey: firstAddressPubKeyBytes } = await api.getPublicKey(LedgerApi.getBip32PathForKeyId(0), false, // validate
-                    false));
-                    ({ version } = await api.getAppConfiguration());
+                    LedgerApi._currentConnection = await request.checkCoinAppConnection(transport);
                 }
                 catch (e) {
                     const message = (e.message || e || '').toLowerCase();
                     if (message.indexOf('busy') !== -1) {
-                        LedgerApi._throwError(ErrorType.LEDGER_BUSY, e);
+                        throw new ErrorState(ErrorType.LEDGER_BUSY, 
+                        // important to rethrow original message for handling of the 'busy' keyword in _callLedger
+                        `Only one call to Ledger at a time allowed: ${e}`, request);
                     }
                     else if (LedgerApi._isWebAuthnOrU2fCancellation(message, connectStart)) {
                         LedgerApi._connectionAborted = true;
-                        LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
+                        throw new ErrorState(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`, request);
                     }
-                    // Just rethrow other errors that just keep the API retrying (like timeout, dongle locked).
+                    // Rethrow other errors that just keep the API retrying (like timeout, dongle locked) or error states.
                     throw e;
                 }
-                if (!LedgerApi._isAppVersionSupported(version)) {
-                    LedgerApi._throwError(ErrorType.APP_OUTDATED, 'Ledger Nimiq App is outdated.');
-                }
-                try {
-                    const Nimiq = await nimiqPromise;
-                    // Use sha256 as blake2b yields the nimiq address
-                    LedgerApi._currentlyConnectedWalletId = Nimiq.Hash.sha256(firstAddressPubKeyBytes).toBase64();
-                }
-                catch (e) {
-                    LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED, `Failed loading dependencies: ${e.message || e}`);
-                }
             }
-            if (walletId !== undefined && LedgerApi._currentlyConnectedWalletId !== walletId) {
-                LedgerApi._throwError(ErrorType.WRONG_LEDGER, 'Wrong Ledger connected');
-            }
-            this._fire(EventType.CONNECTED, LedgerApi._currentlyConnectedWalletId);
-            return api;
+            LedgerApi._fire(EventType.CONNECTED, LedgerApi._currentConnection);
+            return transport;
         }
-        static async _initializeLowLevelApi() {
+        static async _getTransport(request) {
+            if (LedgerApi._connectionAborted) {
+                // When the connection was aborted, don't retry creating a transport until a manual connection is requested.
+                // Throw as normal error and not as error state as error state had already been reported.
+                throw new Error('Connection aborted');
+            }
+            // Create transport. Note that creating the transport has to happen in the context of a user interaction if
+            // opening a device selector is required.
             const transportType = LedgerApi._transportType;
-            LedgerApi._lowLevelApiPromise = LedgerApi._lowLevelApiPromise || (async () => {
+            LedgerApi._transportPromise = LedgerApi._transportPromise || (async () => {
                 // Check browser support for current transport. Note that when transport changes during connect, we recurse.
                 if (!transportType || !isSupported(transportType)) {
-                    LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT, 'Ledger not supported by browser or support not enabled.');
+                    throw new ErrorState(ErrorType.BROWSER_UNSUPPORTED, 'Ledger not supported by browser.', request);
                 }
                 // Load transport lib.
                 let TransportLib;
@@ -996,16 +656,14 @@ let LedgerApi = /** @class */ (() => {
                 }
                 catch (e) {
                     if (transportType === LedgerApi._transportType) {
-                        LedgerApi._throwError(ErrorType.LOADING_DEPENDENCIES_FAILED, `Failed loading dependencies: ${e.message || e}`);
+                        throw new ErrorState(ErrorType.LOADING_DEPENDENCIES_FAILED, `Failed loading dependencies: ${e.message || e}`, request);
                     }
                 }
                 finally {
                     clearTimeout(delayedLoadingStateTimeout);
                 }
                 if (transportType !== LedgerApi._transportType)
-                    throw new Error('Transport changed');
-                // Create transport. Note that creating the transport has to happen in the context of a user interaction if
-                // opening a device selector is required.
+                    throw new Error('Transport changed'); // caught locally
                 let transport;
                 // Only set the connecting state if it is not instantaneous because a device selector needs to be shown
                 const delayedConnectingStateTimeout = setTimeout(() => LedgerApi._setState(StateType.CONNECTING), 50);
@@ -1024,18 +682,18 @@ let LedgerApi = /** @class */ (() => {
                                 //  Windows or WebHID is more broadly available.
                                 const fallback = [TransportType.WEB_AUTHN, TransportType.U2F].find(isSupported);
                                 if (!fallback) {
-                                    LedgerApi._throwError(ErrorType.NO_BROWSER_SUPPORT, 'Ledger not supported by browser or support not enabled.');
+                                    throw new ErrorState(ErrorType.BROWSER_UNSUPPORTED, 'Ledger not supported by browser.', request);
                                 }
                                 console.warn(`LedgerApi: switching to ${fallback} as fallback`);
                                 LedgerApi.setTransportType(fallback);
                             }
                             else {
                                 LedgerApi._connectionAborted = true;
-                                LedgerApi._throwError(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`);
+                                throw new ErrorState(ErrorType.CONNECTION_ABORTED, `Connection aborted: ${message}`, request);
                             }
                         }
                         else if (message.indexOf('user gesture') !== -1) {
-                            LedgerApi._throwError(ErrorType.USER_INTERACTION_REQUIRED, e);
+                            throw new ErrorState(ErrorType.USER_INTERACTION_REQUIRED, e, request);
                         }
                         else {
                             throw e; // rethrow unknown exception
@@ -1047,7 +705,7 @@ let LedgerApi = /** @class */ (() => {
                 }
                 if (transportType !== LedgerApi._transportType) {
                     transport.close();
-                    throw new Error('Transport changed');
+                    throw new Error('Transport changed'); // caught locally
                 }
                 const onDisconnect = () => {
                     console.debug('Ledger disconnected');
@@ -1059,27 +717,18 @@ let LedgerApi = /** @class */ (() => {
                     }
                 };
                 transport.on('disconnect', onDisconnect);
-                return new LowLevelApi(transport);
+                return transport;
             })();
             try {
-                return await LedgerApi._lowLevelApiPromise;
+                return await LedgerApi._transportPromise;
             }
             catch (e) {
-                LedgerApi._lowLevelApiPromise = null;
+                LedgerApi._transportPromise = null;
                 if (transportType === LedgerApi._transportType)
                     throw e;
                 // Transport type changed while we were connecting; ignore error and rerun
-                return LedgerApi._initializeLowLevelApi();
+                return LedgerApi._getTransport(request);
             }
-        }
-        static async _loadNimiq() {
-            // Note that we don't need to cache a promise here as loadNimiqCore and loadNimiqCryptography already do that.
-            const [Nimiq] = await Promise.all([
-                loadNimiqCore(),
-                // needed for walletId hashing and pub key to address derivation in SignatureProof and BasicTransaction
-                loadNimiqCryptography(),
-            ]);
-            return Nimiq;
         }
         static _isWebAuthnOrU2fCancellation(errorMessage, requestStart) {
             // Try to detect a WebAuthn or U2F cancellation. In Firefox, we can detect a WebAuthn cancellation for the
@@ -1089,65 +738,115 @@ let LedgerApi = /** @class */ (() => {
             return /operation was aborted/i.test(errorMessage) // WebAuthn cancellation in Firefox internal popup
                 || (/timed out|denied permission|u2f other_error/i.test(errorMessage) && Date.now() - requestStart < 20000);
         }
-        static _isAppVersionSupported(versionString) {
-            const version = versionString.split('.').map((part) => parseInt(part, 10));
-            for (let i = 0; i < LedgerApi.MIN_REQUIRED_APP_VERSION.length; ++i) {
-                if (typeof version[i] === 'undefined' || version[i] < LedgerApi.MIN_REQUIRED_APP_VERSION[i])
-                    return false;
-                if (version[i] > LedgerApi.MIN_REQUIRED_APP_VERSION[i])
-                    return true;
-            }
-            return true;
-        }
         static _setState(state) {
             if (typeof state === 'string') {
                 // it's an entry from LedgerApi.StateType enum
                 state = { type: state };
             }
             state.request = !state.request && LedgerApi._currentRequest ? LedgerApi._currentRequest : state.request;
-            if (LedgerApi._currentState.type === state.type
-                && (LedgerApi._currentState.error === state.error
-                    || (!!LedgerApi._currentState.error && !!state.error
-                        && LedgerApi._currentState.error.type === state.error.type))
+            const currentState = LedgerApi._currentState;
+            const currentErrorType = currentState instanceof ErrorState ? currentState.errorType : null;
+            const errorType = state instanceof ErrorState ? state.errorType : null;
+            if (currentState.type === state.type
+                && currentErrorType === errorType
                 && LedgerApi._currentState.request === state.request)
                 return;
             LedgerApi._currentState = state;
             LedgerApi._fire(EventType.STATE_CHANGE, state);
-        }
-        static _throwError(type, error, request) {
-            const state = {
-                type: StateType.ERROR,
-                error: {
-                    type,
-                    message: typeof error === 'string' ? error : error.message,
-                },
-            };
-            if (request)
-                state.request = request;
-            LedgerApi._setState(state);
-            if (typeof error === 'string') {
-                throw new Error(error);
-            }
-            else {
-                throw error;
-            }
         }
         static _fire(eventName, ...args) {
             LedgerApi._observable.fire(eventName, ...args);
         }
     }
     // public fields and methods
-    LedgerApi.BIP32_BASE_PATH = '44\'/242\'/0\'/';
-    LedgerApi.BIP32_PATH_REGEX = new RegExp(`^${LedgerApi.BIP32_BASE_PATH}(\\d+)'$`);
-    LedgerApi.MIN_REQUIRED_APP_VERSION = [1, 4, 2];
     LedgerApi.WAIT_TIME_AFTER_TIMEOUT = 1500;
     LedgerApi.WAIT_TIME_AFTER_ERROR = 500;
+    LedgerApi.Nimiq = {
+        /**
+         * Get the 32 byte wallet id of the currently connected Nimiq wallet as base64.
+         */
+        async getWalletId() {
+            return LedgerApi._callLedger(await LedgerApi._createRequest([import('./lazy-chunk-request.es.js'), import('./lazy-chunk-request-nimiq.es.js'), import('./lazy-chunk-request-get-wallet-id-nimiq.es.js')][2]));
+        },
+        /**
+         * Get the public key for a given bip32 key path. Optionally expect a specific wallet id.
+         */
+        async getPublicKey(keyPath, expectedWalletId) {
+            return LedgerApi._callLedger(await LedgerApi._createRequest([import('./lazy-chunk-request.es.js'), import('./lazy-chunk-request-nimiq.es.js'), import('./lazy-chunk-request-with-key-path-nimiq.es.js'), import('./lazy-chunk-request-get-public-key-nimiq.es.js')][3], keyPath, expectedWalletId));
+        },
+        /**
+         * Get the address for a given bip32 key path. Optionally display the address on the Ledger screen for
+         * verification, expect a specific address or expect a specific wallet id.
+         */
+        async getAddress(keyPath, display = false, expectedAddress, expectedWalletId) {
+            return LedgerApi._callLedger(await LedgerApi._createRequest([import('./lazy-chunk-request.es.js'), import('./lazy-chunk-request-nimiq.es.js'), import('./lazy-chunk-request-with-key-path-nimiq.es.js'), import('./lazy-chunk-request-get-address-nimiq.es.js')][3], keyPath, display, expectedAddress, expectedWalletId));
+        },
+        /**
+         * Utility function that directly gets a confirmed address.
+         */
+        async getConfirmedAddress(keyPath, expectedWalletId) {
+            const address = await LedgerApi.Nimiq.getAddress(keyPath, false, undefined, expectedWalletId);
+            return LedgerApi.Nimiq.getAddress(keyPath, true, address, expectedWalletId);
+        },
+        /**
+         * Derive addresses for given bip32 key paths. Optionally expect a specific wallet id.
+         */
+        async deriveAddresses(pathsToDerive, expectedWalletId) {
+            return LedgerApi._callLedger(await LedgerApi._createRequest([import('./lazy-chunk-request.es.js'), import('./lazy-chunk-request-nimiq.es.js'), import('./lazy-chunk-request-derive-addresses-nimiq.es.js')][2], pathsToDerive, expectedWalletId));
+        },
+        /**
+         * Sign a transaction for a signing key specified by its bip32 key path. Note that the signing key /
+         * corresponding address does not necessarily need to be the transaction's sender address for example for
+         * transactions sent from vesting contracts. Optionally expect a specific wallet id.
+         */
+        async signTransaction(transaction, keyPath, expectedWalletId) {
+            return LedgerApi._callLedger(await LedgerApi._createRequest([import('./lazy-chunk-request.es.js'), import('./lazy-chunk-request-nimiq.es.js'), import('./lazy-chunk-request-with-key-path-nimiq.es.js'), import('./lazy-chunk-request-sign-transaction-nimiq.es.js')][3], keyPath, transaction, expectedWalletId));
+        },
+    };
+    LedgerApi.Bitcoin = {
+        /**
+         * Get the 32 byte wallet id of the currently connected Bitcoin wallet / app for a specific network as base64.
+         */
+        async getWalletId(network) {
+            return LedgerApi._callLedger(await LedgerApi._createRequest([import('./lazy-chunk-request.es.js'), import('./lazy-chunk-request-bitcoin.es.js'), import('./lazy-chunk-request-get-wallet-id-bitcoin.es.js')][2], network));
+        },
+        /**
+         * Get the public key, address and bip32 chain code for a given bip32 key path. Optionally display the address
+         * on the Ledger screen for verification, expect a specific address or expect a specific wallet id.
+         */
+        async getAddressAndPublicKey(keyPath, display = false, expectedAddress, expectedWalletId) {
+            return LedgerApi._callLedger(await LedgerApi._createRequest([import('./lazy-chunk-request.es.js'), import('./lazy-chunk-request-bitcoin.es.js'), import('./lazy-chunk-request-get-address-and-public-key-bitcoin.es.js')][2], keyPath, display, expectedAddress, expectedWalletId));
+        },
+        /**
+         * Utility function that directly gets a confirmed address.
+         */
+        async getConfirmedAddressAndPublicKey(keyPath, expectedWalletId) {
+            const { address } = await LedgerApi.Bitcoin.getAddressAndPublicKey(keyPath, false, undefined, expectedWalletId);
+            return LedgerApi.Bitcoin.getAddressAndPublicKey(keyPath, true, address, expectedWalletId);
+        },
+        /**
+         * Get the extended public key for a bip32 path from which addresses can be derived, encoded as specified in
+         * bip32. The key path must follow the bip44 specification and at least be defined to the account level.
+         * Optionally expect a specific wallet id.
+         */
+        async getExtendedPublicKey(keyPath, expectedWalletId) {
+            return LedgerApi._callLedger(await LedgerApi._createRequest([import('./lazy-chunk-buffer-es6.es.js'), import('./lazy-chunk-request.es.js'), import('./lazy-chunk-request-bitcoin.es.js'), import('./lazy-chunk-request-get-extended-public-key-bitcoin.es.js')][3], keyPath, expectedWalletId));
+        },
+        /**
+         * Sign a transaction. See type declaration of TransactionInfoBitcoin in request-sign-transaction-bitcoin.ts
+         * for documentation of the transaction format. Optionally expect a specific wallet id. The signed transaction
+         * is returned in hex-encoded serialized form ready to be broadcast to the network.
+         */
+        async signTransaction(transaction, expectedWalletId) {
+            return LedgerApi._callLedger(await LedgerApi._createRequest([import('./lazy-chunk-buffer-es6.es.js'), import('./lazy-chunk-request.es.js'), import('./lazy-chunk-request-bitcoin.es.js'), import('./lazy-chunk-request-sign-transaction-bitcoin.es.js')][3], transaction, expectedWalletId));
+        },
+    };
     // private fields and methods
     LedgerApi._transportType = autoDetectTransportTypeToUse();
-    LedgerApi._lowLevelApiPromise = null;
+    LedgerApi._transportPromise = null;
     LedgerApi._currentState = { type: StateType.IDLE };
     LedgerApi._currentRequest = null;
-    LedgerApi._currentlyConnectedWalletId = null;
+    LedgerApi._currentConnection = null;
     LedgerApi._connectionAborted = false;
     LedgerApi._observable = new Observable();
     return LedgerApi;
@@ -1155,5 +854,5 @@ let LedgerApi = /** @class */ (() => {
 //# sourceMappingURL=ledger-api.js.map
 
 export default LedgerApi;
-export { ErrorType, EventType, RequestType, StateType, TransportType, isSupported };
+export { AddressTypeBitcoin, Coin, ErrorState, ErrorType, EventType, Network, Observable as O, REQUEST_EVENT_CANCEL as R, RequestTypeBitcoin, RequestTypeNimiq, StateType, TransportType, getBip32Path, isSupported, parseBip32Path };
 //# sourceMappingURL=ledger-api.es.js.map

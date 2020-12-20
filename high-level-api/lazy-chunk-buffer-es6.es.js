@@ -240,6 +240,11 @@ Buffer.TYPED_ARRAY_SUPPORT = global$1.TYPED_ARRAY_SUPPORT !== undefined
   ? global$1.TYPED_ARRAY_SUPPORT
   : true;
 
+/*
+ * Export kMaxLength after typed array support is determined.
+ */
+var _kMaxLength = kMaxLength();
+
 function kMaxLength () {
   return Buffer.TYPED_ARRAY_SUPPORT
     ? 0x7fffffff
@@ -490,6 +495,13 @@ function checked (length) {
                          'size: 0x' + kMaxLength().toString(16) + ' bytes')
   }
   return length | 0
+}
+
+function SlowBuffer (length) {
+  if (+length != length) { // eslint-disable-line eqeqeq
+    length = 0;
+  }
+  return Buffer.alloc(+length)
 }
 Buffer.isBuffer = isBuffer;
 function internalIsBuffer (b) {
@@ -1970,5 +1982,14 @@ function isSlowBuffer (obj) {
   return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isFastBuffer(obj.slice(0, 0))
 }
 
-export { Buffer as B };
-//# sourceMappingURL=lazy-chunk-buffer.es.js.map
+var bufferEs6 = /*#__PURE__*/Object.freeze({
+  __proto__: null,
+  Buffer: Buffer,
+  INSPECT_MAX_BYTES: INSPECT_MAX_BYTES,
+  SlowBuffer: SlowBuffer,
+  isBuffer: isBuffer,
+  kMaxLength: _kMaxLength
+});
+
+export { Buffer as B, bufferEs6 as b, global$1 as g };
+//# sourceMappingURL=lazy-chunk-buffer-es6.es.js.map

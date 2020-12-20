@@ -1,18 +1,3 @@
-import { c as createCommonjsModule, u as unwrapExports } from './lazy-chunk-index.es.js';
-
-var lib = createCommonjsModule(function (module, exports) {
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.getInfosForServiceUuid = exports.getBluetoothServiceUuids = exports.identifyProductName = exports.identifyUSBProductId = exports.getDeviceModel = exports.ledgerUSBVendorId = exports.IIWebUSB = exports.IICCID = exports.IIU2F = exports.IIKeyboardHID = exports.IIGenericHID = void 0;
-
-function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); keys.push.apply(keys, symbols); } return keys; }
-
-function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { ownKeys(Object(source), true).forEach(function (key) { _defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
-
-function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
-
 /**
  * The USB product IDs will be defined as MMII, encoding a model (MM) and an interface bitfield (II)
  *
@@ -28,16 +13,6 @@ function _defineProperty(obj, key, value) { if (key in obj) { Object.definePrope
  * CCID : 0x08
  * WebUSB : 0x10
  */
-const IIGenericHID = 0x01;
-exports.IIGenericHID = IIGenericHID;
-const IIKeyboardHID = 0x02;
-exports.IIKeyboardHID = IIKeyboardHID;
-const IIU2F = 0x04;
-exports.IIU2F = IIU2F;
-const IICCID = 0x08;
-exports.IICCID = IICCID;
-const IIWebUSB = 0x10;
-exports.IIWebUSB = IIWebUSB;
 const devices = {
   blue: {
     id: "blue",
@@ -77,11 +52,6 @@ const devices = {
     }]
   }
 };
-const productMap = {
-  Blue: "blue",
-  "Nano S": "nanoS",
-  "Nano X": "nanoX"
-}; // $FlowFixMe
 
 const devicesList = Object.values(devices);
 /**
@@ -93,20 +63,6 @@ const ledgerUSBVendorId = 0x2c97;
  *
  */
 
-exports.ledgerUSBVendorId = ledgerUSBVendorId;
-
-const getDeviceModel = id => {
-  const info = devices[id];
-  if (!info) throw new Error("device '" + id + "' does not exist");
-  return info;
-};
-/**
- *
- */
-
-
-exports.getDeviceModel = getDeviceModel;
-
 const identifyUSBProductId = usbProductId => {
   const legacy = devicesList.find(d => d.legacyUsbProductId === usbProductId);
   if (legacy) return legacy;
@@ -114,16 +70,6 @@ const identifyUSBProductId = usbProductId => {
   const deviceModel = devicesList.find(d => d.productIdMM === mm);
   return deviceModel;
 };
-
-exports.identifyUSBProductId = identifyUSBProductId;
-
-const identifyProductName = productName => {
-  const productId = productMap[productName];
-  const deviceModel = devicesList.find(d => d.id === productId);
-  return deviceModel;
-};
-
-exports.identifyProductName = identifyProductName;
 const bluetoothServices = [];
 const serviceUuidToInfos = {};
 
@@ -137,9 +83,10 @@ for (let id in devices) {
     for (let i = 0; i < bluetoothSpec.length; i++) {
       const spec = bluetoothSpec[i];
       bluetoothServices.push(spec.serviceUuid);
-      serviceUuidToInfos[spec.serviceUuid] = serviceUuidToInfos[spec.serviceUuid.replace(/-/g, "")] = _objectSpread({
-        deviceModel
-      }, spec);
+      serviceUuidToInfos[spec.serviceUuid] = serviceUuidToInfos[spec.serviceUuid.replace(/-/g, "")] = {
+        deviceModel,
+        ...spec
+      };
     }
   }
 }
@@ -153,31 +100,10 @@ const getBluetoothServiceUuids = () => bluetoothServices;
  *
  */
 
-
-exports.getBluetoothServiceUuids = getBluetoothServiceUuids;
-
 const getInfosForServiceUuid = uuid => serviceUuidToInfos[uuid.toLowerCase()];
 /**
  *
  */
 
-
-exports.getInfosForServiceUuid = getInfosForServiceUuid;
-
-});
-
-unwrapExports(lib);
-var lib_1 = lib.getInfosForServiceUuid;
-var lib_2 = lib.getBluetoothServiceUuids;
-var lib_3 = lib.identifyProductName;
-var lib_4 = lib.identifyUSBProductId;
-var lib_5 = lib.getDeviceModel;
-var lib_6 = lib.ledgerUSBVendorId;
-var lib_7 = lib.IIWebUSB;
-var lib_8 = lib.IICCID;
-var lib_9 = lib.IIU2F;
-var lib_10 = lib.IIKeyboardHID;
-var lib_11 = lib.IIGenericHID;
-
-export { lib_6 as a, lib_4 as b, lib as l };
+export { getInfosForServiceUuid as a, getBluetoothServiceUuids as g, identifyUSBProductId as i, ledgerUSBVendorId as l };
 //# sourceMappingURL=lazy-chunk-index.es2.js.map

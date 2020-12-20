@@ -1,5 +1,6 @@
-import { B as Buffer } from './lazy-chunk-buffer.es.js';
-import { u as unwrapExports, c as createCommonjsModule, i as index_cjs } from './lazy-chunk-index.es.js';
+import { B as Buffer } from './lazy-chunk-buffer-es6.es.js';
+import { d as dist } from './lazy-chunk-index.es.js';
+import { u as unwrapExports, c as createCommonjsModule } from './lazy-chunk-_commonjsHelpers.es.js';
 
 var hidFraming = createCommonjsModule(function (module, exports) {
 
@@ -57,15 +58,15 @@ const createHIDframing = (channel, packetSize) => {
       } = acc || initialAcc;
 
       if (chunk.readUInt16BE(0) !== channel) {
-        throw new index_cjs.TransportError("Invalid channel", "InvalidChannel");
+        throw new dist.TransportError("Invalid channel", "InvalidChannel");
       }
 
       if (chunk.readUInt8(2) !== Tag) {
-        throw new index_cjs.TransportError("Invalid tag", "InvalidTag");
+        throw new dist.TransportError("Invalid tag", "InvalidTag");
       }
 
       if (chunk.readUInt16BE(3) !== sequence) {
-        throw new index_cjs.TransportError("Invalid sequence", "InvalidSequence");
+        throw new dist.TransportError("Invalid sequence", "InvalidSequence");
       }
 
       if (!acc) {
@@ -103,5 +104,5 @@ exports.default = _default;
 
 var hidFraming$1 = unwrapExports(hidFraming);
 
-export { hidFraming$1 as a, hidFraming as h };
+export { hidFraming$1 as h };
 //# sourceMappingURL=lazy-chunk-hid-framing.es.js.map

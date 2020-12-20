@@ -1,5 +1,7 @@
-import { B as Buffer } from './lazy-chunk-buffer.es.js';
-import { a as commonjsGlobal, T as Transport, b as lib_2, j as index_cjs_75 } from './lazy-chunk-index.es.js';
+import { B as Buffer } from './lazy-chunk-buffer-es6.es.js';
+import './lazy-chunk-events.es.js';
+import { T as Transport, l as log, a as TransportError } from './lazy-chunk-index.es.js';
+import { a as commonjsGlobal } from './lazy-chunk-_commonjsHelpers.es.js';
 
 // Copyright 2014 Google Inc. All rights reserved
 
@@ -631,7 +633,7 @@ var u2fApi_1 = u2fApi$1.sign;
 var u2fApi_2 = u2fApi$1.isSupported;
 
 function wrapU2FTransportError(originalError, message, id) {
-  const err = new index_cjs_75(message, id); // $FlowFixMe
+  const err = new TransportError(message, id); // $FlowFixMe
 
   err.originalError = originalError;
   return err;
@@ -662,7 +664,7 @@ function attemptExchange(apdu, timeoutMillis, scrambleKey, unwrap) {
     challenge: webSafe64(challenge.toString("base64")),
     appId: location.origin
   };
-  lib_2("apdu", "=> " + apdu.toString("hex"));
+  log("apdu", "=> " + apdu.toString("hex"));
   return u2fApi_1(signRequest, timeoutMillis / 1000).then(response => {
     const {
       signatureData
@@ -678,7 +680,7 @@ function attemptExchange(apdu, timeoutMillis, scrambleKey, unwrap) {
         result = data.slice(5);
       }
 
-      lib_2("apdu", "<= " + result.toString("hex"));
+      log("apdu", "<= " + result.toString("hex"));
       return result;
     } else {
       throw response;
@@ -788,7 +790,7 @@ TransportU2F.listen = observer => {
       });
       observer.complete();
     } else {
-      observer.error(new index_cjs_75("U2F browser support is needed for Ledger. " + "Please use Chrome, Opera or Firefox with a U2F extension. " + "Also make sure you're on an HTTPS connection", "U2FNotSupported"));
+      observer.error(new TransportError("U2F browser support is needed for Ledger. " + "Please use Chrome, Opera or Firefox with a U2F extension. " + "Also make sure you're on an HTTPS connection", "U2FNotSupported"));
     }
   });
   return {

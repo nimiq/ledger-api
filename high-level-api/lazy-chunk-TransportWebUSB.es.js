@@ -1,10 +1,12 @@
-import { B as Buffer } from './lazy-chunk-buffer.es.js';
-import { T as Transport, b as lib_2, d as index_cjs_24, e as index_cjs_76, f as index_cjs_23, g as index_cjs_80, h as index_cjs_77 } from './lazy-chunk-index.es.js';
-import { a as hidFraming } from './lazy-chunk-hid-framing.es.js';
-import { a as lib_6, b as lib_4 } from './lazy-chunk-index.es2.js';
+import { B as Buffer } from './lazy-chunk-buffer-es6.es.js';
+import './lazy-chunk-events.es.js';
+import { T as Transport, l as log, D as DisconnectedDeviceDuringOperation, e as TransportInterfaceNotAvailable, b as DisconnectedDevice, f as TransportWebUSBGestureRequired, c as TransportOpenUserCancelled } from './lazy-chunk-index.es.js';
+import './lazy-chunk-_commonjsHelpers.es.js';
+import { h as hidFraming } from './lazy-chunk-hid-framing.es.js';
+import { l as ledgerUSBVendorId, i as identifyUSBProductId } from './lazy-chunk-index.es2.js';
 
 const ledgerDevices = [{
-  vendorId: lib_6
+  vendorId: ledgerUSBVendorId
 }];
 async function requestLedgerDevice() {
   // $FlowFixMe
@@ -16,7 +18,7 @@ async function requestLedgerDevice() {
 async function getLedgerDevices() {
   // $FlowFixMe
   const devices = await navigator.usb.getDevices();
-  return devices.filter(d => d.vendorId === lib_6);
+  return devices.filter(d => d.vendorId === ledgerUSBVendorId);
 }
 async function getFirstLedgerDevice() {
   const existingDevices = await getLedgerDevices();
@@ -57,7 +59,7 @@ class TransportWebUSB extends Transport {
         channel,
         packetSize
       } = this;
-      lib_2("apdu", "=> " + apdu.toString("hex"));
+      log("apdu", "=> " + apdu.toString("hex"));
       const framing = hidFraming(channel, packetSize); // Write...
 
       const blocks = framing.makeBlocks(apdu);
@@ -76,13 +78,13 @@ class TransportWebUSB extends Transport {
         acc = framing.reduceResponse(acc, buffer);
       }
 
-      lib_2("apdu", "<= " + result.toString("hex"));
+      log("apdu", "<= " + result.toString("hex"));
       return result;
     }).catch(e => {
       if (e && e.message && e.message.includes("disconnected")) {
         this._emitDisconnect(e);
 
-        throw new index_cjs_24(e.message);
+        throw new DisconnectedDeviceDuringOperation(e.message);
       }
 
       throw e;
@@ -90,7 +92,7 @@ class TransportWebUSB extends Transport {
 
     this.device = device;
     this.interfaceNumber = interfaceNumber;
-    this.deviceModel = lib_4(device.productId);
+    this.deviceModel = identifyUSBProductId(device.productId);
   }
   /**
    * Check if WebUSB transport is supported.
@@ -126,13 +128,13 @@ class TransportWebUSB extends Transport {
       await device.selectConfiguration(configurationValue);
     }
 
-    await device.reset();
+    await gracefullyResetDevice(device);
     const iface = device.configurations[0].interfaces.find(({
       alternates
     }) => alternates.some(a => a.interfaceClass === 255));
 
     if (!iface) {
-      throw new index_cjs_76("No WebUSB interface found for your Ledger device. Please upgrade firmware or contact techsupport.");
+      throw new TransportInterfaceNotAvailable("No WebUSB interface found for your Ledger device. Please upgrade firmware or contact techsupport.");
     }
 
     const interfaceNumber = iface.interfaceNumber;
@@ -141,7 +143,7 @@ class TransportWebUSB extends Transport {
       await device.claimInterface(interfaceNumber);
     } catch (e) {
       await device.close();
-      throw new index_cjs_76(e.message);
+      throw new TransportInterfaceNotAvailable(e.message);
     }
 
     const transport = new TransportWebUSB(device, interfaceNumber);
@@ -151,7 +153,7 @@ class TransportWebUSB extends Transport {
         // $FlowFixMe
         navigator.usb.removeEventListener("disconnect", onDisconnect);
 
-        transport._emitDisconnect(new index_cjs_23());
+        transport._emitDisconnect(new DisconnectedDevice());
       }
     }; // $FlowFixMe
 
@@ -166,7 +168,7 @@ class TransportWebUSB extends Transport {
   async close() {
     await this.exchangeBusyPromise;
     await this.device.releaseInterface(this.interfaceNumber);
-    await this.device.reset();
+    await gracefullyResetDevice(this.device);
     await this.device.close();
   }
   /**
@@ -186,7 +188,7 @@ TransportWebUSB.listen = observer => {
   let unsubscribed = false;
   getFirstLedgerDevice().then(device => {
     if (!unsubscribed) {
-      const deviceModel = lib_4(device.productId);
+      const deviceModel = identifyUSBProductId(device.productId);
       observer.next({
         type: "add",
         descriptor: device,
@@ -196,9 +198,9 @@ TransportWebUSB.listen = observer => {
     }
   }, error => {
     if (window.DOMException && error instanceof window.DOMException && error.code === 18) {
-      observer.error(new index_cjs_80(error.message));
+      observer.error(new TransportWebUSBGestureRequired(error.message));
     } else {
-      observer.error(new index_cjs_77(error.message));
+      observer.error(new TransportOpenUserCancelled(error.message));
     }
   });
 
@@ -210,6 +212,14 @@ TransportWebUSB.listen = observer => {
     unsubscribe
   };
 };
+
+async function gracefullyResetDevice(device) {
+  try {
+    await device.reset();
+  } catch (err) {
+    console.warn(err);
+  }
+}
 
 export default TransportWebUSB;
 //# sourceMappingURL=lazy-chunk-TransportWebUSB.es.js.map

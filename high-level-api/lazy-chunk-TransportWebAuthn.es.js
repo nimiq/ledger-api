@@ -1,5 +1,7 @@
-import { B as Buffer } from './lazy-chunk-buffer.es.js';
-import { c as createCommonjsModule, u as unwrapExports, l as lib, i as index_cjs, T as Transport } from './lazy-chunk-index.es.js';
+import { B as Buffer } from './lazy-chunk-buffer-es6.es.js';
+import './lazy-chunk-events.es.js';
+import { T as Transport, l as log, a as TransportError } from './lazy-chunk-index.es.js';
+import { c as createCommonjsModule, u as unwrapExports } from './lazy-chunk-_commonjsHelpers.es.js';
 
 var scrambling = createCommonjsModule(function (module, exports) {
 
@@ -24,30 +26,13 @@ function wrapApdu(apdu, key) {
 unwrapExports(scrambling);
 var scrambling_1 = scrambling.wrapApdu;
 
-var TransportWebAuthn_1 = createCommonjsModule(function (module, exports) {
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.default = void 0;
-
-var _hwTransport = _interopRequireDefault(Transport);
-
-
-
-
-
-
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
 const attemptExchange = (apdu, timeout, scrambleKey) => {
   if (!scrambleKey) {
-    throw new index_cjs.TransportError("transport.setScrambleKey must be used to set a scramble key. Refer to documentation.", "NoScrambleKey");
+    throw new TransportError("transport.setScrambleKey must be used to set a scramble key. Refer to documentation.", "NoScrambleKey");
   }
 
   if (!navigator.credentials) {
-    throw new index_cjs.TransportError("WebAuthn not supported", "NotSupported");
+    throw new TransportError("WebAuthn not supported", "NotSupported");
   }
 
   return navigator.credentials // $FlowFixMe
@@ -57,7 +42,7 @@ const attemptExchange = (apdu, timeout, scrambleKey) => {
       challenge: new Uint8Array(32),
       allowCredentials: [{
         type: "public-key",
-        id: new Uint8Array((0, scrambling.wrapApdu)(apdu, scrambleKey))
+        id: new Uint8Array(scrambling_1(apdu, scrambleKey))
       }]
     }
   }) // $FlowFixMe
@@ -72,7 +57,7 @@ const attemptExchange = (apdu, timeout, scrambleKey) => {
  */
 
 
-class TransportWebAuthn extends _hwTransport.default {
+class TransportWebAuthn extends Transport {
   constructor(...args) {
     super(...args);
     this.scrambleKey = void 0;
@@ -89,9 +74,9 @@ class TransportWebAuthn extends _hwTransport.default {
 
 
   async exchange(apdu) {
-    (0, lib.log)("apdu", "=> " + apdu.toString("hex"));
+    log("apdu", "=> " + apdu.toString("hex"));
     const res = await attemptExchange(apdu, this.exchangeTimeout, this.scrambleKey);
-    (0, lib.log)("apdu", "<= " + res.toString("hex"));
+    log("apdu", "<= " + res.toString("hex"));
     return res;
   }
   /**
@@ -114,8 +99,6 @@ class TransportWebAuthn extends _hwTransport.default {
 
 }
 
-exports.default = TransportWebAuthn;
-
 TransportWebAuthn.isSupported = () => Promise.resolve(!!navigator.credentials);
 
 TransportWebAuthn.list = () => navigator.credentials ? [null] : [];
@@ -123,7 +106,7 @@ TransportWebAuthn.list = () => navigator.credentials ? [null] : [];
 TransportWebAuthn.listen = observer => {
   setTimeout(() => {
     if (!navigator.credentials) {
-      observer.error(new index_cjs.TransportError("WebAuthn not supported", "NotSupported"));
+      observer.error(new TransportError("WebAuthn not supported", "NotSupported"));
       return {
         unsubscribe: () => {}
       };
@@ -140,10 +123,5 @@ TransportWebAuthn.listen = observer => {
   };
 };
 
-});
-
-var TransportWebAuthn = unwrapExports(TransportWebAuthn_1);
-
 export default TransportWebAuthn;
-export { TransportWebAuthn_1 as __moduleExports };
 //# sourceMappingURL=lazy-chunk-TransportWebAuthn.es.js.map

@@ -1,5 +1,5 @@
 import LowLevelApi from '../low-level-api/low-level-api.es.js';
-import HighLevelApi, { TransportType, EventType } from '../high-level-api/ledger-api.es.js';
+import HighLevelApi, { Coin, TransportType, Network, EventType, ErrorState } from '../high-level-api/ledger-api.es.js';
 
 var global$1 = (typeof global !== "undefined" ? global :
   typeof self !== "undefined" ? self :
@@ -2458,6 +2458,7 @@ var index_cjs = createCommonjsModule(function (module, exports) {
 Object.defineProperty(exports, '__esModule', { value: true });
 
 /* eslint-disable no-continue */
+/* eslint-disable no-unused-vars */
 /* eslint-disable no-param-reassign */
 /* eslint-disable no-prototype-builtins */
 var errorClasses = {};
@@ -3661,7 +3662,7 @@ class TransportWebUSB extends Transport {
       await device.selectConfiguration(configurationValue);
     }
 
-    await device.reset();
+    await gracefullyResetDevice(device);
     const iface = device.configurations[0].interfaces.find(({
       alternates
     }) => alternates.some(a => a.interfaceClass === 255));
@@ -3701,7 +3702,7 @@ class TransportWebUSB extends Transport {
   async close() {
     await this.exchangeBusyPromise;
     await this.device.releaseInterface(this.interfaceNumber);
-    await this.device.reset();
+    await gracefullyResetDevice(this.device);
     await this.device.close();
   }
   /**
@@ -3745,6 +3746,14 @@ TransportWebUSB.listen = observer => {
     unsubscribe
   };
 };
+
+async function gracefullyResetDevice(device) {
+  try {
+    await device.reset();
+  } catch (err) {
+    console.warn(err);
+  }
+}
 
 var require$$0 = getCjsExportFromNamespace(Transport$1);
 
@@ -4081,6 +4090,7 @@ var Subscription = /*@__PURE__*/ (function () {
         this._parentOrParents = null;
         this._subscriptions = null;
         if (unsubscribe) {
+            this._ctorUnsubscribe = true;
             this._unsubscribe = unsubscribe;
         }
     }
@@ -4089,7 +4099,7 @@ var Subscription = /*@__PURE__*/ (function () {
         if (this.closed) {
             return;
         }
-        var _a = this, _parentOrParents = _a._parentOrParents, _unsubscribe = _a._unsubscribe, _subscriptions = _a._subscriptions;
+        var _a = this, _parentOrParents = _a._parentOrParents, _ctorUnsubscribe = _a._ctorUnsubscribe, _unsubscribe = _a._unsubscribe, _subscriptions = _a._subscriptions;
         this.closed = true;
         this._parentOrParents = null;
         this._subscriptions = null;
@@ -4103,6 +4113,9 @@ var Subscription = /*@__PURE__*/ (function () {
             }
         }
         if (isFunction(_unsubscribe)) {
+            if (_ctorUnsubscribe) {
+                this._unsubscribe = undefined;
+            }
             try {
                 _unsubscribe.call(this);
             }
@@ -5379,7 +5392,8 @@ var QueueScheduler = /*@__PURE__*/ (function (_super) {
 }(AsyncScheduler));
 
 /** PURE_IMPORTS_START _QueueAction,_QueueScheduler PURE_IMPORTS_END */
-var queue = /*@__PURE__*/ new QueueScheduler(QueueAction);
+var queueScheduler = /*@__PURE__*/ new QueueScheduler(QueueAction);
+var queue = queueScheduler;
 
 /** PURE_IMPORTS_START _Observable PURE_IMPORTS_END */
 var EMPTY = /*@__PURE__*/ new Observable(function (subscriber) { return subscriber.complete(); });
@@ -5625,16 +5639,20 @@ var ReplaySubject = /*@__PURE__*/ (function (_super) {
         return _this;
     }
     ReplaySubject.prototype.nextInfiniteTimeWindow = function (value) {
-        var _events = this._events;
-        _events.push(value);
-        if (_events.length > this._bufferSize) {
-            _events.shift();
+        if (!this.isStopped) {
+            var _events = this._events;
+            _events.push(value);
+            if (_events.length > this._bufferSize) {
+                _events.shift();
+            }
         }
         _super.prototype.next.call(this, value);
     };
     ReplaySubject.prototype.nextTimeWindow = function (value) {
-        this._events.push(new ReplayEvent(this._getNow(), value));
-        this._trimBufferThenGetEvents();
+        if (!this.isStopped) {
+            this._events.push(new ReplayEvent(this._getNow(), value));
+            this._trimBufferThenGetEvents();
+        }
         _super.prototype.next.call(this, value);
     };
     ReplaySubject.prototype._subscribe = function (subscriber) {
@@ -5841,10 +5859,12 @@ var AsapScheduler = /*@__PURE__*/ (function (_super) {
 }(AsyncScheduler));
 
 /** PURE_IMPORTS_START _AsapAction,_AsapScheduler PURE_IMPORTS_END */
-var asap = /*@__PURE__*/ new AsapScheduler(AsapAction);
+var asapScheduler = /*@__PURE__*/ new AsapScheduler(AsapAction);
+var asap = asapScheduler;
 
 /** PURE_IMPORTS_START _AsyncAction,_AsyncScheduler PURE_IMPORTS_END */
-var async = /*@__PURE__*/ new AsyncScheduler(AsyncAction);
+var asyncScheduler = /*@__PURE__*/ new AsyncScheduler(AsyncAction);
+var async = asyncScheduler;
 
 /** PURE_IMPORTS_START tslib,_AsyncAction PURE_IMPORTS_END */
 var AnimationFrameAction = /*@__PURE__*/ (function (_super) {
@@ -5912,7 +5932,8 @@ var AnimationFrameScheduler = /*@__PURE__*/ (function (_super) {
 }(AsyncScheduler));
 
 /** PURE_IMPORTS_START _AnimationFrameAction,_AnimationFrameScheduler PURE_IMPORTS_END */
-var animationFrame = /*@__PURE__*/ new AnimationFrameScheduler(AnimationFrameAction);
+var animationFrameScheduler = /*@__PURE__*/ new AnimationFrameScheduler(AnimationFrameAction);
+var animationFrame = animationFrameScheduler;
 
 /** PURE_IMPORTS_START tslib,_AsyncAction,_AsyncScheduler PURE_IMPORTS_END */
 var VirtualTimeScheduler = /*@__PURE__*/ (function (_super) {
@@ -6377,7 +6398,14 @@ var subscribeToIterable = function (iterable) {
     return function (subscriber) {
         var iterator$1 = iterable[iterator]();
         do {
-            var item = iterator$1.next();
+            var item = void 0;
+            try {
+                item = iterator$1.next();
+            }
+            catch (err) {
+                subscriber.error(err);
+                return subscriber;
+            }
             if (item.done) {
                 subscriber.complete();
                 break;
@@ -6462,8 +6490,8 @@ function combineLatest() {
     for (var _i = 0; _i < arguments.length; _i++) {
         observables[_i] = arguments[_i];
     }
-    var resultSelector = null;
-    var scheduler = null;
+    var resultSelector = undefined;
+    var scheduler = undefined;
     if (isScheduler(observables[observables.length - 1])) {
         scheduler = observables.pop();
     }
@@ -6509,7 +6537,7 @@ var CombineLatestSubscriber = /*@__PURE__*/ (function (_super) {
             this.toRespond = len;
             for (var i = 0; i < len; i++) {
                 var observable = observables[i];
-                this.add(subscribeToResult(this, observable, observable, i));
+                this.add(subscribeToResult(this, observable, undefined, i));
             }
         }
     };
@@ -6518,7 +6546,7 @@ var CombineLatestSubscriber = /*@__PURE__*/ (function (_super) {
             this.destination.complete();
         }
     };
-    CombineLatestSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    CombineLatestSubscriber.prototype.notifyNext = function (_outerValue, innerValue, outerIndex) {
         var values = this.values;
         var oldVal = values[outerIndex];
         var toRespond = !this.toRespond
@@ -6667,7 +6695,54 @@ function from$1(input, scheduler) {
     }
 }
 
-/** PURE_IMPORTS_START tslib,_util_subscribeToResult,_OuterSubscriber,_InnerSubscriber,_map,_observable_from PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_Subscriber,_Observable,_util_subscribeTo PURE_IMPORTS_END */
+var SimpleInnerSubscriber = /*@__PURE__*/ (function (_super) {
+    __extends(SimpleInnerSubscriber, _super);
+    function SimpleInnerSubscriber(parent) {
+        var _this = _super.call(this) || this;
+        _this.parent = parent;
+        return _this;
+    }
+    SimpleInnerSubscriber.prototype._next = function (value) {
+        this.parent.notifyNext(value);
+    };
+    SimpleInnerSubscriber.prototype._error = function (error) {
+        this.parent.notifyError(error);
+        this.unsubscribe();
+    };
+    SimpleInnerSubscriber.prototype._complete = function () {
+        this.parent.notifyComplete();
+        this.unsubscribe();
+    };
+    return SimpleInnerSubscriber;
+}(Subscriber));
+var SimpleOuterSubscriber = /*@__PURE__*/ (function (_super) {
+    __extends(SimpleOuterSubscriber, _super);
+    function SimpleOuterSubscriber() {
+        return _super !== null && _super.apply(this, arguments) || this;
+    }
+    SimpleOuterSubscriber.prototype.notifyNext = function (innerValue) {
+        this.destination.next(innerValue);
+    };
+    SimpleOuterSubscriber.prototype.notifyError = function (err) {
+        this.destination.error(err);
+    };
+    SimpleOuterSubscriber.prototype.notifyComplete = function () {
+        this.destination.complete();
+    };
+    return SimpleOuterSubscriber;
+}(Subscriber));
+function innerSubscribe(result, innerSubscriber) {
+    if (innerSubscriber.closed) {
+        return undefined;
+    }
+    if (result instanceof Observable) {
+        return result.subscribe(innerSubscriber);
+    }
+    return subscribeTo(result)(innerSubscriber);
+}
+
+/** PURE_IMPORTS_START tslib,_map,_observable_from,_innerSubscribe PURE_IMPORTS_END */
 function mergeMap(project, resultSelector, concurrent) {
     if (concurrent === void 0) {
         concurrent = Number.POSITIVE_INFINITY;
@@ -6727,13 +6802,13 @@ var MergeMapSubscriber = /*@__PURE__*/ (function (_super) {
             return;
         }
         this.active++;
-        this._innerSub(result, value, index);
+        this._innerSub(result);
     };
-    MergeMapSubscriber.prototype._innerSub = function (ish, value, index) {
-        var innerSubscriber = new InnerSubscriber(this, value, index);
+    MergeMapSubscriber.prototype._innerSub = function (ish) {
+        var innerSubscriber = new SimpleInnerSubscriber(this);
         var destination = this.destination;
         destination.add(innerSubscriber);
-        var innerSubscription = subscribeToResult(this, ish, undefined, undefined, innerSubscriber);
+        var innerSubscription = innerSubscribe(ish, innerSubscriber);
         if (innerSubscription !== innerSubscriber) {
             destination.add(innerSubscription);
         }
@@ -6745,12 +6820,11 @@ var MergeMapSubscriber = /*@__PURE__*/ (function (_super) {
         }
         this.unsubscribe();
     };
-    MergeMapSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    MergeMapSubscriber.prototype.notifyNext = function (innerValue) {
         this.destination.next(innerValue);
     };
-    MergeMapSubscriber.prototype.notifyComplete = function (innerSub) {
+    MergeMapSubscriber.prototype.notifyComplete = function () {
         var buffer = this.buffer;
-        this.remove(innerSub);
         this.active--;
         if (buffer.length > 0) {
             this._next(buffer.shift());
@@ -6760,7 +6834,8 @@ var MergeMapSubscriber = /*@__PURE__*/ (function (_super) {
         }
     };
     return MergeMapSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
+var flatMap = mergeMap;
 
 /** PURE_IMPORTS_START _mergeMap,_util_identity PURE_IMPORTS_END */
 function mergeAll(concurrent) {
@@ -7307,7 +7382,7 @@ var RaceSubscriber = /*@__PURE__*/ (function (_super) {
         else {
             for (var i = 0; i < len && !this.hasFirst; i++) {
                 var observable = observables[i];
-                var subscription = subscribeToResult(this, observable, observable, i);
+                var subscription = subscribeToResult(this, observable, undefined, i);
                 if (this.subscriptions) {
                     this.subscriptions.push(subscription);
                 }
@@ -7316,7 +7391,7 @@ var RaceSubscriber = /*@__PURE__*/ (function (_super) {
             this.observables = null;
         }
     };
-    RaceSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    RaceSubscriber.prototype.notifyNext = function (_outerValue, innerValue, outerIndex) {
         if (!this.hasFirst) {
             this.hasFirst = true;
             for (var i = 0; i < this.subscriptions.length; i++) {
@@ -7447,7 +7522,7 @@ function using(resourceFactory, observableFactory) {
     });
 }
 
-/** PURE_IMPORTS_START tslib,_fromArray,_util_isArray,_Subscriber,_OuterSubscriber,_util_subscribeToResult,_.._internal_symbol_iterator PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_fromArray,_util_isArray,_Subscriber,_.._internal_symbol_iterator,_innerSubscribe PURE_IMPORTS_END */
 function zip() {
     var observables = [];
     for (var _i = 0; _i < arguments.length; _i++) {
@@ -7471,14 +7546,11 @@ var ZipOperator = /*@__PURE__*/ (function () {
 var ZipSubscriber = /*@__PURE__*/ (function (_super) {
     __extends(ZipSubscriber, _super);
     function ZipSubscriber(destination, resultSelector, values) {
-        if (values === void 0) {
-            values = Object.create(null);
-        }
         var _this = _super.call(this, destination) || this;
+        _this.resultSelector = resultSelector;
         _this.iterators = [];
         _this.active = 0;
-        _this.resultSelector = (typeof resultSelector === 'function') ? resultSelector : null;
-        _this.values = values;
+        _this.resultSelector = (typeof resultSelector === 'function') ? resultSelector : undefined;
         return _this;
     }
     ZipSubscriber.prototype._next = function (value) {
@@ -7506,7 +7578,7 @@ var ZipSubscriber = /*@__PURE__*/ (function (_super) {
             var iterator = iterators[i];
             if (iterator.stillUnsubscribed) {
                 var destination = this.destination;
-                destination.add(iterator.subscribe(iterator, i));
+                destination.add(iterator.subscribe());
             }
             else {
                 this.active--;
@@ -7581,7 +7653,7 @@ var StaticIterator = /*@__PURE__*/ (function () {
     };
     StaticIterator.prototype.hasCompleted = function () {
         var nextResult = this.nextResult;
-        return nextResult && nextResult.done;
+        return Boolean(nextResult && nextResult.done);
     };
     return StaticIterator;
 }());
@@ -7646,15 +7718,15 @@ var ZipBufferIterator = /*@__PURE__*/ (function (_super) {
             this.destination.complete();
         }
     };
-    ZipBufferIterator.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    ZipBufferIterator.prototype.notifyNext = function (innerValue) {
         this.buffer.push(innerValue);
         this.parent.checkIterators();
     };
-    ZipBufferIterator.prototype.subscribe = function (value, index) {
-        return subscribeToResult(this, this.observable, this, index);
+    ZipBufferIterator.prototype.subscribe = function () {
+        return innerSubscribe(this.observable, new SimpleInnerSubscriber(this));
     };
     return ZipBufferIterator;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 //# sourceMappingURL=zip.js.map
 
 /** PURE_IMPORTS_START  PURE_IMPORTS_END */
@@ -7669,10 +7741,14 @@ var _esm5 = /*#__PURE__*/Object.freeze({
   BehaviorSubject: BehaviorSubject,
   ReplaySubject: ReplaySubject,
   AsyncSubject: AsyncSubject,
-  asapScheduler: asap,
-  asyncScheduler: async,
-  queueScheduler: queue,
-  animationFrameScheduler: animationFrame,
+  asap: asap,
+  asapScheduler: asapScheduler,
+  async: async,
+  asyncScheduler: asyncScheduler,
+  queue: queue,
+  queueScheduler: queueScheduler,
+  animationFrame: animationFrame,
+  animationFrameScheduler: animationFrameScheduler,
   VirtualTimeScheduler: VirtualTimeScheduler,
   VirtualAction: VirtualAction,
   Scheduler: Scheduler,
@@ -7870,7 +7946,7 @@ exports.receiveAPDU = receiveAPDU;
 unwrapExports(receiveAPDU_1);
 var receiveAPDU_2 = receiveAPDU_1.receiveAPDU;
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 function audit(durationSelector) {
     return function auditOperatorFunction(source) {
         return source.lift(new AuditOperator(durationSelector));
@@ -7905,7 +7981,7 @@ var AuditSubscriber = /*@__PURE__*/ (function (_super) {
             catch (err) {
                 return this.destination.error(err);
             }
-            var innerSubscription = subscribeToResult(this, duration);
+            var innerSubscription = innerSubscribe(duration, new SimpleInnerSubscriber(this));
             if (!innerSubscription || innerSubscription.closed) {
                 this.clearThrottle();
             }
@@ -7918,23 +7994,23 @@ var AuditSubscriber = /*@__PURE__*/ (function (_super) {
         var _a = this, value = _a.value, hasValue = _a.hasValue, throttled = _a.throttled;
         if (throttled) {
             this.remove(throttled);
-            this.throttled = null;
+            this.throttled = undefined;
             throttled.unsubscribe();
         }
         if (hasValue) {
-            this.value = null;
+            this.value = undefined;
             this.hasValue = false;
             this.destination.next(value);
         }
     };
-    AuditSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex) {
+    AuditSubscriber.prototype.notifyNext = function () {
         this.clearThrottle();
     };
     AuditSubscriber.prototype.notifyComplete = function () {
         this.clearThrottle();
     };
     return AuditSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START _scheduler_async,_audit,_observable_timer PURE_IMPORTS_END */
 function auditTime(duration, scheduler) {
@@ -7944,7 +8020,7 @@ function auditTime(duration, scheduler) {
     return audit(function () { return timer(duration, scheduler); });
 }
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 function buffer(closingNotifier) {
     return function bufferOperatorFunction(source) {
         return source.lift(new BufferOperator(closingNotifier));
@@ -7964,19 +8040,19 @@ var BufferSubscriber = /*@__PURE__*/ (function (_super) {
     function BufferSubscriber(destination, closingNotifier) {
         var _this = _super.call(this, destination) || this;
         _this.buffer = [];
-        _this.add(subscribeToResult(_this, closingNotifier));
+        _this.add(innerSubscribe(closingNotifier, new SimpleInnerSubscriber(_this)));
         return _this;
     }
     BufferSubscriber.prototype._next = function (value) {
         this.buffer.push(value);
     };
-    BufferSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    BufferSubscriber.prototype.notifyNext = function () {
         var buffer = this.buffer;
         this.buffer = [];
         this.destination.next(buffer);
     };
     return BufferSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 //# sourceMappingURL=buffer.js.map
 
 /** PURE_IMPORTS_START tslib,_Subscriber PURE_IMPORTS_END */
@@ -8233,7 +8309,6 @@ var BufferToggleSubscriber = /*@__PURE__*/ (function (_super) {
     __extends(BufferToggleSubscriber, _super);
     function BufferToggleSubscriber(destination, openings, closingSelector) {
         var _this = _super.call(this, destination) || this;
-        _this.openings = openings;
         _this.closingSelector = closingSelector;
         _this.contexts = [];
         _this.add(subscribeToResult(_this, openings));
@@ -8269,7 +8344,7 @@ var BufferToggleSubscriber = /*@__PURE__*/ (function (_super) {
         this.contexts = null;
         _super.prototype._complete.call(this);
     };
-    BufferToggleSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    BufferToggleSubscriber.prototype.notifyNext = function (outerValue, innerValue) {
         outerValue ? this.closeBuffer(outerValue) : this.openBuffer(innerValue);
     };
     BufferToggleSubscriber.prototype.notifyComplete = function (innerSub) {
@@ -8317,7 +8392,7 @@ var BufferToggleSubscriber = /*@__PURE__*/ (function (_super) {
 }(OuterSubscriber));
 //# sourceMappingURL=bufferToggle.js.map
 
-/** PURE_IMPORTS_START tslib,_Subscription,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_Subscription,_innerSubscribe PURE_IMPORTS_END */
 function bufferWhen(closingSelector) {
     return function (source) {
         return source.lift(new BufferWhenOperator(closingSelector));
@@ -8352,10 +8427,10 @@ var BufferWhenSubscriber = /*@__PURE__*/ (function (_super) {
         _super.prototype._complete.call(this);
     };
     BufferWhenSubscriber.prototype._unsubscribe = function () {
-        this.buffer = null;
+        this.buffer = undefined;
         this.subscribing = false;
     };
-    BufferWhenSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    BufferWhenSubscriber.prototype.notifyNext = function () {
         this.openBuffer();
     };
     BufferWhenSubscriber.prototype.notifyComplete = function () {
@@ -8389,14 +8464,14 @@ var BufferWhenSubscriber = /*@__PURE__*/ (function (_super) {
         this.closingSubscription = closingSubscription;
         this.add(closingSubscription);
         this.subscribing = true;
-        closingSubscription.add(subscribeToResult(this, closingNotifier));
+        closingSubscription.add(innerSubscribe(closingNotifier, new SimpleInnerSubscriber(this)));
         this.subscribing = false;
     };
     return BufferWhenSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 //# sourceMappingURL=bufferWhen.js.map
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_InnerSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 function catchError(selector) {
     return function catchErrorOperatorFunction(source) {
         var operator = new CatchOperator(selector);
@@ -8432,16 +8507,16 @@ var CatchSubscriber = /*@__PURE__*/ (function (_super) {
                 return;
             }
             this._unsubscribeAndRecycle();
-            var innerSubscriber = new InnerSubscriber(this, undefined, undefined);
+            var innerSubscriber = new SimpleInnerSubscriber(this);
             this.add(innerSubscriber);
-            var innerSubscription = subscribeToResult(this, result, undefined, undefined, innerSubscriber);
+            var innerSubscription = innerSubscribe(result, innerSubscriber);
             if (innerSubscription !== innerSubscriber) {
                 this.add(innerSubscription);
             }
         }
     };
     return CatchSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START _observable_combineLatest PURE_IMPORTS_END */
 function combineAll(project) {
@@ -8535,7 +8610,7 @@ var CountSubscriber = /*@__PURE__*/ (function (_super) {
     return CountSubscriber;
 }(Subscriber));
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 function debounce(durationSelector) {
     return function (source) { return source.lift(new DebounceOperator(durationSelector)); };
 }
@@ -8554,7 +8629,6 @@ var DebounceSubscriber = /*@__PURE__*/ (function (_super) {
         var _this = _super.call(this, destination) || this;
         _this.durationSelector = durationSelector;
         _this.hasValue = false;
-        _this.durationSubscription = null;
         return _this;
     }
     DebounceSubscriber.prototype._next = function (value) {
@@ -8580,12 +8654,12 @@ var DebounceSubscriber = /*@__PURE__*/ (function (_super) {
             subscription.unsubscribe();
             this.remove(subscription);
         }
-        subscription = subscribeToResult(this, duration);
+        subscription = innerSubscribe(duration, new SimpleInnerSubscriber(this));
         if (subscription && !subscription.closed) {
             this.add(this.durationSubscription = subscription);
         }
     };
-    DebounceSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    DebounceSubscriber.prototype.notifyNext = function () {
         this.emitValue();
     };
     DebounceSubscriber.prototype.notifyComplete = function () {
@@ -8596,17 +8670,17 @@ var DebounceSubscriber = /*@__PURE__*/ (function (_super) {
             var value = this.value;
             var subscription = this.durationSubscription;
             if (subscription) {
-                this.durationSubscription = null;
+                this.durationSubscription = undefined;
                 subscription.unsubscribe();
                 this.remove(subscription);
             }
-            this.value = null;
+            this.value = undefined;
             this.hasValue = false;
             _super.prototype._next.call(this, value);
         }
     };
     return DebounceSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START tslib,_Subscriber,_scheduler_async PURE_IMPORTS_END */
 function debounceTime(dueTime, scheduler) {
@@ -8828,7 +8902,7 @@ var DelayWhenSubscriber = /*@__PURE__*/ (function (_super) {
         _this.index = 0;
         return _this;
     }
-    DelayWhenSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    DelayWhenSubscriber.prototype.notifyNext = function (outerValue, _innerValue, _outerIndex, _innerIndex, innerSub) {
         this.destination.next(outerValue);
         this.removeSubscription(innerSub);
         this.tryComplete();
@@ -8951,7 +9025,7 @@ var DeMaterializeSubscriber = /*@__PURE__*/ (function (_super) {
     return DeMaterializeSubscriber;
 }(Subscriber));
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 function distinct(keySelector, flushes) {
     return function (source) { return source.lift(new DistinctOperator(keySelector, flushes)); };
 }
@@ -8972,14 +9046,14 @@ var DistinctSubscriber = /*@__PURE__*/ (function (_super) {
         _this.keySelector = keySelector;
         _this.values = new Set();
         if (flushes) {
-            _this.add(subscribeToResult(_this, flushes));
+            _this.add(innerSubscribe(flushes, new SimpleInnerSubscriber(_this)));
         }
         return _this;
     }
-    DistinctSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    DistinctSubscriber.prototype.notifyNext = function () {
         this.values.clear();
     };
-    DistinctSubscriber.prototype.notifyError = function (error, innerSub) {
+    DistinctSubscriber.prototype.notifyError = function (error) {
         this._error(error);
     };
     DistinctSubscriber.prototype._next = function (value) {
@@ -9010,7 +9084,7 @@ var DistinctSubscriber = /*@__PURE__*/ (function (_super) {
         }
     };
     return DistinctSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START tslib,_Subscriber PURE_IMPORTS_END */
 function distinctUntilChanged(compare, keySelector) {
@@ -9242,7 +9316,7 @@ var EverySubscriber = /*@__PURE__*/ (function (_super) {
     return EverySubscriber;
 }(Subscriber));
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 function exhaust() {
     return function (source) { return source.lift(new SwitchFirstOperator()); };
 }
@@ -9265,7 +9339,7 @@ var SwitchFirstSubscriber = /*@__PURE__*/ (function (_super) {
     SwitchFirstSubscriber.prototype._next = function (value) {
         if (!this.hasSubscription) {
             this.hasSubscription = true;
-            this.add(subscribeToResult(this, value));
+            this.add(innerSubscribe(value, new SimpleInnerSubscriber(this)));
         }
     };
     SwitchFirstSubscriber.prototype._complete = function () {
@@ -9274,17 +9348,16 @@ var SwitchFirstSubscriber = /*@__PURE__*/ (function (_super) {
             this.destination.complete();
         }
     };
-    SwitchFirstSubscriber.prototype.notifyComplete = function (innerSub) {
-        this.remove(innerSub);
+    SwitchFirstSubscriber.prototype.notifyComplete = function () {
         this.hasSubscription = false;
         if (this.hasCompleted) {
             this.destination.complete();
         }
     };
     return SwitchFirstSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_InnerSubscriber,_util_subscribeToResult,_map,_observable_from PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_map,_observable_from,_innerSubscribe PURE_IMPORTS_END */
 function exhaustMap(project, resultSelector) {
     if (resultSelector) {
         return function (source) { return source.pipe(exhaustMap(function (a, i) { return from$1(project(a, i)).pipe(map(function (b, ii) { return resultSelector(a, b, i, ii); })); })); };
@@ -9328,13 +9401,13 @@ var ExhaustMapSubscriber = /*@__PURE__*/ (function (_super) {
             return;
         }
         this.hasSubscription = true;
-        this._innerSub(result, value, index);
+        this._innerSub(result);
     };
-    ExhaustMapSubscriber.prototype._innerSub = function (result, value, index) {
-        var innerSubscriber = new InnerSubscriber(this, value, index);
+    ExhaustMapSubscriber.prototype._innerSub = function (result) {
+        var innerSubscriber = new SimpleInnerSubscriber(this);
         var destination = this.destination;
         destination.add(innerSubscriber);
-        var innerSubscription = subscribeToResult(this, result, undefined, undefined, innerSubscriber);
+        var innerSubscription = innerSubscribe(result, innerSubscriber);
         if (innerSubscription !== innerSubscriber) {
             destination.add(innerSubscription);
         }
@@ -9346,30 +9419,25 @@ var ExhaustMapSubscriber = /*@__PURE__*/ (function (_super) {
         }
         this.unsubscribe();
     };
-    ExhaustMapSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    ExhaustMapSubscriber.prototype.notifyNext = function (innerValue) {
         this.destination.next(innerValue);
     };
     ExhaustMapSubscriber.prototype.notifyError = function (err) {
         this.destination.error(err);
     };
-    ExhaustMapSubscriber.prototype.notifyComplete = function (innerSub) {
-        var destination = this.destination;
-        destination.remove(innerSub);
+    ExhaustMapSubscriber.prototype.notifyComplete = function () {
         this.hasSubscription = false;
         if (this.hasCompleted) {
             this.destination.complete();
         }
     };
     return ExhaustMapSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 function expand(project, concurrent, scheduler) {
     if (concurrent === void 0) {
         concurrent = Number.POSITIVE_INFINITY;
-    }
-    if (scheduler === void 0) {
-        scheduler = undefined;
     }
     concurrent = (concurrent || 0) < 1 ? Number.POSITIVE_INFINITY : concurrent;
     return function (source) { return source.lift(new ExpandOperator(project, concurrent, scheduler)); };
@@ -9436,7 +9504,7 @@ var ExpandSubscriber = /*@__PURE__*/ (function (_super) {
     ExpandSubscriber.prototype.subscribeToProjection = function (result, value, index) {
         this.active++;
         var destination = this.destination;
-        destination.add(subscribeToResult(this, result, value, index));
+        destination.add(innerSubscribe(result, new SimpleInnerSubscriber(this)));
     };
     ExpandSubscriber.prototype._complete = function () {
         this.hasCompleted = true;
@@ -9445,13 +9513,11 @@ var ExpandSubscriber = /*@__PURE__*/ (function (_super) {
         }
         this.unsubscribe();
     };
-    ExpandSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    ExpandSubscriber.prototype.notifyNext = function (innerValue) {
         this._next(innerValue);
     };
-    ExpandSubscriber.prototype.notifyComplete = function (innerSub) {
+    ExpandSubscriber.prototype.notifyComplete = function () {
         var buffer = this.buffer;
-        var destination = this.destination;
-        destination.remove(innerSub);
         this.active--;
         if (buffer && buffer.length > 0) {
             this._next(buffer.shift());
@@ -9461,7 +9527,7 @@ var ExpandSubscriber = /*@__PURE__*/ (function (_super) {
         }
     };
     return ExpandSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START tslib,_Subscriber,_Subscription PURE_IMPORTS_END */
 function finalize(callback) {
@@ -9846,7 +9912,7 @@ function mergeMapTo(innerObservable, resultSelector, concurrent) {
     return mergeMap(function () { return innerObservable; }, concurrent);
 }
 
-/** PURE_IMPORTS_START tslib,_util_subscribeToResult,_OuterSubscriber,_InnerSubscriber PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 function mergeScan(accumulator, seed, concurrent) {
     if (concurrent === void 0) {
         concurrent = Number.POSITIVE_INFINITY;
@@ -9891,17 +9957,17 @@ var MergeScanSubscriber = /*@__PURE__*/ (function (_super) {
                 return destination.error(e);
             }
             this.active++;
-            this._innerSub(ish, value, index);
+            this._innerSub(ish);
         }
         else {
             this.buffer.push(value);
         }
     };
-    MergeScanSubscriber.prototype._innerSub = function (ish, value, index) {
-        var innerSubscriber = new InnerSubscriber(this, value, index);
+    MergeScanSubscriber.prototype._innerSub = function (ish) {
+        var innerSubscriber = new SimpleInnerSubscriber(this);
         var destination = this.destination;
         destination.add(innerSubscriber);
-        var innerSubscription = subscribeToResult(this, ish, undefined, undefined, innerSubscriber);
+        var innerSubscription = innerSubscribe(ish, innerSubscriber);
         if (innerSubscription !== innerSubscriber) {
             destination.add(innerSubscription);
         }
@@ -9916,16 +9982,14 @@ var MergeScanSubscriber = /*@__PURE__*/ (function (_super) {
         }
         this.unsubscribe();
     };
-    MergeScanSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    MergeScanSubscriber.prototype.notifyNext = function (innerValue) {
         var destination = this.destination;
         this.acc = innerValue;
         this.hasValue = true;
         destination.next(innerValue);
     };
-    MergeScanSubscriber.prototype.notifyComplete = function (innerSub) {
+    MergeScanSubscriber.prototype.notifyComplete = function () {
         var buffer = this.buffer;
-        var destination = this.destination;
-        destination.remove(innerSub);
         this.active--;
         if (buffer.length > 0) {
             this._next(buffer.shift());
@@ -9938,7 +10002,7 @@ var MergeScanSubscriber = /*@__PURE__*/ (function (_super) {
         }
     };
     return MergeScanSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START _reduce PURE_IMPORTS_END */
 function min(comparer) {
@@ -9984,7 +10048,7 @@ var MulticastOperator = /*@__PURE__*/ (function () {
     return MulticastOperator;
 }());
 
-/** PURE_IMPORTS_START tslib,_observable_from,_util_isArray,_OuterSubscriber,_InnerSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_observable_from,_util_isArray,_innerSubscribe PURE_IMPORTS_END */
 function onErrorResumeNext$1() {
     var nextSources = [];
     for (var _i = 0; _i < arguments.length; _i++) {
@@ -10012,10 +10076,10 @@ var OnErrorResumeNextSubscriber = /*@__PURE__*/ (function (_super) {
         _this.nextSources = nextSources;
         return _this;
     }
-    OnErrorResumeNextSubscriber.prototype.notifyError = function (error, innerSub) {
+    OnErrorResumeNextSubscriber.prototype.notifyError = function () {
         this.subscribeToNextSource();
     };
-    OnErrorResumeNextSubscriber.prototype.notifyComplete = function (innerSub) {
+    OnErrorResumeNextSubscriber.prototype.notifyComplete = function () {
         this.subscribeToNextSource();
     };
     OnErrorResumeNextSubscriber.prototype._error = function (err) {
@@ -10029,10 +10093,10 @@ var OnErrorResumeNextSubscriber = /*@__PURE__*/ (function (_super) {
     OnErrorResumeNextSubscriber.prototype.subscribeToNextSource = function () {
         var next = this.nextSources.shift();
         if (!!next) {
-            var innerSubscriber = new InnerSubscriber(this, undefined, undefined);
+            var innerSubscriber = new SimpleInnerSubscriber(this);
             var destination = this.destination;
             destination.add(innerSubscriber);
-            var innerSubscription = subscribeToResult(this, next, undefined, undefined, innerSubscriber);
+            var innerSubscription = innerSubscribe(next, innerSubscriber);
             if (innerSubscription !== innerSubscriber) {
                 destination.add(innerSubscription);
             }
@@ -10042,7 +10106,7 @@ var OnErrorResumeNextSubscriber = /*@__PURE__*/ (function (_super) {
         }
     };
     return OnErrorResumeNextSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START tslib,_Subscriber PURE_IMPORTS_END */
 function pairwise() {
@@ -10105,8 +10169,8 @@ function plucker(props, length) {
     var mapper = function (x) {
         var currentProp = x;
         for (var i = 0; i < length; i++) {
-            var p = currentProp[props[i]];
-            if (typeof p !== 'undefined') {
+            var p = currentProp != null ? currentProp[props[i]] : undefined;
+            if (p !== void 0) {
                 currentProp = p;
             }
             else {
@@ -10209,7 +10273,7 @@ var RepeatSubscriber = /*@__PURE__*/ (function (_super) {
     return RepeatSubscriber;
 }(Subscriber));
 
-/** PURE_IMPORTS_START tslib,_Subject,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_Subject,_innerSubscribe PURE_IMPORTS_END */
 function repeatWhen(notifier) {
     return function (source) { return source.lift(new RepeatWhenOperator(notifier)); };
 }
@@ -10231,11 +10295,11 @@ var RepeatWhenSubscriber = /*@__PURE__*/ (function (_super) {
         _this.sourceIsBeingSubscribedTo = true;
         return _this;
     }
-    RepeatWhenSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    RepeatWhenSubscriber.prototype.notifyNext = function () {
         this.sourceIsBeingSubscribedTo = true;
         this.source.subscribe(this);
     };
-    RepeatWhenSubscriber.prototype.notifyComplete = function (innerSub) {
+    RepeatWhenSubscriber.prototype.notifyComplete = function () {
         if (this.sourceIsBeingSubscribedTo === false) {
             return _super.prototype.complete.call(this);
         }
@@ -10250,20 +10314,20 @@ var RepeatWhenSubscriber = /*@__PURE__*/ (function (_super) {
                 return _super.prototype.complete.call(this);
             }
             this._unsubscribeAndRecycle();
-            this.notifications.next();
+            this.notifications.next(undefined);
         }
     };
     RepeatWhenSubscriber.prototype._unsubscribe = function () {
         var _a = this, notifications = _a.notifications, retriesSubscription = _a.retriesSubscription;
         if (notifications) {
             notifications.unsubscribe();
-            this.notifications = null;
+            this.notifications = undefined;
         }
         if (retriesSubscription) {
             retriesSubscription.unsubscribe();
-            this.retriesSubscription = null;
+            this.retriesSubscription = undefined;
         }
-        this.retries = null;
+        this.retries = undefined;
     };
     RepeatWhenSubscriber.prototype._unsubscribeAndRecycle = function () {
         var _unsubscribe = this._unsubscribe;
@@ -10283,10 +10347,10 @@ var RepeatWhenSubscriber = /*@__PURE__*/ (function (_super) {
             return _super.prototype.complete.call(this);
         }
         this.retries = retries;
-        this.retriesSubscription = subscribeToResult(this, retries);
+        this.retriesSubscription = innerSubscribe(retries, new SimpleInnerSubscriber(this));
     };
     return RepeatWhenSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START tslib,_Subscriber PURE_IMPORTS_END */
 function retry(count) {
@@ -10328,7 +10392,7 @@ var RetrySubscriber = /*@__PURE__*/ (function (_super) {
     return RetrySubscriber;
 }(Subscriber));
 
-/** PURE_IMPORTS_START tslib,_Subject,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_Subject,_innerSubscribe PURE_IMPORTS_END */
 function retryWhen(notifier) {
     return function (source) { return source.lift(new RetryWhenOperator(notifier, source)); };
 }
@@ -10364,11 +10428,11 @@ var RetryWhenSubscriber = /*@__PURE__*/ (function (_super) {
                 catch (e) {
                     return _super.prototype.error.call(this, e);
                 }
-                retriesSubscription = subscribeToResult(this, retries);
+                retriesSubscription = innerSubscribe(retries, new SimpleInnerSubscriber(this));
             }
             else {
-                this.errors = null;
-                this.retriesSubscription = null;
+                this.errors = undefined;
+                this.retriesSubscription = undefined;
             }
             this._unsubscribeAndRecycle();
             this.errors = errors;
@@ -10381,15 +10445,15 @@ var RetryWhenSubscriber = /*@__PURE__*/ (function (_super) {
         var _a = this, errors = _a.errors, retriesSubscription = _a.retriesSubscription;
         if (errors) {
             errors.unsubscribe();
-            this.errors = null;
+            this.errors = undefined;
         }
         if (retriesSubscription) {
             retriesSubscription.unsubscribe();
-            this.retriesSubscription = null;
+            this.retriesSubscription = undefined;
         }
-        this.retries = null;
+        this.retries = undefined;
     };
-    RetryWhenSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    RetryWhenSubscriber.prototype.notifyNext = function () {
         var _unsubscribe = this._unsubscribe;
         this._unsubscribe = null;
         this._unsubscribeAndRecycle();
@@ -10397,9 +10461,9 @@ var RetryWhenSubscriber = /*@__PURE__*/ (function (_super) {
         this.source.subscribe(this);
     };
     return RetryWhenSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 function sample(notifier) {
     return function (source) { return source.lift(new SampleOperator(notifier)); };
 }
@@ -10410,7 +10474,7 @@ var SampleOperator = /*@__PURE__*/ (function () {
     SampleOperator.prototype.call = function (subscriber, source) {
         var sampleSubscriber = new SampleSubscriber(subscriber);
         var subscription = source.subscribe(sampleSubscriber);
-        subscription.add(subscribeToResult(sampleSubscriber, this.notifier));
+        subscription.add(innerSubscribe(this.notifier, new SimpleInnerSubscriber(sampleSubscriber)));
         return subscription;
     };
     return SampleOperator;
@@ -10426,7 +10490,7 @@ var SampleSubscriber = /*@__PURE__*/ (function (_super) {
         this.value = value;
         this.hasValue = true;
     };
-    SampleSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    SampleSubscriber.prototype.notifyNext = function () {
         this.emitValue();
     };
     SampleSubscriber.prototype.notifyComplete = function () {
@@ -10439,7 +10503,7 @@ var SampleSubscriber = /*@__PURE__*/ (function (_super) {
         }
     };
     return SampleSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START tslib,_Subscriber,_scheduler_async PURE_IMPORTS_END */
 function sampleTime(period, scheduler) {
@@ -10625,9 +10689,11 @@ function shareReplayOperator(_a) {
     var isComplete = false;
     return function shareReplayOperation(source) {
         refCount++;
+        var innerSub;
         if (!subject || hasError) {
             hasError = false;
             subject = new ReplaySubject(bufferSize, windowTime, scheduler);
+            innerSub = subject.subscribe(this);
             subscription = source.subscribe({
                 next: function (value) { subject.next(value); },
                 error: function (err) {
@@ -10641,7 +10707,9 @@ function shareReplayOperator(_a) {
                 },
             });
         }
-        var innerSub = subject.subscribe(this);
+        else {
+            innerSub = subject.subscribe(this);
+        }
         this.add(function () {
             refCount--;
             innerSub.unsubscribe();
@@ -10796,7 +10864,7 @@ var SkipLastSubscriber = /*@__PURE__*/ (function (_super) {
     return SkipLastSubscriber;
 }(Subscriber));
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_InnerSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 function skipUntil(notifier) {
     return function (source) { return source.lift(new SkipUntilOperator(notifier)); };
 }
@@ -10814,10 +10882,10 @@ var SkipUntilSubscriber = /*@__PURE__*/ (function (_super) {
     function SkipUntilSubscriber(destination, notifier) {
         var _this = _super.call(this, destination) || this;
         _this.hasValue = false;
-        var innerSubscriber = new InnerSubscriber(_this, undefined, undefined);
+        var innerSubscriber = new SimpleInnerSubscriber(_this);
         _this.add(innerSubscriber);
         _this.innerSubscription = innerSubscriber;
-        var innerSubscription = subscribeToResult(_this, notifier, undefined, undefined, innerSubscriber);
+        var innerSubscription = innerSubscribe(notifier, innerSubscriber);
         if (innerSubscription !== innerSubscriber) {
             _this.add(innerSubscription);
             _this.innerSubscription = innerSubscription;
@@ -10829,7 +10897,7 @@ var SkipUntilSubscriber = /*@__PURE__*/ (function (_super) {
             _super.prototype._next.call(this, value);
         }
     };
-    SkipUntilSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    SkipUntilSubscriber.prototype.notifyNext = function () {
         this.hasValue = true;
         if (this.innerSubscription) {
             this.innerSubscription.unsubscribe();
@@ -10838,7 +10906,7 @@ var SkipUntilSubscriber = /*@__PURE__*/ (function (_super) {
     SkipUntilSubscriber.prototype.notifyComplete = function () {
     };
     return SkipUntilSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START tslib,_Subscriber PURE_IMPORTS_END */
 function skipWhile(predicate) {
@@ -10965,7 +11033,7 @@ var SubscribeOnOperator = /*@__PURE__*/ (function () {
     return SubscribeOnOperator;
 }());
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_InnerSubscriber,_util_subscribeToResult,_map,_observable_from PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_map,_observable_from,_innerSubscribe PURE_IMPORTS_END */
 function switchMap(project, resultSelector) {
     if (typeof resultSelector === 'function') {
         return function (source) { return source.pipe(switchMap(function (a, i) { return from$1(project(a, i)).pipe(map(function (b, ii) { return resultSelector(a, b, i, ii); })); })); };
@@ -10999,17 +11067,17 @@ var SwitchMapSubscriber = /*@__PURE__*/ (function (_super) {
             this.destination.error(error);
             return;
         }
-        this._innerSub(result, value, index);
+        this._innerSub(result);
     };
-    SwitchMapSubscriber.prototype._innerSub = function (result, value, index) {
+    SwitchMapSubscriber.prototype._innerSub = function (result) {
         var innerSubscription = this.innerSubscription;
         if (innerSubscription) {
             innerSubscription.unsubscribe();
         }
-        var innerSubscriber = new InnerSubscriber(this, value, index);
+        var innerSubscriber = new SimpleInnerSubscriber(this);
         var destination = this.destination;
         destination.add(innerSubscriber);
-        this.innerSubscription = subscribeToResult(this, result, undefined, undefined, innerSubscriber);
+        this.innerSubscription = innerSubscribe(result, innerSubscriber);
         if (this.innerSubscription !== innerSubscriber) {
             destination.add(this.innerSubscription);
         }
@@ -11022,21 +11090,19 @@ var SwitchMapSubscriber = /*@__PURE__*/ (function (_super) {
         this.unsubscribe();
     };
     SwitchMapSubscriber.prototype._unsubscribe = function () {
-        this.innerSubscription = null;
+        this.innerSubscription = undefined;
     };
-    SwitchMapSubscriber.prototype.notifyComplete = function (innerSub) {
-        var destination = this.destination;
-        destination.remove(innerSub);
-        this.innerSubscription = null;
+    SwitchMapSubscriber.prototype.notifyComplete = function () {
+        this.innerSubscription = undefined;
         if (this.isStopped) {
             _super.prototype._complete.call(this);
         }
     };
-    SwitchMapSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    SwitchMapSubscriber.prototype.notifyNext = function (innerValue) {
         this.destination.next(innerValue);
     };
     return SwitchMapSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START _switchMap,_util_identity PURE_IMPORTS_END */
 function switchAll() {
@@ -11048,7 +11114,7 @@ function switchMapTo(innerObservable, resultSelector) {
     return resultSelector ? switchMap(function () { return innerObservable; }, resultSelector) : switchMap(function () { return innerObservable; });
 }
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 function takeUntil(notifier) {
     return function (source) { return source.lift(new TakeUntilOperator(notifier)); };
 }
@@ -11058,7 +11124,7 @@ var TakeUntilOperator = /*@__PURE__*/ (function () {
     }
     TakeUntilOperator.prototype.call = function (subscriber, source) {
         var takeUntilSubscriber = new TakeUntilSubscriber(subscriber);
-        var notifierSubscription = subscribeToResult(takeUntilSubscriber, this.notifier);
+        var notifierSubscription = innerSubscribe(this.notifier, new SimpleInnerSubscriber(takeUntilSubscriber));
         if (notifierSubscription && !takeUntilSubscriber.seenValue) {
             takeUntilSubscriber.add(notifierSubscription);
             return source.subscribe(takeUntilSubscriber);
@@ -11074,14 +11140,14 @@ var TakeUntilSubscriber = /*@__PURE__*/ (function (_super) {
         _this.seenValue = false;
         return _this;
     }
-    TakeUntilSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    TakeUntilSubscriber.prototype.notifyNext = function () {
         this.seenValue = true;
         this.complete();
     };
     TakeUntilSubscriber.prototype.notifyComplete = function () {
     };
     return TakeUntilSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START tslib,_Subscriber PURE_IMPORTS_END */
 function takeWhile(predicate, inclusive) {
@@ -11209,7 +11275,7 @@ var TapSubscriber = /*@__PURE__*/ (function (_super) {
     return TapSubscriber;
 }(Subscriber));
 
-/** PURE_IMPORTS_START tslib,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_innerSubscribe PURE_IMPORTS_END */
 var defaultThrottleConfig = {
     leading: true,
     trailing: false
@@ -11218,7 +11284,7 @@ function throttle(durationSelector, config) {
     if (config === void 0) {
         config = defaultThrottleConfig;
     }
-    return function (source) { return source.lift(new ThrottleOperator(durationSelector, config.leading, config.trailing)); };
+    return function (source) { return source.lift(new ThrottleOperator(durationSelector, !!config.leading, !!config.trailing)); };
 }
 var ThrottleOperator = /*@__PURE__*/ (function () {
     function ThrottleOperator(durationSelector, leading, trailing) {
@@ -11261,12 +11327,12 @@ var ThrottleSubscriber = /*@__PURE__*/ (function (_super) {
             this.throttle(_sendValue);
         }
         this._hasValue = false;
-        this._sendValue = null;
+        this._sendValue = undefined;
     };
     ThrottleSubscriber.prototype.throttle = function (value) {
         var duration = this.tryDurationSelector(value);
         if (!!duration) {
-            this.add(this._throttled = subscribeToResult(this, duration));
+            this.add(this._throttled = innerSubscribe(duration, new SimpleInnerSubscriber(this)));
         }
     };
     ThrottleSubscriber.prototype.tryDurationSelector = function (value) {
@@ -11283,19 +11349,19 @@ var ThrottleSubscriber = /*@__PURE__*/ (function (_super) {
         if (_throttled) {
             _throttled.unsubscribe();
         }
-        this._throttled = null;
+        this._throttled = undefined;
         if (_trailing) {
             this.send();
         }
     };
-    ThrottleSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    ThrottleSubscriber.prototype.notifyNext = function () {
         this.throttlingDone();
     };
     ThrottleSubscriber.prototype.notifyComplete = function () {
         this.throttlingDone();
     };
     return ThrottleSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START tslib,_Subscriber,_scheduler_async,_throttle PURE_IMPORTS_END */
 function throttleTime(duration, scheduler, config) {
@@ -11403,7 +11469,7 @@ var TimeInterval = /*@__PURE__*/ (function () {
     return TimeInterval;
 }());
 
-/** PURE_IMPORTS_START tslib,_scheduler_async,_util_isDate,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_scheduler_async,_util_isDate,_innerSubscribe PURE_IMPORTS_END */
 function timeoutWith(due, withObservable, scheduler) {
     if (scheduler === void 0) {
         scheduler = async;
@@ -11434,14 +11500,13 @@ var TimeoutWithSubscriber = /*@__PURE__*/ (function (_super) {
         _this.waitFor = waitFor;
         _this.withObservable = withObservable;
         _this.scheduler = scheduler;
-        _this.action = null;
         _this.scheduleTimeout();
         return _this;
     }
     TimeoutWithSubscriber.dispatchTimeout = function (subscriber) {
         var withObservable = subscriber.withObservable;
         subscriber._unsubscribeAndRecycle();
-        subscriber.add(subscribeToResult(subscriber, withObservable));
+        subscriber.add(innerSubscribe(withObservable, new SimpleInnerSubscriber(subscriber)));
     };
     TimeoutWithSubscriber.prototype.scheduleTimeout = function () {
         var action = this.action;
@@ -11459,12 +11524,12 @@ var TimeoutWithSubscriber = /*@__PURE__*/ (function (_super) {
         _super.prototype._next.call(this, value);
     };
     TimeoutWithSubscriber.prototype._unsubscribe = function () {
-        this.action = null;
+        this.action = undefined;
         this.scheduler = null;
         this.withObservable = null;
     };
     return TimeoutWithSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START _scheduler_async,_util_TimeoutError,_timeoutWith,_observable_throwError PURE_IMPORTS_END */
 function timeout(due, scheduler) {
@@ -11501,7 +11566,7 @@ function toArray() {
     return reduce(toArrayReducer, []);
 }
 
-/** PURE_IMPORTS_START tslib,_Subject,_OuterSubscriber,_util_subscribeToResult PURE_IMPORTS_END */
+/** PURE_IMPORTS_START tslib,_Subject,_innerSubscribe PURE_IMPORTS_END */
 function window$1(windowBoundaries) {
     return function windowOperatorFunction(source) {
         return source.lift(new WindowOperator(windowBoundaries));
@@ -11515,7 +11580,7 @@ var WindowOperator = /*@__PURE__*/ (function () {
         var windowSubscriber = new WindowSubscriber(subscriber);
         var sourceSubscription = source.subscribe(windowSubscriber);
         if (!sourceSubscription.closed) {
-            windowSubscriber.add(subscribeToResult(windowSubscriber, this.windowBoundaries));
+            windowSubscriber.add(innerSubscribe(this.windowBoundaries, new SimpleInnerSubscriber(windowSubscriber)));
         }
         return sourceSubscription;
     };
@@ -11529,13 +11594,13 @@ var WindowSubscriber = /*@__PURE__*/ (function (_super) {
         destination.next(_this.window);
         return _this;
     }
-    WindowSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    WindowSubscriber.prototype.notifyNext = function () {
         this.openWindow();
     };
-    WindowSubscriber.prototype.notifyError = function (error, innerSub) {
+    WindowSubscriber.prototype.notifyError = function (error) {
         this._error(error);
     };
-    WindowSubscriber.prototype.notifyComplete = function (innerSub) {
+    WindowSubscriber.prototype.notifyComplete = function () {
         this._complete();
     };
     WindowSubscriber.prototype._next = function (value) {
@@ -11562,7 +11627,7 @@ var WindowSubscriber = /*@__PURE__*/ (function (_super) {
         destination.next(newWindow);
     };
     return WindowSubscriber;
-}(OuterSubscriber));
+}(SimpleOuterSubscriber));
 
 /** PURE_IMPORTS_START tslib,_Subscriber,_Subject PURE_IMPORTS_END */
 function windowCount(windowSize, startWindowEvery) {
@@ -11651,13 +11716,13 @@ function windowTime(windowTimeSpan) {
         scheduler = arguments[2];
     }
     else if (isNumeric(arguments[2])) {
-        maxWindowSize = arguments[2];
+        maxWindowSize = Number(arguments[2]);
     }
     if (isScheduler(arguments[1])) {
         scheduler = arguments[1];
     }
     else if (isNumeric(arguments[1])) {
-        windowCreationInterval = arguments[1];
+        windowCreationInterval = Number(arguments[1]);
     }
     return function windowTimeOperatorFunction(source) {
         return source.lift(new WindowTimeOperator(windowTimeSpan, windowCreationInterval, maxWindowSize, scheduler));
@@ -11936,10 +12001,10 @@ var WindowSubscriber$1 = /*@__PURE__*/ (function (_super) {
         _this.openWindow();
         return _this;
     }
-    WindowSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    WindowSubscriber.prototype.notifyNext = function (_outerValue, _innerValue, _outerIndex, _innerIndex, innerSub) {
         this.openWindow(innerSub);
     };
-    WindowSubscriber.prototype.notifyError = function (error, innerSub) {
+    WindowSubscriber.prototype.notifyError = function (error) {
         this._error(error);
     };
     WindowSubscriber.prototype.notifyComplete = function (innerSub) {
@@ -12031,11 +12096,11 @@ var WithLatestFromSubscriber = /*@__PURE__*/ (function (_super) {
         }
         for (var i = 0; i < len; i++) {
             var observable = observables[i];
-            _this.add(subscribeToResult(_this, observable, observable, i));
+            _this.add(subscribeToResult(_this, observable, undefined, i));
         }
         return _this;
     }
-    WithLatestFromSubscriber.prototype.notifyNext = function (outerValue, innerValue, outerIndex, innerIndex, innerSub) {
+    WithLatestFromSubscriber.prototype.notifyNext = function (_outerValue, innerValue, outerIndex) {
         this.values[outerIndex] = innerValue;
         var toRespond = this.toRespond;
         if (toRespond.length > 0) {
@@ -12138,7 +12203,7 @@ var operators = /*#__PURE__*/Object.freeze({
   merge: merge$1,
   mergeAll: mergeAll,
   mergeMap: mergeMap,
-  flatMap: mergeMap,
+  flatMap: flatMap,
   mergeMapTo: mergeMapTo,
   mergeScan: mergeScan,
   min: min,
@@ -13562,6 +13627,16 @@ window.addEventListener('load', () => {
                     Low Level Api
                 </label>
             </div>
+            <div id="coin-selector" class="selector">
+                <label>
+                    <input type="radio" name="coin-selector" value="${Coin.NIMIQ}" checked>
+                    Nimiq
+                </label>
+                <label>
+                    <input type="radio" name="coin-selector" value="${Coin.BITCOIN}">
+                    Bitcoin
+                </label>
+            </div>
             <div id="transport-selector" class="selector">
                 <label>
                     <input type="radio" name="transport-selector" value="${TransportType.WEB_USB}" checked>
@@ -13597,46 +13672,160 @@ window.addEventListener('load', () => {
             </div>
         </section>
 
-        <section class="nq-text nq-card">
-            <h2 class="nq-card-header nq-h2">Get Public Key</h2>
-            <div class="nq-card-body">
-                <input class="nq-input" id="bip32-path-public-key-input" value="44'/242'/0'/0'">
-                <button class="nq-button-s" id="get-public-key-button">Get Public Key</button>
-                <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="low-level-api-confirm-public-key-button">
-                    Confirm Public Key
-                </button>
-                <br>
-                <div class="nq-text">Public Key: <span id="public-key" class="mono"></span></div>
-            </div>
-        </section>
-
-        <section class="nq-text nq-card">
-            <h2 class="nq-card-header nq-h2">Get Address</h2>
-            <div class="nq-card-body">
-                <input class="nq-input" id="bip32-path-address-input" value="44'/242'/0'/0'">
-                <button class="nq-button-s" id="get-address-button">Get Address</button>
-                <button class="nq-button-s" id="confirm-address-button">Confirm Address</button>
-                <br>
-                <div class="nq-text">Address: <span id="address" class="mono"></span></div>
-            </div>
-        </section>
-
-        <section class="nq-text nq-card">
-            <h2 class="nq-card-header nq-h2">Sign Transaction</h2>
-            <div class="nq-card-body">
-                <div class="nq-text">Fill the input with a transaction's serializeContent hex.</div>
-                <input class="nq-input" id="tx-hex-input" value="${txHash}">
-                <button class="nq-button-s" id="sign-tx-button">Sign</button>
-                <br>
-                <div class="nq-text">Signature: <span id="signature" class="mono"></span></div>
+        <!-- Nimiq requests -->
+        <div class="show-${Coin.NIMIQ}">
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Get Public Key</h2>
+                <div class="nq-card-body">
+                    <input class="nq-input" id="bip32-path-public-key-input-nimiq" value="44'/242'/0'/0'">
+                    <button class="nq-button-s" id="get-public-key-button-nimiq">Get Public Key</button>
+                    <button class="nq-button-s show-${ApiType.LOW_LEVEL}" id="confirm-public-key-button-nimiq">
+                        Confirm Public Key
+                    </button>
+                    <br>
+                    <div class="nq-text">Public Key: <span id="public-key-nimiq" class="mono"></span></div>
                 </div>
-        </section>
+            </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Get Address</h2>
+                <div class="nq-card-body">
+                    <input class="nq-input" id="bip32-path-address-input-nimiq" value="44'/242'/0'/0'">
+                    <button class="nq-button-s" id="get-address-button-nimiq">Get Address</button>
+                    <button class="nq-button-s" id="confirm-address-button-nimiq">Confirm Address</button>
+                    <br>
+                    <div class="nq-text">Address: <span id="address-nimiq" class="mono"></span></div>
+                </div>
+            </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Sign Transaction</h2>
+                <div class="nq-card-body">
+                    <div class="nq-text">Fill the input with a transaction's serializeContent hex.</div>
+                    <input class="nq-input" id="tx-hex-input-nimiq" value="${txHash}">
+                    <button class="nq-button-s" id="sign-tx-button-nimiq">Sign</button>
+                    <br>
+                    <div class="nq-text">Signature: <span id="signature-nimiq" class="mono"></span></div>
+                    </div>
+            </section>
+
+            <section class="nq-text nq-card show-${ApiType.HIGH_LEVEL}">
+                <h2 class="nq-card-header nq-h2">Get Wallet Id</h2>
+                <div class="nq-card-body">
+                    <button class="nq-button-s" id="get-wallet-id-button-nimiq">Get Wallet Id</button>
+                    <br>
+                    <div class="nq-text">Wallet Id: <span id="wallet-id-nimiq" class="mono"></span></div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Bitcoin requests -->
+        <div class="show-${Coin.BITCOIN}">
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Get Address and Public Key</h2>
+                <div class="nq-card-body">
+                    <input class="nq-input" id="bip32-path-address-input-bitcoin" value="84'/1'/0'/0/0"
+                        style="max-width: 20rem">
+                    <button class="nq-button-s" id="get-address-button-bitcoin">Get Address and Public Key</button>
+                    <button class="nq-button-s" id="confirm-address-button-bitcoin">Confirm Address</button>
+                    <br>
+                    <div class="nq-text">Address: <span id="address-bitcoin" class="mono"></span></div>
+                    <div class="nq-text">Public Key: <span id="public-key-bitcoin" class="mono"></span></div>
+                    <div class="nq-text">Chain Code: <span id="chain-code-bitcoin" class="mono"></span></div>
+                </div>
+            </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Get Extended Public Key</h2>
+                <div class="nq-card-body">
+                    <input class="nq-input" id="bip32-path-extended-public-key-input-bitcoin" value="84'/1'/0'"
+                        style="max-width: 20rem">
+                    <button class="nq-button-s" id="get-extended-public-key-button-bitcoin">
+                        Get Extended Public Key
+                    </button>
+                    <br>
+                    <div class="nq-text">
+                        Extended Public Key:
+                        <span id="extended-public-key-bitcoin" class="mono"></span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Sign Transaction</h2>
+                <div class="nq-card-body">
+                    <textarea class="nq-input" id="tx-info-textarea-bitcoin">`
+        /* eslint-disable no-multi-spaces */
+        + '{\n'
+        + '    "inputs": [{\n'
+        + '        "transaction": "020000000001015fd6b1d5315141cf77edbc06d8da1d2a0b164c0f9f5d4ea08edc35'
+        + '240bd763340100000017160014126f057c3e0c29770dd44ca13417873ca8ba8640feffffff02348'
+        + '31e000000000016001438673bdd1248c29c32c96b112f0a5cc61ce3aaea40420f00000000001600'
+        + '145713787559453114fbed627ca8a5a396ffd4492502473044022077ab82661bf71658da41d804b'
+        + '36236496f34b6d338ec95abd9808b98848400d302202c20450e9d315ccfe230a51a98c4659e5582'
+        + '59d6d3041bdf9209a050f23f45df0121030b33659acb140264603ce5ffe22096d4691e3d6bbbffb'
+        + 'f0b7935b010f025e523b6751c00",\n'
+        + '        "index": 1,\n'
+        + '        "keyPath": "84\'/1\'/0\'/0/0"\n'
+        + '    }],\n'
+        + '    "outputs": [{\n'
+        + '        "amount": 700000,\n'
+        + '        "address": "tb1qu0hywjutdcr5lwv6du92s08w6jcq64cryha7vp"\n'
+        + '    }, {\n'
+        + '        "amount": 299000,\n'
+        + '        "address": "tb1qk5392nt3z32y3eqjxzv6h3y3uj66u87xh5wwnh"\n'
+        + '    }],\n'
+        + '    "changePath": "84\'/1\'/0\'/1/0"\n'
+        + '}'
+        /* eslint-enable no-multi-spaces */
+        + `</textarea>
+                    <div class="nq-text">
+                        <button class="nq-button-s" id="sign-tx-button-bitcoin">Sign Transaction</button>
+                    </div>
+                    <div class="nq-text">
+                        Signed transaction:
+                        <span id="signed-tx-bitcoin" class="mono"></span>
+                    </div>
+                    <div class="nq-text">
+                        Use for example
+                        <a href="https://live.blockcypher.com/btc/decodetx/" target="_blank">blockcypher</a>
+                        or
+                        <a href="https://github.com/bitcoinjs/bitcoinjs-lib" target="_blank">bitcoinjs-lib</a>
+                        to decode the transaction and
+                        <a href="https://github.com/nimiq/electrum-client" target="_blank">Nimiq's electrum client</a>
+                        to broadcast the transaction. If you want to broadcast the transaction, use a high enough fee
+                        (difference between inputs and outputs).
+                    </div>
+                </div>
+            </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Get Wallet Id</h2>
+                <div class="nq-card-body">
+                    <span id="wallet-id-network-selector-bitcoin" class="selector" style="margin-right: 2rem">
+                        <label>
+                            <input type="radio" name="wallet-id-network-selector-bitcoin" value="${Network.MAINNET}"
+                                checked>
+                            Mainnet
+                        </label>
+                        <label>
+                            <input type="radio" name="wallet-id-network-selector-bitcoin" value="${Network.TESTNET}">
+                            Testnet
+                        </label>
+                    </span>
+                    <button class="nq-button-s" id="get-wallet-id-button-bitcoin">Get Wallet Id</button>
+                    <br>
+                    <div class="nq-text">Wallet Id: <span id="wallet-id-bitcoin" class="mono"></span></div>
+                </div>
+            </section>
+        </div>
 
         <style>
             body {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
+                padding: 3rem;
             }
             
             .center {
@@ -13658,12 +13847,17 @@ window.addEventListener('load', () => {
             }
 
             .nq-card-header {
-                padding-top: 2rem;
                 margin-bottom: 0;
             }
 
             .nq-input {
                 margin-right: 2rem;
+            }
+            
+            textarea.nq-input {
+                min-width: 100%;
+                max-width: 100%;
+                min-height: 70rem;
             }
 
             .mono {
@@ -13672,44 +13866,81 @@ window.addEventListener('load', () => {
             }
 
             .${ApiType.LOW_LEVEL} .show-${ApiType.HIGH_LEVEL},
-            .${ApiType.HIGH_LEVEL} .show-${ApiType.LOW_LEVEL} {
+            .${ApiType.HIGH_LEVEL} .show-${ApiType.LOW_LEVEL},
+            .${Coin.NIMIQ} .show-${Coin.BITCOIN},
+            .${Coin.BITCOIN} .show-${Coin.NIMIQ} {
                 display: none;
             }
         </style>
     `;
+    function getInputElement(selector, parent = document) {
+        const input = parent.querySelector(selector);
+        if (!input || input.tagName !== 'INPUT')
+            throw new Error(`No input found by selector ${selector}.`);
+        return input;
+    }
     const $status = document.getElementById('status');
     const $highLevelApiState = document.getElementById('high-level-api-state');
     const $highLevelApiLastEvent = document.getElementById('high-level-api-last-event');
     const $apiSelector = document.getElementById('api-selector');
+    const $coinSelector = document.getElementById('coin-selector');
     const $transportSelector = document.getElementById('transport-selector');
-    const $noUserInteractionCheckbox = document.getElementById('no-user-interaction-checkbox');
+    const $noUserInteractionCheckbox = getInputElement('#no-user-interaction-checkbox');
     const $connectButton = document.getElementById('connect-button');
     const $disconnectButton = document.getElementById('disconnect-button');
     const $highLevelApiCancelButton = document.getElementById('high-level-api-cancel-button');
-    const $bip32PathPublicKeyInput = document.getElementById('bip32-path-public-key-input');
-    const $getPublicKeyButton = document.getElementById('get-public-key-button');
-    const $lowLevelApiConfirmPublicKeyButton = document.getElementById('low-level-api-confirm-public-key-button');
-    const $publicKey = document.getElementById('public-key');
-    const $bip32PathAddressInput = document.getElementById('bip32-path-address-input');
-    const $getAddressButton = document.getElementById('get-address-button');
-    const $confirmAddressButton = document.getElementById('confirm-address-button');
-    const $address = document.getElementById('address');
-    const $txHexInput = document.getElementById('tx-hex-input');
-    const $signTxButton = document.getElementById('sign-tx-button');
-    const $signature = document.getElementById('signature');
+    // UI elements for Nimiq requests
+    const $bip32PathPublicKeyInputNimiq = getInputElement('#bip32-path-public-key-input-nimiq');
+    const $getPublicKeyButtonNimiq = document.getElementById('get-public-key-button-nimiq');
+    const $confirmPublicKeyButtonNimiq = document.getElementById('confirm-public-key-button-nimiq');
+    const $publicKeyNimiq = document.getElementById('public-key-nimiq');
+    const $bip32PathAddressInputNimiq = getInputElement('#bip32-path-address-input-nimiq');
+    const $getAddressButtonNimiq = document.getElementById('get-address-button-nimiq');
+    const $confirmAddressButtonNimiq = document.getElementById('confirm-address-button-nimiq');
+    const $addressNimiq = document.getElementById('address-nimiq');
+    const $txHexInputNimiq = getInputElement('#tx-hex-input-nimiq');
+    const $signTxButtonNimiq = document.getElementById('sign-tx-button-nimiq');
+    const $signatureNimiq = document.getElementById('signature-nimiq');
+    const $getWalletIdButtonNimiq = document.getElementById('get-wallet-id-button-nimiq');
+    const $walletIdNimiq = document.getElementById('wallet-id-nimiq');
+    // UI elements for Bitcoin requests
+    const $bip32PathAddressInputBitcoin = getInputElement('#bip32-path-address-input-bitcoin');
+    const $getAddressButtonBitcoin = document.getElementById('get-address-button-bitcoin');
+    const $confirmAddressButtonBitcoin = document.getElementById('confirm-address-button-bitcoin');
+    const $addressBitcoin = document.getElementById('address-bitcoin');
+    const $publicKeyBitcoin = document.getElementById('public-key-bitcoin');
+    const $chainCodeBitcoin = document.getElementById('chain-code-bitcoin');
+    const $bip32PathExtendedPublicKeyInputBitcoin = getInputElement('#bip32-path-extended-public-key-input-bitcoin');
+    const $getExtendedPublicKeyButtonBitcoin = document.getElementById('get-extended-public-key-button-bitcoin');
+    const $extendedPublicKeyBitcoin = document.getElementById('extended-public-key-bitcoin');
+    const $txInfoTextareaBitcoin = document.getElementById('tx-info-textarea-bitcoin');
+    const $signTxButtonBitcoin = document.getElementById('sign-tx-button-bitcoin');
+    const $signedTxBitcoin = document.getElementById('signed-tx-bitcoin');
+    const $walletIdNetworkSelectorBitcoin = document.getElementById('wallet-id-network-selector-bitcoin');
+    const $getWalletIdButtonBitcoin = document.getElementById('get-wallet-id-button-bitcoin');
+    const $walletIdBitcoin = document.getElementById('wallet-id-bitcoin');
     function displayStatus(msg) {
         console.log(msg);
         $status.textContent = msg;
     }
-    function disableSelector(selector) {
+    function enableSelector(selector, enable) {
         for (const el of selector.getElementsByTagName('input')) {
-            el.disabled = true;
+            el.disabled = !enable;
         }
     }
     function switchApi() {
-        const api = $apiSelector.querySelector(':checked').value;
+        const api = getInputElement(':checked', $apiSelector).value;
         document.body.classList.toggle(ApiType.LOW_LEVEL, api === ApiType.LOW_LEVEL);
         document.body.classList.toggle(ApiType.HIGH_LEVEL, api === ApiType.HIGH_LEVEL);
+        enableSelector($coinSelector, api === ApiType.HIGH_LEVEL); // other coins than Nimiq only for high level api
+        getInputElement(`[value=${Coin.NIMIQ}]`, $coinSelector).checked = true;
+    }
+    function switchCoin() {
+        const coin = getInputElement(':checked', $coinSelector).value;
+        document.body.classList.toggle(Coin.NIMIQ, coin === Coin.NIMIQ);
+        document.body.classList.toggle(Coin.BITCOIN, coin === Coin.BITCOIN);
+        enableSelector($apiSelector, coin === Coin.NIMIQ && !window._api); // only for Nimiq and only until initialized
+        getInputElement(`[value=${ApiType.HIGH_LEVEL}]`, $apiSelector).checked = true;
     }
     async function clearUserInteraction() {
         // Wait until user interaction flag is reset. See https://mustaqahmed.github.io/user-activation-v2/,
@@ -13722,12 +13953,12 @@ window.addEventListener('load', () => {
         if (window._api)
             return window._api;
         try {
-            disableSelector($apiSelector);
+            enableSelector($apiSelector, false);
             displayStatus('Creating Api');
-            const apiType = $apiSelector.querySelector(':checked').value;
-            const transportType = $transportSelector.querySelector(':checked').value;
+            const apiType = getInputElement(':checked', $apiSelector).value;
+            const transportType = getInputElement(':checked', $transportSelector).value;
             if (apiType === ApiType.LOW_LEVEL) {
-                disableSelector($transportSelector);
+                enableSelector($transportSelector, false);
                 // Note that for the high-level api, the ledger log does not work as the logger in the demo is a
                 // different instance than the one in the lazy loaded transports.
                 lib_1$1((logEntry) => console.log('%cLog:', 'color: teal', logEntry));
@@ -13756,11 +13987,14 @@ window.addEventListener('load', () => {
                 window._api = HighLevelApi;
                 window._api.on(EventType.STATE_CHANGE, (state) => {
                     console.log('%cState change', 'color: teal', state);
-                    $highLevelApiState.textContent = `${state.type}${state.error ? `: ${state.error.type}` : ''}`;
+                    $highLevelApiState.textContent = `${state.type}${state instanceof ErrorState
+                        ? `: ${state.errorType}` : ''}`;
                 });
-                window._api.on(EventType.CONNECTED, (walletId) => {
-                    console.log(`%cConnected to wallet ${walletId}`, 'color: teal');
-                    $highLevelApiLastEvent.textContent = `Connected to wallet ${walletId}`;
+                window._api.on(EventType.CONNECTED, (connection) => {
+                    const message = `Connected to coin ${connection.coin}`
+                        + `${connection.walletId ? `, wallet ${connection.walletId}` : ''}`;
+                    console.log(`%c${message}`, 'color: teal');
+                    $highLevelApiLastEvent.textContent = message;
                 });
                 window._api.on(EventType.REQUEST_SUCCESSFUL, (...args) => {
                     console.log('%cRequest successful', 'color: teal', ...args);
@@ -13795,7 +14029,14 @@ window.addEventListener('load', () => {
             displayStatus(`Connected (app version ${version}, ${deviceModel})`);
         }
         else {
-            const connected = await api.connect();
+            const coin = getInputElement(':checked', $coinSelector).value;
+            let connected;
+            if (coin === Coin.BITCOIN && api.currentRequest && 'network' in api.currentRequest) {
+                connected = await api.connect(coin, api.currentRequest.network);
+            }
+            else {
+                connected = await api.connect(coin);
+            }
             displayStatus(connected ? 'Connected' : 'Connection cancelled');
         }
     }
@@ -13819,12 +14060,12 @@ window.addEventListener('load', () => {
         displayStatus('Cancelling request');
         window._api.currentRequest.cancel();
     }
-    async function getPublicKey(confirm) {
+    async function getPublicKeyNimiq(confirm) {
         if ($noUserInteractionCheckbox.checked)
             await clearUserInteraction();
         try {
-            $publicKey.textContent = '';
-            const bip32Path = $bip32PathPublicKeyInput.value;
+            $publicKeyNimiq.textContent = '';
+            const bip32Path = $bip32PathPublicKeyInputNimiq.value;
             const loadNimiqPromise = loadNimiqCore();
             const api = await createApi();
             const msg = confirm ? 'Confirm public key...' : 'Getting public key...';
@@ -13836,10 +14077,10 @@ window.addEventListener('load', () => {
             else {
                 if (confirm)
                     throw new Error('High level api does not provide the option to confirm a public key');
-                publicKey = (await api.getPublicKey(bip32Path)).serialize();
+                publicKey = (await api.Nimiq.getPublicKey(bip32Path)).serialize();
             }
             const Nimiq = await loadNimiqPromise;
-            $publicKey.textContent = Nimiq.BufferUtils.toHex(publicKey);
+            $publicKeyNimiq.textContent = Nimiq.BufferUtils.toHex(publicKey);
             displayStatus('Received public key');
             return publicKey;
         }
@@ -13848,12 +14089,12 @@ window.addEventListener('load', () => {
             throw error;
         }
     }
-    async function getAddress(confirm) {
+    async function getAddressNimiq(confirm) {
         if ($noUserInteractionCheckbox.checked)
             await clearUserInteraction();
         try {
-            $address.textContent = '';
-            const bip32Path = $bip32PathAddressInput.value;
+            $addressNimiq.textContent = '';
+            const bip32Path = $bip32PathAddressInputNimiq.value;
             const api = await createApi();
             const msg = confirm ? 'Confirm address...' : 'Getting address...';
             displayStatus(msg);
@@ -13862,9 +14103,11 @@ window.addEventListener('load', () => {
                 ({ address } = await api.getAddress(bip32Path, true, confirm));
             }
             else {
-                address = confirm ? await api.getConfirmedAddress(bip32Path) : await api.getAddress(bip32Path);
+                address = confirm
+                    ? await api.Nimiq.getConfirmedAddress(bip32Path)
+                    : await api.Nimiq.getAddress(bip32Path);
             }
-            $address.textContent = address;
+            $addressNimiq.textContent = address;
             displayStatus('Received address');
             return address;
         }
@@ -13873,18 +14116,18 @@ window.addEventListener('load', () => {
             throw error;
         }
     }
-    async function signTransaction() {
+    async function signTransactionNimiq() {
         if ($noUserInteractionCheckbox.checked)
             await clearUserInteraction();
         try {
-            $signature.textContent = '';
-            const tx = $txHexInput.value;
+            $signatureNimiq.textContent = '';
+            const tx = $txHexInputNimiq.value;
             const [api, Nimiq] = await Promise.all([
                 createApi(),
                 loadNimiqCore(),
             ]);
             const buffer = Nimiq.BufferUtils.fromHex(tx);
-            const bip32Path = $bip32PathAddressInput.value;
+            const bip32Path = $bip32PathAddressInputNimiq.value;
             displayStatus('Signing transaction...');
             let signature;
             if (api instanceof LowLevelApi) {
@@ -13903,13 +14146,119 @@ window.addEventListener('load', () => {
                 const validityStartHeight = buffer.readUint32();
                 buffer.readUint8(); // networkId
                 const flags = buffer.readUint8();
-                const proofBytes = new Nimiq.SerialBuffer((await api.signTransaction({ sender, senderType, recipient, recipientType, value, fee, validityStartHeight, flags, extraData }, bip32Path)).proof);
+                const proofBytes = new Nimiq.SerialBuffer((await api.Nimiq.signTransaction({ sender, senderType, recipient, recipientType, value, fee, validityStartHeight, flags, extraData }, bip32Path)).proof);
                 signature = Nimiq.SignatureProof.unserialize(proofBytes).signature.serialize();
             }
-            $signature.textContent = Nimiq.BufferUtils.toHex(signature);
+            $signatureNimiq.textContent = Nimiq.BufferUtils.toHex(signature);
         }
         catch (error) {
             displayStatus(error);
+        }
+    }
+    async function getWalletIdNimiq() {
+        if ($noUserInteractionCheckbox.checked)
+            await clearUserInteraction();
+        try {
+            $walletIdNimiq.textContent = '';
+            const api = await createApi();
+            displayStatus('Getting wallet id...');
+            if (api instanceof LowLevelApi)
+                throw new Error('getWalletId not supported by LowLevelApi');
+            const walletId = await api.Nimiq.getWalletId();
+            $walletIdNimiq.textContent = walletId;
+            displayStatus('Received wallet id');
+            return walletId;
+        }
+        catch (error) {
+            displayStatus(`Failed to get wallet id: ${error}`);
+            throw error;
+        }
+    }
+    async function getAddressAndPublicKeyBitcoin(confirm) {
+        if ($noUserInteractionCheckbox.checked)
+            await clearUserInteraction();
+        try {
+            $addressBitcoin.textContent = '';
+            $publicKeyBitcoin.textContent = '';
+            $chainCodeBitcoin.textContent = '';
+            const bip32Path = $bip32PathAddressInputBitcoin.value;
+            const api = await createApi();
+            if (api instanceof LowLevelApi)
+                throw new Error('Bitcoin not supported by LowLevelApi');
+            const msg = confirm ? 'Confirm address...' : 'Getting address...';
+            displayStatus(msg);
+            const { address, publicKey, chainCode } = confirm
+                ? await api.Bitcoin.getConfirmedAddressAndPublicKey(bip32Path)
+                : await api.Bitcoin.getAddressAndPublicKey(bip32Path);
+            $addressBitcoin.textContent = address;
+            $publicKeyBitcoin.textContent = publicKey;
+            $chainCodeBitcoin.textContent = chainCode;
+            displayStatus('Received address and public key');
+            return address;
+        }
+        catch (error) {
+            displayStatus(`Failed to get address: ${error}`);
+            throw error;
+        }
+    }
+    async function getExtendedPublicKeyBitcoin() {
+        if ($noUserInteractionCheckbox.checked)
+            await clearUserInteraction();
+        try {
+            $extendedPublicKeyBitcoin.textContent = '';
+            const bip32Path = $bip32PathExtendedPublicKeyInputBitcoin.value;
+            const api = await createApi();
+            if (api instanceof LowLevelApi)
+                throw new Error('Bitcoin not supported by LowLevelApi');
+            displayStatus('Getting extended public key...');
+            const extendedPublicKey = await api.Bitcoin.getExtendedPublicKey(bip32Path);
+            $extendedPublicKeyBitcoin.textContent = extendedPublicKey;
+            displayStatus('Received extended public key');
+            return extendedPublicKey;
+        }
+        catch (error) {
+            displayStatus(`Failed to get extended public key: ${error}`);
+            throw error;
+        }
+    }
+    async function signTransactionBitcoin() {
+        if ($noUserInteractionCheckbox.checked)
+            await clearUserInteraction();
+        try {
+            $signedTxBitcoin.textContent = '';
+            const txInfo = JSON.parse($txInfoTextareaBitcoin.value);
+            const api = await createApi();
+            if (api instanceof LowLevelApi)
+                throw new Error('Bitcoin not supported by LowLevelApi');
+            displayStatus('Signing transaction...');
+            const signedTransactionHex = await api.Bitcoin.signTransaction(txInfo);
+            $signedTxBitcoin.textContent = signedTransactionHex;
+            displayStatus('Signed transaction');
+            return signedTransactionHex;
+        }
+        catch (error) {
+            displayStatus(`Failed to sign transaction: ${error}`);
+            throw error;
+        }
+    }
+    async function getWalletIdBitcoin() {
+        if ($noUserInteractionCheckbox.checked)
+            await clearUserInteraction();
+        try {
+            $walletIdBitcoin.textContent = '';
+            const api = await createApi();
+            displayStatus('Getting wallet id...');
+            if (api instanceof LowLevelApi)
+                throw new Error('getWalletId not supported by LowLevelApi');
+            const network = getInputElement(':checked', $walletIdNetworkSelectorBitcoin).value;
+            const walletId = await api.Bitcoin.getWalletId(network);
+            $walletIdBitcoin.textContent = walletId;
+            displayStatus('Received wallet id');
+            return walletId;
+        }
+        catch (error) {
+            displayStatus(`Failed to get wallet id: ${error}`);
+            throw error;
         }
     }
     function init() {
@@ -13918,15 +14267,23 @@ window.addEventListener('load', () => {
         console.log('To experiment with how connecting to the Ledger works on a fresh system, don\'t forget to revoke'
             + ' previously granted permissions.');
         $apiSelector.addEventListener('change', switchApi);
+        $coinSelector.addEventListener('change', switchCoin);
         $connectButton.addEventListener('click', connect);
         $disconnectButton.addEventListener('click', disconnect);
         $highLevelApiCancelButton.addEventListener('click', cancelRequest);
-        $getPublicKeyButton.addEventListener('click', () => getPublicKey(false));
-        $lowLevelApiConfirmPublicKeyButton.addEventListener('click', () => getPublicKey(true));
-        $getAddressButton.addEventListener('click', () => getAddress(false));
-        $confirmAddressButton.addEventListener('click', () => getAddress(true));
-        $signTxButton.addEventListener('click', signTransaction);
+        $getPublicKeyButtonNimiq.addEventListener('click', () => getPublicKeyNimiq(false));
+        $confirmPublicKeyButtonNimiq.addEventListener('click', () => getPublicKeyNimiq(true));
+        $getAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(false));
+        $confirmAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(true));
+        $signTxButtonNimiq.addEventListener('click', signTransactionNimiq);
+        $getWalletIdButtonNimiq.addEventListener('click', getWalletIdNimiq);
+        $getAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(false));
+        $confirmAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(true));
+        $getExtendedPublicKeyButtonBitcoin.addEventListener('click', getExtendedPublicKeyBitcoin);
+        $signTxButtonBitcoin.addEventListener('click', signTransactionBitcoin);
+        $getWalletIdButtonBitcoin.addEventListener('click', getWalletIdBitcoin);
         switchApi();
+        switchCoin();
     }
     init();
 });

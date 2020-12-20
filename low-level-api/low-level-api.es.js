@@ -1,6 +1,7 @@
 // Use jsdelivr instead of nimiq cdn to avoid getting blocked by ad blockers.
 const coreBasePath = 'https://cdn.jsdelivr.net/npm/@nimiq/core-web/';
 let nimiqCorePromise = null;
+let nimiqCryptographyPromise = null;
 /**
  * Lazy-load the Nimiq core api from the cdn server if it's not loaded yet.
  */
@@ -37,10 +38,30 @@ async function loadNimiqCore(coreVariant = 'web-offline') {
  * deriving keys or addresses, signing transactions or messages, etc.
  */
 async function loadNimiqCryptography() {
-    // Note that there is no need to cache a promise like in loadNimiqCore for this call, as loadNimiqCore and doImport
-    // already do that themselves.
-    const Nimiq = await loadNimiqCore();
-    await Nimiq.WasmHelper.doImport();
+    nimiqCryptographyPromise = nimiqCryptographyPromise || (async () => {
+        try {
+            // preload wasm in parallel
+            preloadAsset(`${coreBasePath}worker-wasm.wasm`, 'fetch', true);
+            preloadAsset(`${coreBasePath}worker-wasm.js`, 'script');
+            const Nimiq = await loadNimiqCore();
+            await Nimiq.WasmHelper.doImport();
+        }
+        catch (e) {
+            nimiqCryptographyPromise = null;
+            throw e;
+        }
+    })();
+    return nimiqCryptographyPromise;
+}
+function preloadAsset(asset, as, crossOrigin) {
+    const link = document.createElement('link');
+    link.rel = 'preload';
+    link.as = as;
+    link.href = asset;
+    link.onload = link.onerror = () => document.head.removeChild(link); // eslint-disable-line no-multi-assign
+    if (crossOrigin)
+        link.crossOrigin = '';
+    document.head.appendChild(link);
 }
 
 function parsePath(path) {
@@ -116,15 +137,21 @@ const SW_KEEP_ALIVE = 0x6e02;
 class LowLevelApi {
     constructor(transport) {
         this._transport = transport;
+        // Note that the registered methods here do not intersect with the methods of the Bitcoin api, therefore, we can
+        // re-use the same transport instance for both, NIM and BTC apis (as long as a switch between NIM and BTC apps
+        // doesn't cause a disconnect).
         transport.decorateAppAPIMethods(this, ['getAppConfiguration', 'getPublicKey', 'signTransaction'], 'w0w');
+    }
+    get transport() {
+        return this._transport;
     }
     /**
      * Close the transport instance. Note that this does not emit a disconnect. Disconnects are only emitted when the
      * device actually disconnects (or switches it's descriptor which happens when switching to the dashboard or apps).
      */
-    close() {
+    async close() {
         try {
-            this._transport.close();
+            await this._transport.close();
         }
         catch (e) {
             // Ignore. Transport might already be closed.
