@@ -47,7 +47,7 @@ export default abstract class Request<T> extends Observable {
         return this._cancelled;
     }
 
-    public abstract async call(transport: Transport): Promise<T>;
+    public abstract call(transport: Transport): Promise<T>;
 
     public canReuseCoinAppConnection(coinAppConnection: CoinAppConnection): boolean {
         return coinAppConnection.coin === this.coin

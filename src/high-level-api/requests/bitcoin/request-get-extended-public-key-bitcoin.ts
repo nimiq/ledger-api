@@ -115,6 +115,7 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
             // proof and minification safe manner.
             // TODO make this less hacky
             /* eslint-disable dot-notation */
+            /* eslint-disable @typescript-eslint/dot-notation */
             const extendedPubKey = bip32.fromPublicKey(pubKey, chainCode, networkInfo) as
                 ReturnType<typeof bip32.fromPublicKey> & {
                     __DEPTH: number,
@@ -142,7 +143,8 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
             } else {
                 throw new Error('Failed to construct xpub, couldn\'t set __PARENT_FINGERPRINT.');
             }
-            /* eslint-disable dot-notation */
+            /* eslint-enable dot-notation */
+            /* eslint-enable @typescript-eslint/dot-notation */
 
             // Verify that the generated xpub is correct by deriving an example child and comparing it to the result
             // calculated by the Ledger device. Do not verify the Ledger generated address as it is derived from the

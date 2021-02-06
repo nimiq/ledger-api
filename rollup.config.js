@@ -12,7 +12,7 @@ import eslint from '@rbnlffl/rollup-plugin-eslint';
 
 // demo page specific imports
 import alias from '@rollup/plugin-alias';
-import nodePolyfills from 'rollup-plugin-node-polyfills';
+import polyfillNode from 'rollup-plugin-polyfill-node';
 import copy from 'rollup-plugin-copy';
 import serve from 'rollup-plugin-serve';
 import livereload from 'rollup-plugin-livereload';
@@ -126,13 +126,13 @@ export default (commandLineArgs) => {
         preserveEntrySignatures: 'allow-extension', // avoid rollup's additional facade chunk
         plugins: [
             // First run plugins that map imports to the actual imported files, e.g. aliased imports or browser versions
-            // of packages, such that subsequent plugins operate on the right files. Node builtins are kept as such.
+            // of packages, such that subsequent plugins operate on the right files.
             alias({
                 entries: {
                     // replace readable-stream imported by @ledgerhq/hw-app-btc/src/hashPublicKey > ripemd160 >
-                    // hash-base by stream which gets polyfilled by rollup-plugin-node-polyfills. Note that stream and
+                    // hash-base by stream which gets polyfilled by rollup-plugin-polyfill-node. Note that stream and
                     // readable-stream are largely compatible and effectively the same code. However, the stream
-                    // polyfill used by rollup-plugin-node-polyfills is an older version which has less problems with
+                    // polyfill used by rollup-plugin-polyfill-node is an older version which has less problems with
                     // circular dependencies. The circular dependencies are currently being resolved in readable-stream
                     // though and once merged (see https://github.com/nodejs/readable-stream/issues/348), this alias
                     // should be removed or even turned around. Note that without the replacement, the stream polyfill
@@ -142,10 +142,12 @@ export default (commandLineArgs) => {
             }),
             resolve({
                 browser: true, // use browser versions of packages if defined in their package.json
-                preferBuiltins: true, // don't touch imports of node builtins as these will be handled by nodePolyfills
+                preferBuiltins: false, // builtins are handled by polyfillNode
             }),
             // Have eslint high up in the hierarchy to lint the original files.
             eslint({
+                // TODO remove once https://github.com/snowpackjs/rollup-plugin-polyfill-node/pull/3 is merged
+                filterExclude: ['node_modules/**', /^polyfill-node:/], // ignore polyfill-node's virtual files
                 throwOnError: isProduction,
             }),
             // Check types and transpile ts to js. Note that ts does only transpile and not bundle imports.
@@ -153,22 +155,23 @@ export default (commandLineArgs) => {
                 include: ['src/high-level-api/**', 'src/low-level-api/**', 'src/lib/**'],
                 declaration: true,
                 declarationDir: 'dist',
-                rootDir: 'src', // temporary, see https://github.com/rollup/plugins/issues/61#issuecomment-596270901
+                // temporary, see https://github.com/rollup/plugins/issues/61#issuecomment-596270901 and
+                // https://github.com/rollup/plugins/issues/287
+                rootDir: 'src',
                 noEmitOnError: isProduction,
             }),
             // Read code including sourcemaps. Has to happen after ts as ts files should be loaded by typescript plugin
             // and the sourcemaps plugin can't parse ts files.
-            sourcemaps(),
-            // Process imports of commonjs, json and polyfills.
-            commonjs({
-                namedExports: {
-                    'u2f-api': ['sign', 'isSupported'],
-                },
+            sourcemaps({
+                // TODO remove once https://github.com/snowpackjs/rollup-plugin-polyfill-node/pull/3 is merged
+                exclude: [/^polyfill-node:/],
             }),
+            // Plugins for processing dependencies.
+            commonjs(),
             json({ // required for import of bitcoin-ops/index.json imported by bitcoinjs-lib
                 compact: true,
             }),
-            nodePolyfills({
+            polyfillNode({
                 include: [
                     'src/**/*',
                     'node_modules/**/*.js',
@@ -191,6 +194,7 @@ export default (commandLineArgs) => {
             entryFileNames: 'low-level-api/[name].[format].js',
             sourcemap: true,
             sourcemapPathTransform,
+            exports: 'default',
         })),
         plugins: [
             eslint({
@@ -231,23 +235,25 @@ export default (commandLineArgs) => {
                     '../../dist/high-level-api/ledger-api': '../high-level-api/ledger-api.es.js',
                 },
             }),
+            resolve({
+                preferBuiltins: false, // builtins are handled by polyfillNode
+            }),
+            // Have eslint high up in the hierarchy to lint the original files.
             eslint({
+                // TODO remove once https://github.com/snowpackjs/rollup-plugin-polyfill-node/pull/3 is merged
+                filterExclude: ['node_modules/**', /^polyfill-node:/], // ignore polyfill-node's virtual files
                 throwOnError: isProduction,
             }),
             typescript({
                 include: ['src/demo/**', 'src/lib/**'],
                 noEmitOnError: isProduction,
             }),
-            resolve({
-                preferBuiltins: true, // don't touch imports of node builtins as these will be handled by nodePolyfills
+            sourcemaps({
+                // TODO remove once https://github.com/snowpackjs/rollup-plugin-polyfill-node/pull/3 is merged
+                exclude: [/^polyfill-node:/],
             }),
-            sourcemaps(),
-            commonjs({
-                namedExports: {
-                    'u2f-api': ['sign', 'isSupported'],
-                },
-            }),
-            nodePolyfills({
+            commonjs(),
+            polyfillNode({
                 include: [
                     'src/**/*',
                     'node_modules/**/*.js',

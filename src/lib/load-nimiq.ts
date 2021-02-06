@@ -13,7 +13,7 @@ export async function loadNimiqCore(coreVariant: 'web' | 'web-offline' = 'web-of
     // @ts-ignore Return global Nimiq if already loaded.
     if (window.Nimiq) return window.Nimiq;
 
-    nimiqCorePromise = nimiqCorePromise || new Promise((resolve, reject) => {
+    nimiqCorePromise = nimiqCorePromise || new Promise<void>((resolve, reject) => {
         const $head = document.getElementsByTagName('head')[0];
         const $script = document.createElement('script');
         $script.type = 'text/javascript';

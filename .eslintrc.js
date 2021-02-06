@@ -45,6 +45,7 @@ module.exports = {
         '@typescript-eslint/no-non-null-assertion': 'off',
         '@typescript-eslint/no-inferrable-types': 'off',
         '@typescript-eslint/no-namespace': 'off',
+        '@typescript-eslint/lines-between-class-members': 'off',
 
         // False positives that are checked by TS
         indent: 'off',
