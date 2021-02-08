@@ -55,6 +55,7 @@
   "dependencies": {
     "@ledgerhq/hw-app-btc": "^5.41.0",
     "@ledgerhq/hw-transport": "^5.41.0",
+    "@ledgerhq/hw-transport-http": "^5.41.0",
     "@ledgerhq/hw-transport-u2f": "^5.36.0-deprecated",
     "@ledgerhq/hw-transport-web-ble": "^5.41.0",
     "@ledgerhq/hw-transport-webauthn": "^5.36.0-deprecated",
@@ -62,6 +63,7 @@
     "@ledgerhq/hw-transport-webusb": "^5.41.0",
     "@ledgerhq/logs": "^5.41.0",
     "@nimiq/core-web": "^1.5.7",
+    "@rollup/plugin-virtual": "^2.0.3",
     "@types/ledgerhq__hw-app-btc": "^5.19.2",
     "@types/ledgerhq__hw-transport": "^4.21.3",
     "@types/ledgerhq__hw-transport-u2f": "^4.21.2",

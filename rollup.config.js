@@ -4,6 +4,8 @@ import { walk } from 'estree-walker';
 import MagicString from 'magic-string';
 
 import typescript from '@rollup/plugin-typescript';
+import alias from '@rollup/plugin-alias';
+import virtual from '@rollup/plugin-virtual';
 import resolve from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
@@ -11,7 +13,6 @@ import sourcemaps from 'rollup-plugin-sourcemaps';
 import eslint from '@rbnlffl/rollup-plugin-eslint';
 
 // demo page specific imports
-import alias from '@rollup/plugin-alias';
 import polyfillNode from 'rollup-plugin-polyfill-node';
 import copy from 'rollup-plugin-copy';
 import serve from 'rollup-plugin-serve';
@@ -138,7 +139,13 @@ export default (commandLineArgs) => {
                     // should be removed or even turned around. Note that without the replacement, the stream polyfill
                     // and readable-stream are both bundled, which is not desirable.
                     'readable-stream': 'stream',
+                    // shim unnecessary axios for @ledgerhq/hw-transport-http
+                    axios: '../../../../src/lib/axios-shim.ts',
                 },
+            }),
+            virtual({
+                // don't bundle unnecessary WebSocket polyfill
+                ws: 'export default {};',
             }),
             resolve({
                 browser: true, // use browser versions of packages if defined in their package.json
@@ -233,7 +240,13 @@ export default (commandLineArgs) => {
                 entries: {
                     '../../dist/low-level-api/low-level-api': '../low-level-api/low-level-api.es.js',
                     '../../dist/high-level-api/ledger-api': '../high-level-api/ledger-api.es.js',
+                    // shim unnecessary axios for @ledgerhq/hw-transport-http
+                    axios: '../../../../src/lib/axios-shim.ts',
                 },
+            }),
+            virtual({
+                // don't bundle unnecessary WebSocket polyfill
+                ws: 'export default {};',
             }),
             resolve({
                 preferBuiltins: false, // builtins are handled by polyfillNode

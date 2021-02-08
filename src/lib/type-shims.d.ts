@@ -19,6 +19,15 @@ declare module '@ledgerhq/hw-transport-webauthn' {
     export default Transport;
 }
 
+declare module '@ledgerhq/hw-transport-http' {
+    // eslint-disable-next-line import/no-duplicates
+    import Transport from '@ledgerhq/hw-transport';
+
+    const NetworkTransportForUrls: (urls: string[]) => typeof Transport;
+
+    export default NetworkTransportForUrls;
+}
+
 declare module '@ledgerhq/logs';
 
 declare module 'sha.js/sha256' {

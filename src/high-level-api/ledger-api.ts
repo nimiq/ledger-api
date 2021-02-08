@@ -1,5 +1,12 @@
 import Observable, { EventListener } from '../lib/observable';
-import { autoDetectTransportTypeToUse, isSupported, loadTransportLibrary, TransportType } from './transport-utils';
+import {
+    autoDetectTransportTypeToUse,
+    isSupported,
+    getNetworkEndpoint,
+    setNetworkEndpoint,
+    loadTransportLibrary,
+    TransportType,
+} from './transport-utils';
 import { getBip32Path, parseBip32Path } from './bip32-utils';
 import ErrorState, { ErrorType } from './error-state';
 import {
@@ -250,11 +257,18 @@ export default class LedgerApi {
      * Set a specific transport type. Note that an already connected ongoing request will still use the previous
      * transport type.
      * @param transportType - Transport type to use for connections to Ledger devices.
+     * @param [networkEndpoint] - Custom network endpoint to use for TransportType.NETWORK. Optional.
      */
-    public static setTransportType(transportType: TransportType) {
+    public static setTransportType(transportType: TransportType): void;
+    public static setTransportType(transportType: TransportType.NETWORK, networkEndpoint?: string): void;
+    public static setTransportType(transportType: TransportType, networkEndpoint?: string) {
         if (!isSupported(transportType)) throw new Error('Unsupported transport type.');
-        if (transportType === LedgerApi._transportType) return;
+        if (transportType === LedgerApi._transportType
+            && (!networkEndpoint || networkEndpoint === getNetworkEndpoint())) return;
         LedgerApi._transportType = transportType;
+        if (transportType === TransportType.NETWORK && networkEndpoint) {
+            setNetworkEndpoint(networkEndpoint);
+        }
         // Close api for current transport to create a new one for specified transport type on next request.
         LedgerApi.disconnect(/* cancelRequest */ false);
     }
@@ -630,7 +644,13 @@ export default class LedgerApi {
             // Only set the connecting state if it is not instantaneous because a device selector needs to be shown
             const delayedConnectingStateTimeout = setTimeout(() => LedgerApi._setState(StateType.CONNECTING), 50);
             try {
-                transport = await TransportLib!.create();
+                transport = await TransportLib!.create(
+                    undefined, // use default openTimeout
+                    // For network transport set a listenTimeout to avoid pinging the network endpoint indefinitely.
+                    // Others can be cancelled by the user when he wants or can not listen to devices getting connected
+                    // (u2f, WebAuthn) such that we don't have to put a timeout in place for other transport types.
+                    transportType === TransportType.NETWORK ? 3000 : undefined,
+                );
             } catch (e) {
                 if (transportType === LedgerApi._transportType) {
                     const message = (e.message || e).toLowerCase();

@@ -7,11 +7,12 @@ export enum TransportType {
     WEB_BLE = 'web-ble',
     WEB_AUTHN = 'web-authn',
     U2F = 'u2f',
+    NETWORK = 'network',
 }
 
 export function isSupported(transportType?: TransportType): boolean {
-    if (window.location.protocol !== 'https:') return false;
     if (!transportType) return !!autoDetectTransportTypeToUse();
+    if (transportType !== TransportType.NETWORK && window.location.protocol !== 'https:') return false;
     // inspired by @ledgerhq/hw-transport libs
     switch (transportType) {
         case TransportType.WEB_HID:
@@ -31,6 +32,8 @@ export function isSupported(transportType?: TransportType): boolean {
             // in the 'u2f-api' package to avoid bundling it and also because it's async, complicating the code.
             // @ts-ignore
             return 'u2f' in window && typeof window.u2f.sign === 'function';
+        case TransportType.NETWORK:
+            return 'fetch' in window && 'WebSocket' in window;
         default:
             return false;
     }
@@ -55,7 +58,22 @@ export function autoDetectTransportTypeToUse(): TransportType | null {
     // U2F as legacy fallback. The others are preferred as U2F can time out and causes native Windows security popups
     // in Windows and additionally Firefox internal popups in Firefox on all platforms (see transport-comparison.md).
     transportTypesByPreference.push(TransportType.U2F);
+    // TODO once the Ledger Live WebSocket bridge is available to users, add TransportType.NETWORK
     return transportTypesByPreference.find(isSupported) || null;
+}
+
+let networkEndpoint: string = 'ws://127.0.0.1:8435'; // Ledger Live WebSocket bridge default endpoint
+
+/**
+ * Set the network endpoint for TransportType.NETWORK. Supported are http/https and ws/wss endpoints.
+ * @param endpoint
+ */
+export function setNetworkEndpoint(endpoint: string): void {
+    networkEndpoint = endpoint;
+}
+
+export function getNetworkEndpoint(): string {
+    return networkEndpoint;
 }
 
 /**
@@ -75,6 +93,8 @@ export async function loadTransportLibrary(transportType: TransportType)
             return (await import('@ledgerhq/hw-transport-webauthn')).default;
         case TransportType.U2F:
             return (await import('@ledgerhq/hw-transport-u2f')).default;
+        case TransportType.NETWORK:
+            return (await import('@ledgerhq/hw-transport-http')).default([networkEndpoint]);
         default:
             throw new Error(`Unknown transport type ${transportType}`);
     }

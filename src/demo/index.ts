@@ -3,6 +3,7 @@ import TransportWebHid from '@ledgerhq/hw-transport-webhid';
 import TransportWebBle from '@ledgerhq/hw-transport-web-ble';
 import TransportWebAuthn from '@ledgerhq/hw-transport-webauthn';
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
+import NetworkTransportForUrls from '@ledgerhq/hw-transport-http';
 import { listen as onLog } from '@ledgerhq/logs';
 import { loadNimiqCore } from '../lib/load-nimiq';
 // typescript needs the import as specified to find the .d.ts file, see rollup.config.js
@@ -93,6 +94,17 @@ window.addEventListener('load', () => {
                 <label>
                     <input type="radio" name="transport-selector" value="${TransportType.U2F}">
                     U2F
+                </label>
+                <label>
+                    <input type="radio" name="transport-selector" value="${TransportType.NETWORK}">
+                    Network
+                </label>
+            </div>
+            <div id="network-endpoint" class="show-${TransportType.NETWORK}">
+                <label>
+                    Network Endpoint:
+                    <input class="nq-input-s" id="network-endpoint-input" value="ws://127.0.0.1:8435">
+                    <button class="nq-button-s" id="network-endpoint-ledger-live-button">Ledger Live Bridge</button>
                 </label>
             </div>
             <label>
@@ -263,18 +275,23 @@ window.addEventListener('load', () => {
                 align-items: center;
                 padding: 3rem;
             }
-            
+
             .center {
                 text-align: center;
             }
-            
+
             .selector {
                 margin-bottom: 1.5rem;
             }
-            
+
             #connect-button,
             #disconnect-button {
                 margin-top: 2rem;
+            }
+
+            #network-endpoint {
+                margin-bottom: 2rem;
+                line-height: 1.5;
             }
 
             .nq-card {
@@ -289,7 +306,7 @@ window.addEventListener('load', () => {
             .nq-input {
                 margin-right: 2rem;
             }
-            
+
             textarea.nq-input {
                 min-width: 100%;
                 max-width: 100%;
@@ -301,10 +318,11 @@ window.addEventListener('load', () => {
                 word-break: break-word;
             }
 
-            .${ApiType.LOW_LEVEL} .show-${ApiType.HIGH_LEVEL},
-            .${ApiType.HIGH_LEVEL} .show-${ApiType.LOW_LEVEL},
-            .${Coin.NIMIQ} .show-${Coin.BITCOIN},
-            .${Coin.BITCOIN} .show-${Coin.NIMIQ} {
+            body:not(.${ApiType.LOW_LEVEL}) .show-${ApiType.LOW_LEVEL},
+            body:not(.${ApiType.HIGH_LEVEL}) .show-${ApiType.HIGH_LEVEL},
+            body:not(.${Coin.NIMIQ}) .show-${Coin.NIMIQ},
+            body:not(.${Coin.BITCOIN}) .show-${Coin.BITCOIN},
+            body:not(.${TransportType.NETWORK}) .show-${TransportType.NETWORK} {
                 display: none;
             }
         </style>
@@ -322,6 +340,8 @@ window.addEventListener('load', () => {
     const $apiSelector = document.getElementById('api-selector')!;
     const $coinSelector = document.getElementById('coin-selector')!;
     const $transportSelector = document.getElementById('transport-selector')!;
+    const $networkEndpointInput = getInputElement('#network-endpoint-input');
+    const $networkEnpointLedgerLiveButton = document.getElementById('network-endpoint-ledger-live-button')!;
     const $noUserInteractionCheckbox = getInputElement('#no-user-interaction-checkbox');
     const $connectButton = document.getElementById('connect-button')!;
     const $disconnectButton = document.getElementById('disconnect-button')!;
@@ -386,6 +406,31 @@ window.addEventListener('load', () => {
         getInputElement(`[value=${ApiType.HIGH_LEVEL}]`, $apiSelector).checked = true;
     }
 
+    function switchTransport() {
+        const transportType = getInputElement(':checked', $transportSelector).value as TransportType;
+        document.body.classList.remove(...Object.values(TransportType));
+        document.body.classList.add(transportType);
+
+        const apiType = getInputElement(':checked', $apiSelector).value;
+        if (!window._api || apiType !== ApiType.HIGH_LEVEL) return;
+        const api = window._api as typeof HighLevelApi;
+        if (transportType === TransportType.NETWORK) {
+            api.setTransportType(transportType, $networkEndpointInput.value);
+        } else {
+            api.setTransportType(transportType);
+        }
+    }
+
+    function changeNetworkEndpoint(endpoint?: string) {
+        endpoint = endpoint || $networkEndpointInput.value;
+        $networkEndpointInput.value = endpoint;
+        const apiType = getInputElement(':checked', $apiSelector).value;
+        const transportType = getInputElement(':checked', $transportSelector).value;
+        if (!window._api || apiType !== ApiType.HIGH_LEVEL || transportType !== TransportType.NETWORK) return;
+        const api = window._api as typeof HighLevelApi;
+        api.setTransportType(transportType, endpoint);
+    }
+
     async function clearUserInteraction() {
         // Wait until user interaction flag is reset. See https://mustaqahmed.github.io/user-activation-v2/,
         // https://developers.google.com/web/updates/2019/01/user-activation and
@@ -403,6 +448,8 @@ window.addEventListener('load', () => {
             const transportType = getInputElement(':checked', $transportSelector).value;
             if (apiType === ApiType.LOW_LEVEL) {
                 enableSelector($transportSelector, false);
+                $networkEndpointInput.disabled = true;
+                ($networkEnpointLedgerLiveButton as HTMLButtonElement).disabled = true;
                 // Note that for the high-level api, the ledger log does not work as the logger in the demo is a
                 // different instance than the one in the lazy loaded transports.
                 onLog((logEntry: any) => console.log('%cLog:', 'color: teal', logEntry));
@@ -420,6 +467,9 @@ window.addEventListener('load', () => {
                         break;
                     case TransportType.WEB_AUTHN:
                         window._transport = await TransportWebAuthn.create();
+                        break;
+                    case TransportType.NETWORK:
+                        window._transport = await (NetworkTransportForUrls([$networkEndpointInput.value])).create();
                         break;
                     default:
                         window._transport = await TransportU2F.create();
@@ -448,10 +498,7 @@ window.addEventListener('load', () => {
                     $highLevelApiLastEvent.textContent = 'Request cancelled';
                 });
                 window._api.setTransportType(transportType as TransportType);
-                $transportSelector.addEventListener('change', (e) => {
-                    const input = e.target as HTMLInputElement;
-                    (window._api as typeof HighLevelApi).setTransportType(input.value as TransportType);
-                });
+                changeNetworkEndpoint();
             }
 
             displayStatus('Api created');
@@ -694,6 +741,9 @@ window.addEventListener('load', () => {
             + ' previously granted permissions.');
         $apiSelector.addEventListener('change', switchApi);
         $coinSelector.addEventListener('change', switchCoin);
+        $transportSelector.addEventListener('change', switchTransport);
+        $networkEndpointInput.addEventListener('input', () => changeNetworkEndpoint());
+        $networkEnpointLedgerLiveButton.addEventListener('click', () => changeNetworkEndpoint('ws://127.0.0.1:8435'));
         $connectButton.addEventListener('click', connect);
         $disconnectButton.addEventListener('click', disconnect);
         $highLevelApiCancelButton.addEventListener('click', cancelRequest);
@@ -713,6 +763,7 @@ window.addEventListener('load', () => {
 
         switchApi();
         switchCoin();
+        switchTransport();
     }
 
     init();
