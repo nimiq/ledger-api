@@ -51,8 +51,8 @@ export interface TransactionInfoBitcoin {
     // should specify that key's bip32 path here such that the Ledger can verify the change output's correctness and
     // doesn't need the user to confirm the change output. The change type can also be different than the input type.
     changePath?: string;
-    // optional lockTime; 0 by default
-    lockTime?: number;
+    // optional locktime; 0 by default
+    locktime?: number;
     // optional hash type specifying how to sign the transaction, SIGHASH_ALL (0x01) by default. Before changing this,
     // make sure in https://github.com/LedgerHQ/app-bitcoin/blob/master/src/btchip_apdu_hash_sign.c that your desired
     // sigHashType is supported.
@@ -168,7 +168,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                 inputs,
                 outputs,
                 changePath,
-                lockTime,
+                locktime,
                 sigHashType,
                 useTrustedInputForSegwit,
             } = this.transaction;
@@ -224,8 +224,8 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
             if (changePath !== undefined && changePath !== null) {
                 parsedTransaction.changePath = changePath;
             }
-            if (lockTime !== undefined && lockTime !== null) {
-                parsedTransaction.lockTime = lockTime;
+            if (locktime !== undefined && locktime !== null) {
+                parsedTransaction.lockTime = locktime;
             }
             if (sigHashType !== undefined && sigHashType !== null) {
                 parsedTransaction.sigHashType = sigHashType;
