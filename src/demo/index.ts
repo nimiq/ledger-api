@@ -4,9 +4,15 @@ import TransportWebBle from '@ledgerhq/hw-transport-web-ble';
 import TransportWebAuthn from '@ledgerhq/hw-transport-webauthn';
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
 import NetworkTransportForUrls from '@ledgerhq/hw-transport-http';
+// dev dependencies for the demo page
+/* eslint-disable import/no-extraneous-dependencies */
 import { listen as onLog } from '@ledgerhq/logs';
+import { verify as verifySignedMessageBitcoin } from 'bitcoinjs-message';
+/* eslint-enable import/no-extraneous-dependencies */
 import { loadNimiqCore } from '../lib/load-nimiq';
-// typescript needs the import as specified to find the .d.ts file, see rollup.config.js
+
+// Our built library.
+// Typescript needs the import as specified to find the .d.ts file, see rollup.config.js
 import LowLevelApi from '../../dist/low-level-api/low-level-api';
 import HighLevelApi, {
     Coin,
@@ -235,14 +241,35 @@ window.addEventListener('load', () => {
                         <span id="signed-tx-bitcoin" class="mono"></span>
                     </div>
                     <div class="nq-text">
-                        Use for example
-                        <a href="https://live.blockcypher.com/btc/decodetx/" target="_blank">blockcypher</a>
+                        Use for example an
+                        <a href="https://live.blockcypher.com/btc/decodetx/" target="_blank">online decoder</a>
                         or
                         <a href="https://github.com/bitcoinjs/bitcoinjs-lib" target="_blank">bitcoinjs-lib</a>
                         to decode the transaction and
                         <a href="https://github.com/nimiq/electrum-client" target="_blank">Nimiq's electrum client</a>
                         to broadcast the transaction. If you want to broadcast the transaction, use a high enough fee
                         (difference between inputs and outputs).
+                    </div>
+                </div>
+            </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Sign Message</h2>
+                <div class="nq-card-body">
+                    <textarea class="nq-input" id="sign-message-textarea-bitcoin">Message to sign</textarea>
+                    <div class="nq-text">
+                        <input class="nq-input" id="bip32-path-sign-message-input-bitcoin" value="84'/1'/0'/0/0"
+                            style="max-width: 20rem">
+                        <button class="nq-button-s" id="sign-message-button-bitcoin">Sign Message</button>
+                    </div>
+                    <div class="nq-text">Signer address: <span id="message-signer-bitcoin" class="mono"></span></div>
+                    <div class="nq-text">Signature: <span id="message-signature-bitcoin" class="mono"></span></div>
+                    <div class="nq-text">
+                        Use for example an
+                        <a href="https://www.verifybitcoinmessage.com/" target="_blank">online verifier</a>
+                        or
+                        <a href="https://github.com/bitcoinjs/bitcoinjs-message" target="_blank">bitcoinjs-message</a>
+                        to verify the signed message.
                     </div>
                 </div>
             </section>
@@ -307,15 +334,19 @@ window.addEventListener('load', () => {
                 margin-right: 2rem;
             }
 
-            textarea.nq-input {
-                min-width: 100%;
-                max-width: 100%;
-                min-height: 70rem;
-            }
-
             .mono {
                 font-family: monospace;
                 word-break: break-word;
+            }
+
+            #tx-info-textarea-bitcoin,
+            #sign-message-textarea-bitcoin {
+                min-width: 100%;
+                max-width: 100%;
+            }
+
+            #tx-info-textarea-bitcoin {
+                min-height: 70rem;
             }
 
             body:not(.${ApiType.LOW_LEVEL}) .show-${ApiType.LOW_LEVEL},
@@ -375,6 +406,11 @@ window.addEventListener('load', () => {
     const $txInfoTextareaBitcoin = document.getElementById('tx-info-textarea-bitcoin') as HTMLTextAreaElement;
     const $signTxButtonBitcoin = document.getElementById('sign-tx-button-bitcoin')!;
     const $signedTxBitcoin = document.getElementById('signed-tx-bitcoin')!;
+    const $signMessageTextareaBitcoin = document.getElementById('sign-message-textarea-bitcoin') as HTMLTextAreaElement;
+    const $bip32PathSignMessageInputBitcoin = getInputElement('#bip32-path-sign-message-input-bitcoin');
+    const $signMessageButtonBitcoin = document.getElementById('sign-message-button-bitcoin')!;
+    const $messageSignerBitcoin = document.getElementById('message-signer-bitcoin')!;
+    const $messageSignatureBitcoin = document.getElementById('message-signature-bitcoin')!;
     const $walletIdNetworkSelectorBitcoin = document.getElementById('wallet-id-network-selector-bitcoin')!;
     const $getWalletIdButtonBitcoin = document.getElementById('get-wallet-id-button-bitcoin')!;
     const $walletIdBitcoin = document.getElementById('wallet-id-bitcoin')!;
@@ -566,7 +602,6 @@ window.addEventListener('load', () => {
             const Nimiq = await loadNimiqPromise;
             $publicKeyNimiq.textContent = Nimiq.BufferUtils.toHex(publicKey);
             displayStatus('Received public key');
-            return publicKey;
         } catch (error) {
             displayStatus(`Failed to get public key: ${error}`);
             throw error;
@@ -591,7 +626,6 @@ window.addEventListener('load', () => {
             }
             $addressNimiq.textContent = address;
             displayStatus('Received address');
-            return address;
         } catch (error) {
             displayStatus(`Failed to get address: ${error}`);
             throw error;
@@ -648,7 +682,6 @@ window.addEventListener('load', () => {
             const walletId = await api.Nimiq.getWalletId();
             $walletIdNimiq.textContent = walletId;
             displayStatus('Received wallet id');
-            return walletId;
         } catch (error) {
             displayStatus(`Failed to get wallet id: ${error}`);
             throw error;
@@ -673,7 +706,6 @@ window.addEventListener('load', () => {
             $publicKeyBitcoin.textContent = publicKey;
             $chainCodeBitcoin.textContent = chainCode;
             displayStatus('Received address and public key');
-            return address;
         } catch (error) {
             displayStatus(`Failed to get address: ${error}`);
             throw error;
@@ -691,7 +723,6 @@ window.addEventListener('load', () => {
             const extendedPublicKey = await api.Bitcoin.getExtendedPublicKey(bip32Path);
             $extendedPublicKeyBitcoin.textContent = extendedPublicKey;
             displayStatus('Received extended public key');
-            return extendedPublicKey;
         } catch (error) {
             displayStatus(`Failed to get extended public key: ${error}`);
             throw error;
@@ -709,9 +740,30 @@ window.addEventListener('load', () => {
             const signedTransactionHex = await api.Bitcoin.signTransaction(txInfo);
             $signedTxBitcoin.textContent = signedTransactionHex;
             displayStatus('Signed transaction');
-            return signedTransactionHex;
         } catch (error) {
             displayStatus(`Failed to sign transaction: ${error}`);
+            throw error;
+        }
+    }
+
+    async function signMessageBitcoin() {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
+        try {
+            $messageSignerBitcoin.textContent = '';
+            $messageSignatureBitcoin.textContent = '';
+            const message = $signMessageTextareaBitcoin.value;
+            const bip32Path = $bip32PathSignMessageInputBitcoin.value;
+            const api = await createApi();
+            if (api instanceof LowLevelApi) throw new Error('Bitcoin not supported by LowLevelApi');
+            displayStatus('Signing message...');
+            const { signerAddress, signature } = await api.Bitcoin.signMessage(message, bip32Path);
+            // verify the signature for testing purposes
+            if (!verifySignedMessageBitcoin(message, signerAddress, signature)) throw new Error('Invalid signature');
+            $messageSignerBitcoin.textContent = signerAddress;
+            $messageSignatureBitcoin.textContent = signature;
+            displayStatus('Signed message');
+        } catch (error) {
+            displayStatus(`Failed to sign message: ${error}`);
             throw error;
         }
     }
@@ -727,7 +779,6 @@ window.addEventListener('load', () => {
             const walletId = await api.Bitcoin.getWalletId(network);
             $walletIdBitcoin.textContent = walletId;
             displayStatus('Received wallet id');
-            return walletId;
         } catch (error) {
             displayStatus(`Failed to get wallet id: ${error}`);
             throw error;
@@ -759,6 +810,7 @@ window.addEventListener('load', () => {
         $confirmAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(true));
         $getExtendedPublicKeyButtonBitcoin.addEventListener('click', getExtendedPublicKeyBitcoin);
         $signTxButtonBitcoin.addEventListener('click', signTransactionBitcoin);
+        $signMessageButtonBitcoin.addEventListener('click', signMessageBitcoin);
         $getWalletIdButtonBitcoin.addEventListener('click', getWalletIdBitcoin);
 
         switchApi();

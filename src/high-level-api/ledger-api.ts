@@ -39,6 +39,7 @@ type RequestGetExtendedPublicKeyBitcoinConstructor =
     typeof import('./requests/bitcoin/request-get-extended-public-key-bitcoin').default;
 type RequestSignTransactionBitcoinConstructor =
     typeof import('./requests/bitcoin/request-sign-transaction-bitcoin').default;
+type RequestSignMessageBitcoinConstructor = typeof import('./requests/bitcoin/request-sign-message-bitcoin').default;
 
 // define Request type as actually defined request classes to be more specific than the abstract parent class
 /* eslint-disable @typescript-eslint/indent */
@@ -46,7 +47,8 @@ type RequestConstructor = RequestGetWalletIdNimiqConstructor | RequestGetPublicK
     | RequestGetAddressNimiqConstructor | RequestDeriveAddressesNimiqConstructor
     | RequestSignTransactionNimiqConstructor
     | RequestGetWalletIdBitcoinConstructor | RequestGetAddressAndPublicKeyBitcoinConstructor
-    | RequestGetExtendedPublicKeyBitcoinConstructor | RequestSignTransactionBitcoinConstructor;
+    | RequestGetExtendedPublicKeyBitcoinConstructor | RequestSignTransactionBitcoinConstructor
+    | RequestSignMessageBitcoinConstructor;
 /* eslint-enable @typescript-eslint/indent */
 type Request = InstanceType<RequestConstructor>;
 
@@ -224,6 +226,19 @@ export default class LedgerApi {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignTransactionBitcoinConstructor>(
                 import('./requests/bitcoin/request-sign-transaction-bitcoin'),
                 transaction, expectedWalletId,
+            ));
+        },
+
+        /**
+         * Sign a message according to bip137 with the key specified via its bip32 path. The message can be either an
+         * utf8 string or an Uint8Array of arbitrary data. Optionally expect a specific wallet id. The resulting
+         * signature is base64 encoded.
+         */
+        async signMessage(message: string | Uint8Array, keyPath: string, expectedWalletId?: string)
+            : Promise<{ signerAddress: string, signature: string }> {
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignMessageBitcoinConstructor>(
+                import('./requests/bitcoin/request-sign-message-bitcoin'),
+                keyPath, message, expectedWalletId,
             ));
         },
     };

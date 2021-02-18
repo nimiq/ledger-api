@@ -242,6 +242,15 @@ export default (commandLineArgs) => {
                     '../../dist/high-level-api/ledger-api': '../high-level-api/ledger-api.es.js',
                     // shim unnecessary axios for @ledgerhq/hw-transport-http
                     axios: '../../../../src/lib/axios-shim.ts',
+                    // replace readable-stream imported by @ledgerhq/hw-app-btc/src/hashPublicKey > ripemd160 >
+                    // hash-base by stream which gets polyfilled by rollup-plugin-polyfill-node. Note that stream and
+                    // readable-stream are largely compatible and effectively the same code. However, the stream
+                    // polyfill used by rollup-plugin-polyfill-node is an older version which has less problems with
+                    // circular dependencies. The circular dependencies are currently being resolved in readable-stream
+                    // though and once merged (see https://github.com/nodejs/readable-stream/issues/348), this alias
+                    // should be removed or even turned around. Note that without the replacement, the stream polyfill
+                    // and readable-stream are both bundled, which is not desirable.
+                    'readable-stream': 'stream',
                 },
             }),
             virtual({
@@ -249,6 +258,7 @@ export default (commandLineArgs) => {
                 ws: 'export default {};',
             }),
             resolve({
+                browser: true, // use browser versions of packages if defined in their package.json
                 preferBuiltins: false, // builtins are handled by polyfillNode
             }),
             // Have eslint high up in the hierarchy to lint the original files.
@@ -266,6 +276,7 @@ export default (commandLineArgs) => {
                 exclude: [/^polyfill-node:/],
             }),
             commonjs(),
+            json(), // required for import of secp256k1/lib/messages.json in secp256k1 imported by bitcoinjs-message
             polyfillNode({
                 include: [
                     'src/**/*',

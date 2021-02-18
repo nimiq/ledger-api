@@ -32,6 +32,7 @@
   },
   "homepage": "https://github.com/nimiq/ledger-api#readme",
   "devDependencies": {
+    "@ledgerhq/logs": "^5.41.0",
     "@rbnlffl/rollup-plugin-eslint": "^1.1.4",
     "@rollup/plugin-alias": "^3.1.2",
     "@rollup/plugin-commonjs": "^17.1.0",
@@ -40,6 +41,7 @@
     "@rollup/plugin-typescript": "^8.1.1",
     "@typescript-eslint/eslint-plugin": "^4.14.2",
     "@typescript-eslint/parser": "^4.14.2",
+    "bitcoinjs-message": "^2.2.0",
     "eslint": "^7.19.0",
     "eslint-config-airbnb-typescript": "^12.3.1",
     "eslint-plugin-import": "^2.22.1",
@@ -61,7 +63,6 @@
     "@ledgerhq/hw-transport-webauthn": "^5.36.0-deprecated",
     "@ledgerhq/hw-transport-webhid": "^5.41.0",
     "@ledgerhq/hw-transport-webusb": "^5.41.0",
-    "@ledgerhq/logs": "^5.41.0",
     "@nimiq/core-web": "^1.5.7",
     "@rollup/plugin-virtual": "^2.0.3",
     "@types/ledgerhq__hw-app-btc": "^5.19.2",
