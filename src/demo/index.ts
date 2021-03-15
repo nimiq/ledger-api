@@ -111,7 +111,13 @@ window.addEventListener('load', () => {
                     Network Endpoint:
                     <input class="nq-input-s" id="network-endpoint-input" value="ws://127.0.0.1:8435">
                     <button class="nq-button-s" id="network-endpoint-ledger-live-button">Ledger Live Bridge</button>
+                    <button class="nq-button-s" id="network-endpoint-speculos-button">Speculos</button>
                 </label>
+                <div>
+                    For communication with
+                    <a href="https://github.com/LedgerHQ/speculos" target="_blank">Speculos</a>
+                    run yarn speculos-bridge and set the Speculos apdu port to 40000.
+                </div>
             </div>
             <label>
                 <input type="checkbox" id="no-user-interaction-checkbox">
@@ -373,6 +379,7 @@ window.addEventListener('load', () => {
     const $transportSelector = document.getElementById('transport-selector')!;
     const $networkEndpointInput = getInputElement('#network-endpoint-input');
     const $networkEnpointLedgerLiveButton = document.getElementById('network-endpoint-ledger-live-button')!;
+    const $networkEndpointSpeculosButton = document.getElementById('network-endpoint-speculos-button')!;
     const $noUserInteractionCheckbox = getInputElement('#no-user-interaction-checkbox');
     const $connectButton = document.getElementById('connect-button')!;
     const $disconnectButton = document.getElementById('disconnect-button')!;
@@ -486,6 +493,7 @@ window.addEventListener('load', () => {
                 enableSelector($transportSelector, false);
                 $networkEndpointInput.disabled = true;
                 ($networkEnpointLedgerLiveButton as HTMLButtonElement).disabled = true;
+                ($networkEndpointSpeculosButton as HTMLButtonElement).disabled = true;
                 // Note that for the high-level api, the ledger log does not work as the logger in the demo is a
                 // different instance than the one in the lazy loaded transports.
                 onLog((logEntry: any) => console.log('%cLog:', 'color: teal', logEntry));
@@ -795,6 +803,7 @@ window.addEventListener('load', () => {
         $transportSelector.addEventListener('change', switchTransport);
         $networkEndpointInput.addEventListener('input', () => changeNetworkEndpoint());
         $networkEnpointLedgerLiveButton.addEventListener('click', () => changeNetworkEndpoint('ws://127.0.0.1:8435'));
+        $networkEndpointSpeculosButton.addEventListener('click', () => changeNetworkEndpoint('ws://127.0.0.1:9999'));
         $connectButton.addEventListener('click', connect);
         $disconnectButton.addEventListener('click', disconnect);
         $highLevelApiCancelButton.addEventListener('click', cancelRequest);

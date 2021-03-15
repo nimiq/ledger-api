@@ -72,7 +72,7 @@ export default abstract class Request<T> extends Observable {
 
     protected async checkCoinAppConnection(transport: Transport, scrambleKey: string): Promise<CoinAppConnection> {
         const { name: app, version: appVersion } = await getAppAndVersion(transport, scrambleKey);
-        if (app !== this.requiredApp) {
+        if (app !== this.requiredApp && app !== 'app') { // speculos reports 'app' as app name
             throw new ErrorState(
                 ErrorType.WRONG_APP,
                 `Wrong app connected: ${app}, required: ${this.requiredApp}`,
