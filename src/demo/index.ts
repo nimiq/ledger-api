@@ -169,6 +169,16 @@ window.addEventListener('load', () => {
                     </div>
             </section>
 
+            <section class="nq-text nq-card show-${ApiType.LOW_LEVEL}">
+                <h2 class="nq-card-header nq-h2">Get App Name and Version</h2>
+                <div class="nq-card-body">
+                    <button class="nq-button-s" id="get-app-name-and-version-button-nimiq">Get Name And Version</button>
+                    <br>
+                    <div class="nq-text">App: <span id="app-name-nimiq"></span></div>
+                    <div class="nq-text">Version: <span id="app-version-nimiq"></span></div>
+                </div>
+            </section>
+
             <section class="nq-text nq-card show-${ApiType.HIGH_LEVEL}">
                 <h2 class="nq-card-header nq-h2">Get Wallet Id</h2>
                 <div class="nq-card-body">
@@ -397,6 +407,9 @@ window.addEventListener('load', () => {
     const $txHexInputNimiq = getInputElement('#tx-hex-input-nimiq');
     const $signTxButtonNimiq = document.getElementById('sign-tx-button-nimiq')!;
     const $signatureNimiq = document.getElementById('signature-nimiq')!;
+    const $getAppNameAndVersionButtonNimiq = document.getElementById('get-app-name-and-version-button-nimiq')!;
+    const $appNameNimiq = document.getElementById('app-name-nimiq')!;
+    const $appVersionNimiq = document.getElementById('app-version-nimiq')!;
     const $getWalletIdButtonNimiq = document.getElementById('get-wallet-id-button-nimiq')!;
     const $walletIdNimiq = document.getElementById('wallet-id-nimiq')!;
 
@@ -555,9 +568,10 @@ window.addEventListener('load', () => {
 
     async function connect() {
         if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
-        const api = window._api || await createApi();
+        const api = await createApi();
         if (api instanceof LowLevelApi) {
-            const { version } = await api.getAppConfiguration();
+            const { name, version } = await api.getAppNameAndVersion();
+            if (name !== 'Nimiq' && /* for speculos */ name !== 'app') throw new Error(`Wrong app connected: ${name}`);
             // @ts-ignore: deviceModel does not exist on all transport types
             const deviceModel = (window._transport.deviceModel || {}).productName || 'device type unknown';
             displayStatus(`Connected (app version ${version}, ${deviceModel})`);
@@ -677,6 +691,24 @@ window.addEventListener('load', () => {
             $signatureNimiq.textContent = Nimiq.BufferUtils.toHex(signature);
         } catch (error) {
             displayStatus(error);
+        }
+    }
+
+    async function getAppNameAndVersionNimiq() {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
+        try {
+            $appNameNimiq.textContent = '';
+            $appVersionNimiq.textContent = '';
+            const api = await createApi();
+            displayStatus('Getting app name and version...');
+            if (!(api instanceof LowLevelApi)) throw new Error('getAppNameAndVersion not supported by HighLevelApi');
+            const { name, version } = await api.getAppNameAndVersion();
+            $appNameNimiq.textContent = name;
+            $appVersionNimiq.textContent = version;
+            displayStatus('Received app name and version');
+        } catch (error) {
+            displayStatus(`Failed to get app name and version: ${error}`);
+            throw error;
         }
     }
 
@@ -813,6 +845,7 @@ window.addEventListener('load', () => {
         $getAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(false));
         $confirmAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(true));
         $signTxButtonNimiq.addEventListener('click', signTransactionNimiq);
+        $getAppNameAndVersionButtonNimiq.addEventListener('click', getAppNameAndVersionNimiq);
         $getWalletIdButtonNimiq.addEventListener('click', getWalletIdNimiq);
 
         $getAddressButtonBitcoin.addEventListener('click', () => getAddressAndPublicKeyBitcoin(false));

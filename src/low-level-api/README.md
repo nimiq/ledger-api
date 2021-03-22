@@ -13,8 +13,9 @@ import LowLevelApi from "@ledgerhq/hw-app-nim";
 const getNimAppVersion = async () => {
     const transport = await Transport.create();
     const nim = new LowLevelApi(transport);
-    const result = await nim.getAppConfiguration();
-    return result.version;
+    const { name, version } = await nim.getAppNameAndVersion();
+    if (name !== 'Nimiq') throw new Error('Wrong app connected');
+    return version;
 }
 getNimAppVersion().then(v => console.log(v));
 

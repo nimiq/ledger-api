@@ -1,5 +1,5 @@
 import { Coin, RequestTypeNimiq, RequestTypeBitcoin, REQUEST_EVENT_CANCEL } from '../constants';
-import { getAppAndVersion } from '../ledger-utils';
+import getAppNameAndVersion from '../../low-level-api/get-app-name-and-version';
 import ErrorState, { ErrorType } from '../error-state';
 import Observable, { EventListener } from '../../lib/observable';
 
@@ -71,7 +71,7 @@ export default abstract class Request<T> extends Observable {
     }
 
     protected async checkCoinAppConnection(transport: Transport, scrambleKey: string): Promise<CoinAppConnection> {
-        const { name: app, version: appVersion } = await getAppAndVersion(transport, scrambleKey);
+        const { name: app, version: appVersion } = await getAppNameAndVersion(transport, scrambleKey);
         if (app !== this.requiredApp && app !== 'app') { // speculos reports 'app' as app name
             throw new ErrorState(
                 ErrorType.WRONG_APP,

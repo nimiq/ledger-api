@@ -3,6 +3,7 @@ import {
     publicKeyToAddress,
     verifySignature,
 } from './low-level-api-utils';
+import getAppNameAndVersion from './get-app-name-and-version';
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
 
 type Transport = import('@ledgerhq/hw-transport').default;
@@ -10,7 +11,6 @@ type Transport = import('@ledgerhq/hw-transport').default;
 const CLA = 0xe0;
 const INS_GET_PK = 0x02;
 const INS_SIGN_TX = 0x04;
-const INS_GET_CONF = 0x06;
 const INS_KEEP_ALIVE = 0x08;
 
 const APDU_MAX_SIZE = 150;
@@ -26,6 +26,8 @@ const P2_CONFIRM = 0x01;
 const SW_OK = 0x9000;
 const SW_CANCEL = 0x6985;
 const SW_KEEP_ALIVE = 0x6e02;
+
+const U2F_SCRAMBLE_KEY = 'w0w';
 
 // The @ledgerhq libraries use Node Buffers which need to be polyfilled in the browser. To avoid the need to bundle such
 // polyfills that an app likely already has bundled in the @ledgerhq libraries, this library expects a global polyfill
@@ -53,13 +55,14 @@ export default class LowLevelApi {
 
     constructor(transport: Transport) {
         this._transport = transport;
-        // Note that the registered methods here do not intersect with the methods of the Bitcoin api, therefore, we can
-        // re-use the same transport instance for both, NIM and BTC apis (as long as a switch between NIM and BTC apps
-        // doesn't cause a disconnect).
+        // Note that getAppNameAndVersion does not need to be decorated, as we're decorating it manually. Also note that
+        // the registered methods here do not intersect with the methods of the Bitcoin api, therefore, we can re-use
+        // the same transport instance for both, NIM and BTC apis (as long as a switch between NIM and BTC apps doesn't
+        // cause a disconnect).
         transport.decorateAppAPIMethods(
             this,
-            ['getAppConfiguration', 'getPublicKey', 'signTransaction'],
-            'w0w',
+            ['getPublicKey', 'signTransaction'],
+            U2F_SCRAMBLE_KEY,
         );
     }
 
@@ -80,14 +83,25 @@ export default class LowLevelApi {
     }
 
     /**
-     * Get the version of the connected Ledger Nimiq App. Note that some other apps like the Ethereum app also respond
-     * to this call.
+     * @deprecated
+     * Get the version of the connected Ledger Nimiq App. Note that other apps also respond to this call (but for U2F
+     * and WebAuthn only if both apps use the same scramble key).
+     * @returns An object with the version.
      */
     public async getAppConfiguration(): Promise<{ version: string }> {
-        // Note that no heartbeat is required here as INS_GET_CONF is not interactive but thus answers directly
-        const [, major, minor, patch] = await this._transport.send(CLA, INS_GET_CONF, 0x00, 0x00);
-        const version = `${major}.${minor}.${patch}`;
-        return { version };
+        console.warn('getAppConfiguration is deprecated and will be removed in the future. '
+            + 'Use getAppNameAndVersion instead.');
+        return this.getAppNameAndVersion();
+    }
+
+    /**
+     * Get the name of the connected app and the app version.
+     * @returns An object with the name and version.
+     * @example
+     * nim.getAppNameAndVersion().then(o => o.version)
+     */
+    public async getAppNameAndVersion(): Promise<{ name: string, version: string }> {
+        return getAppNameAndVersion(this._transport, U2F_SCRAMBLE_KEY);
     }
 
     /**
