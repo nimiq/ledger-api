@@ -15,11 +15,12 @@ type Bip32PathParams = {
 // See BIP44
 const PATH_REGEX = new RegExp(
     '^'
-    + '(\\d+)\'' // purpose id; BIP44 (BTC legacy or Nimiq) / BIP49 (BTC nested SegWit) / BIP84 (BTC native SegWit)
-    + '/(\\d+)\'' // coin type; 0 for Bitcoin Mainnet, 1 for Bitcoin Testnet, 242 for Nimiq
-    + '/(\\d+)\'' // account index
-    + '(?:/(\\d+))?' // 0 for external or 1 for internal address (change); non-hardened; unset for Nimiq
-    + '/(\\d+)(\'?)' // address index; non-hardened for BTC, hardened for Nimiq
+    + '(?:m/)?' // optional m/ prefix
+    + '(\\d+)\'/' // purpose id; BIP44 (BTC legacy or Nimiq) / BIP49 (BTC nested SegWit) / BIP84 (BTC native SegWit)
+    + '(\\d+)\'/' // coin type; 0 for Bitcoin Mainnet, 1 for Bitcoin Testnet, 242 for Nimiq
+    + '(\\d+)\'/' // account index
+    + '(?:(\\d+)/)?' // 0 for external or 1 for internal address (change); non-hardened; unset for Nimiq
+    + '(\\d+)(\'?)' // address index; non-hardened for BTC, hardened for Nimiq
     + '$',
 );
 

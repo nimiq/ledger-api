@@ -7,6 +7,7 @@ type Transport = import('@ledgerhq/hw-transport').default;
 
 const KEY_PATH_REGEX = new RegExp(
     '^'
+    + '(?:m/)?' // optional m/ prefix
     + '(44|49|84)\'' // purpose id; BIP44 (BTC legacy) / BIP49 (BTC nested SegWit) / BIP84 (BTC native SegWit)
     + '/(0|1)\'' // coin type; 0 for Bitcoin Mainnet, 1 for Bitcoin Testnet
     + '/\\d+\'' // account index; allow only xpubs for specific accounts
