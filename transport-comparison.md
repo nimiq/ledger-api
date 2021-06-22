@@ -1,7 +1,7 @@
 # Transport comparison
 
 Note: the behavior of the low level api tends to vary greatly with:
-- used transport type: U2F, WebUSB, WebHID, WebBluetooth
+- used transport type: WebHID, WebUSB, WebBluetooth, WebAuthn, U2F
 - used device: Ledger Nano X or Ledger Nano S
 - used Operating system: Windows / Linux / Mac / Android
 - used browser: Chromium based / Firefox / ...
@@ -27,18 +27,18 @@ Some test conditions of interest:
 
 General notes:
 - The ledger only supports one call at a time.
-- If the ledger is busy with another call it throws an exception that it is busy. The ledger API however only knows, if
-  the ledger is busy by another call from this same page and same API instance.
-- For all api types but U2F the user must select a device to use / grant permission to use that device. The device
-  selector opens as browser popup. The request for a device has to happen in the context of a user interaction / user
-  activation. Our api allows for initiating a request without user interaction and will then ask for a manual `connect`
-  call in the context of a user interaction only if needed.
+- If the ledger api is busy with another call it throws an exception that it is busy. The ledger API however only knows,
+  if the ledger is busy by another call from this same page and same API instance.
+- For all api types but U2F / WebAuthn the user must select a device to use / grant permission to use that device. The
+  device selector opens as browser popup. The request for a device has to happen in the context of a user interaction /
+  user activation. Our api allows for initiating a request without user interaction and will then ask for a manual
+  `connect` call in the context of a user interaction only if needed.
 - The Ledger reports the dashboard and applications as separate devices depending on the the app's
   [supported interfaces](https://www.ledger.com/windows-10-update-sunsetting-u2f-tunnel-transport-for-ledger-devices/)
   to circumvent some Windows issues which can not handle multiple different combinations of enabled interfaces for a
   single USB device. This means that the user has to give permission for the "device" associated with the Nimiq app.
-- Surprisingly, on the Nano X the dashboard and Nimiq App are not reported as different apps, so seem to share the same
-  interface. Nonetheless, a connect/disconnect happens when switching between the dashboard and the Nimiq app.
+- On the Nano X until firmware 1.2.4-5 the dashboard and Nimiq App were not reported as different apps and shared the
+  same interface. Nonetheless, a connect/disconnect happened when switching between the dashboard and the Nimiq app.
 - If the ledger is locked while the nimiq app (or another app throwing that same exception) was running, an exception
   gets thrown. The error code for this was 0x6982 before and got translated to a "dongle locked" error, but this
   seems to have changed. Get public key / address requests now throw a 0x6804 UNKNOWN_ERROR; other requests don't
@@ -53,8 +53,6 @@ See https://caniuse.com/#feat=webusb for browser support.
 
 General characteristics:
 - No timeouts.
-- The browser device selector updates when devices get connected / disconnected (or when an app gets opened on the
-  Ledger which is a device change).
 
 Special characteristics:
 - The Ledger Nano X does not appear in the device selector in Windows. It can therefore not be used with WebUSB under
@@ -73,22 +71,25 @@ Special characteristics:
 
 ## WebHID
 
-Still experimental and not enabled by default. It is not a W3C Standard nor is it on the W3C Standards Track. The test
-results here should be updated when the api is more stable.
+See https://caniuse.com/webhid for browser support.
+It is not a W3C Standard nor is it on the W3C Standards Track but works great in Chrome.
 
 General characteristics:
 - No timeouts.
-- The browser device selector does not update (yet?) when devices get connected / disconnected (or when an app gets
-  opened on the Ledger which is a device change).
-- Currently, a HID permission is only valid until the device is disconnected. This results in a device selection popup
-  every time the Ledger is reconnected (or changes to another app or the dashboard, where Ledger reports different
-  device descriptors, i.e. appears as a different device). This also requires a user gesture every time.
-- The HID device selection popup does not update on changes, for example on switch from Ledger dashboard to app or when
-  Ledger gets connected.
-- HID does not emit disconnects immediately but only at next request.
 
 Special characteristics:
 - Currently crashes the page on Chrome Android.
+
+Notes about early Chrome versions (versions in the lower 8X range):
+- The browser device selector did not update when devices get connected / disconnected (or when an app gets opened on
+  the Ledger which is a device change).
+- A HID permission was only valid until the device was disconnected. This resulted in a device selection popup every
+  time the Ledger was reconnected (or changes to another app or the dashboard, where Ledger reports different device
+  descriptors, i.e. appears as a different device). This also required a user gesture every time.
+- Sometimes, if a device disconnects / switches the app, subsequent requests while the correct app is opened resulted in
+  "Invalid sequence" errors. The problem persisted after reloading the page. This behavior did not show, if an apdu was
+  sent to another app / the dashboard in the meantime.
+- HID did not emit disconnects immediately but only at next request.
 
 ## WebBluetooth
 
@@ -146,7 +147,7 @@ Special characteristics:
   not been observed yet in our app.
 - Can not connect to a Ledger if two are attached at the same time.
 
-## U2F
+## U2F / WebAuthn
 
 Legacy implementation that depends on deprecated Fido U2F API. See https://caniuse.com/#feat=u2f for browser support.
 
@@ -160,6 +161,7 @@ General characteristics:
   should disable U2F support in our app in the future.
 
 Special characteristics:
+- Not compatible with the newest Chrome Versions anymore.
 - Causes native Windows security popups in Windows 10. These have to be ignored without clicking cancel on them.
 - Causes Firefox internal popup in Firefox which should also be ignored.
 - Although Firefox for Android supports U2F according to caniuse.com it does not seem to be compatible with this api.

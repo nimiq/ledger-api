@@ -6,8 +6,8 @@
 
 
 ```js
-import Transport from "@ledgerhq/hw-transport-node-hid";
-// import Transport from "@ledgerhq/hw-transport-u2f"; // for browser
+import Transport from "@ledgerhq/hw-transport-webhid";
+// import Transport from "@ledgerhq/hw-transport-node-hid"; // for node; experimental
 import LowLevelApi from "@ledgerhq/hw-app-nim";
 
 const getNimAppVersion = async () => {

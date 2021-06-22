@@ -670,30 +670,12 @@ export default class LedgerApi {
                 if (transportType === LedgerApi._transportType) {
                     const message = (e.message || e).toLowerCase();
                     if (/no device selected|access denied|cancelled the requestdevice/i.test(message)) {
-                        if (LedgerApi._transportType === TransportType.WEB_USB) {
-                            // Use a fallback as the user might not have been able to select his device due to the Nano
-                            // X currently not being discoverable via WebUSB in Windows.
-                            // This fallback also temporarily serves Linux users which have not updated their udev rules
-                            // TODO the fallback is just temporary and to be removed once WebUSB with Nano X works on
-                            //  Windows or WebHID is more broadly available.
-                            const fallback = [TransportType.WEB_AUTHN, TransportType.U2F].find(isSupported);
-                            if (!fallback) {
-                                throw new ErrorState(
-                                    ErrorType.BROWSER_UNSUPPORTED,
-                                    'Ledger not supported by browser.',
-                                    request,
-                                );
-                            }
-                            console.warn(`LedgerApi: switching to ${fallback} as fallback`);
-                            LedgerApi.setTransportType(fallback!);
-                        } else {
-                            LedgerApi._connectionAborted = true;
-                            throw new ErrorState(
-                                ErrorType.CONNECTION_ABORTED,
-                                `Connection aborted: ${message}`,
-                                request,
-                            );
-                        }
+                        LedgerApi._connectionAborted = true;
+                        throw new ErrorState(
+                            ErrorType.CONNECTION_ABORTED,
+                            `Connection aborted: ${message}`,
+                            request,
+                        );
                     } else if (message.indexOf('user gesture') !== -1) {
                         throw new ErrorState(ErrorType.USER_INTERACTION_REQUIRED, e, request);
                     } else {

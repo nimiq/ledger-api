@@ -1,5 +1,5 @@
-import TransportWebUsb from '@ledgerhq/hw-transport-webusb';
 import TransportWebHid from '@ledgerhq/hw-transport-webhid';
+import TransportWebUsb from '@ledgerhq/hw-transport-webusb';
 import TransportWebBle from '@ledgerhq/hw-transport-web-ble';
 import TransportWebAuthn from '@ledgerhq/hw-transport-webauthn';
 import TransportU2F from '@ledgerhq/hw-transport-u2f';
@@ -84,12 +84,12 @@ window.addEventListener('load', () => {
             </div>
             <div id="transport-selector" class="selector">
                 <label>
-                    <input type="radio" name="transport-selector" value="${TransportType.WEB_USB}" checked>
-                    WebUsb
+                    <input type="radio" name="transport-selector" value="${TransportType.WEB_HID}" checked>
+                    WebHid
                 </label>
                 <label>
-                    <input type="radio" name="transport-selector" value="${TransportType.WEB_HID}">
-                    WebHid
+                    <input type="radio" name="transport-selector" value="${TransportType.WEB_USB}">
+                    WebUsb
                 </label>
                 <label>
                     <input type="radio" name="transport-selector" value="${TransportType.WEB_BLE}">
@@ -751,13 +751,13 @@ window.addEventListener('load', () => {
                 // different instance than the one in the lazy loaded transports.
                 onLog((logEntry: any) => console.log('%cLog:', 'color: teal', logEntry));
                 switch (transportType) {
+                    case TransportType.WEB_HID:
+                        window._transport = await TransportWebHid.create();
+                        break;
                     case TransportType.WEB_USB:
                         // Automatically creates a transport with a connected known device or opens a browser popup to
                         // select a device if no known device is connected.
                         window._transport = await TransportWebUsb.create();
-                        break;
-                    case TransportType.WEB_HID:
-                        window._transport = await TransportWebHid.create();
                         break;
                     case TransportType.WEB_BLE:
                         window._transport = await TransportWebBle.create();

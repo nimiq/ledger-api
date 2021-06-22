@@ -41,24 +41,22 @@ export function isSupported(transportType?: TransportType): boolean {
 
 export function autoDetectTransportTypeToUse(): TransportType | null {
     // Determine the best available transport type. Exclude WebBle as it's only suitable for Nano X.
-    let transportTypesByPreference;
-    // HID has better compatibility on Windows due to driver issues for WebUSB for the Nano X. On other
-    // platforms however, WebUSB is preferable for multiple reasons (see transport-comparison.md).
-    // TODO this situation needs to be re-evaluated once WebHID is stable
-    const isWindows = /Win/.test(window.navigator.platform); // see https://stackoverflow.com/a/38241481
-    if (isWindows) {
-        transportTypesByPreference = [TransportType.WEB_HID, TransportType.WEB_USB];
-    } else {
-        transportTypesByPreference = [TransportType.WEB_USB, TransportType.WEB_HID];
-    }
-    // WebAuthn as preferred fallback, as compared to U2F better browser support and less quirky / not deprecated and
-    // works better with Nano X. But causes a popup in Chrome which U2F does not. In Firefox has same popup as U2F and
-    // in Windows also triggers Window's native security popup (see transport-comparison.md).
-    transportTypesByPreference.push(TransportType.WEB_AUTHN);
-    // U2F as legacy fallback. The others are preferred as U2F can time out and causes native Windows security popups
-    // in Windows and additionally Firefox internal popups in Firefox on all platforms (see transport-comparison.md).
-    transportTypesByPreference.push(TransportType.U2F);
+    // See transport-comparison.md for a more complete comparison of different transport types.
     // TODO once the Ledger Live WebSocket bridge is available to users, add TransportType.NETWORK
+    const transportTypesByPreference = [
+        // WebHID is preferable over WebUSB because Chrome 91 broke the WebUSB support. Also WebHID has better
+        // compatibility on Windows due to driver issues for WebUSB for the Nano X.
+        TransportType.WEB_HID,
+        // If WebHID is not available, WebUSB generally also works well.
+        TransportType.WEB_USB,
+        // WebAuthn and U2F as fallbacks which are generally less stable though and can time out. They also cause native
+        // Windows security prompts in Windows and additionally Firefox internal popups in Firefox on all platforms.
+        // WebAuthn preferred over U2F, as compared to U2F better browser support and less quirky / not deprecated
+        // and works better with Nano X. But causes a popup in Chrome which U2F does not.
+        TransportType.WEB_AUTHN,
+        // U2F as last resort.
+        TransportType.U2F,
+    ];
     return transportTypesByPreference.find(isSupported) || null;
 }
 
