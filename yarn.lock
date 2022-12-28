@@ -182,10 +182,10 @@
   resolved "https://registry.yarnpkg.com/@ledgerhq/logs/-/logs-5.46.0.tgz#fc850416716d77090c1c5a8c186118561fbd8d8b"
   integrity sha512-WiFy1uwRhcqkj6aTSha532Nl6Gdsv5GN+Nsbp7pY66Zg+6WUE/SBmpwHEJfEXzEfARI5+A718a3trGinY6Dftg==
 
-"@nimiq/core-web@^1.5.7":
-  version "1.5.7"
-  resolved "https://registry.yarnpkg.com/@nimiq/core-web/-/core-web-1.5.7.tgz#e9d5293682531c6df5398e04b06a68a1aefbdbec"
-  integrity sha512-83JYPGJlolHHTJJhJYEI3JQ+llrP2DQAJ1gfsmO2NWNthTj6Dj/K2rdzvImMFefq46uoggmW8bwOJbQCkW6pYA==
+"@nimiq/core-web@^1.6.0":
+  version "1.6.0"
+  resolved "https://registry.yarnpkg.com/@nimiq/core-web/-/core-web-1.6.0.tgz#94588b66b2fdd3ae9f9034336e72f6cd28d0edd6"
+  integrity sha512-6uJxUR/MEzy1kFQa2tP4cnNmf8FQMY/pQPdhXDnHi4e4AEhljOUenlZT/7C0bc2VdJv1TXTZM9vI7WcdvC3glA==
 
 "@nodelib/fs.scandir@2.1.4":
   version "2.1.4"

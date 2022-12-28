@@ -65,7 +65,7 @@
     "@ledgerhq/hw-transport-webauthn": "^5.36.0-deprecated",
     "@ledgerhq/hw-transport-webhid": "^5.41.0",
     "@ledgerhq/hw-transport-webusb": "^5.41.0",
-    "@nimiq/core-web": "^1.5.7",
+    "@nimiq/core-web": "^1.6.0",
     "@rollup/plugin-virtual": "^2.0.3",
     "@types/ledgerhq__hw-app-btc": "^5.19.2",
     "@types/ledgerhq__hw-transport": "^4.21.3",

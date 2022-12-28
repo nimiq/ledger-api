@@ -973,7 +973,6 @@ window.addEventListener('load', () => {
                 case DataUiType.HTLC_CREATION: {
                     const htlcSender = Nimiq.Address.fromUserFriendlyAddress($txDataHtlcSenderInputNimiq.value);
                     const htlcRecipient = Nimiq.Address.fromUserFriendlyAddress($txDataHtlcRecipientInputNimiq.value);
-                    // @ts-expect-error: Nimiq.Hash.Algorithm.fromAny is not defined in Nimiq core types yet.
                     const hashAlgorithm = Nimiq.Hash.Algorithm.fromAny(
                         getSelectorValue($txDataHtlcAlgorithmSelectorNimiq));
                     const hashRoot = Nimiq.BufferUtils.fromHex($txDataHtlcHashRootInputNimiq.value);
