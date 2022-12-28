@@ -65,7 +65,7 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
                 : Buffer.from(this.message);
 
             if (messageBuffer.length >= 2 ** 16) {
-                // the message length is encoded in two bytes and is 0 terminated.
+                // the message length is encoded in an uint16.
                 throw new Error('Message too long');
             }
         } catch (e) {

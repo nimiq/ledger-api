@@ -12,8 +12,9 @@ const CLA = 0xe0;
 const INS_GET_PK = 0x02;
 const INS_SIGN_TX = 0x04;
 const INS_KEEP_ALIVE = 0x08;
+const INS_SIGN_MESSAGE = 0x0a;
 
-const APDU_MAX_SIZE = 150;
+const APDU_MAX_SIZE = 255; // see IO_APDU_BUFFER_SIZE in os.h in ledger sdk
 const P1_FIRST_APDU = 0x00;
 const P1_MORE_APDU = 0x80;
 const P1_NO_VALIDATE = 0x00;
@@ -22,6 +23,9 @@ const P2_LAST_APDU = 0x00;
 const P2_MORE_APDU = 0x80;
 const P2_NO_CONFIRM = 0x00;
 const P2_CONFIRM = 0x01;
+
+const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HEX = 1 << 0; // eslint-disable-line no-bitwise
+const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH = 1 << 1; // eslint-disable-line no-bitwise
 
 const SW_OK = 0x9000;
 const SW_CANCEL = 0x6985;
@@ -186,7 +190,7 @@ export default class LowLevelApi {
      * @param txContent - Transaction content in serialized form.
      * @returns An object with the signature.
      * @example
-     * nim.signTransaction("44'/242'/0'/0'", signatureBase).then(o => o.signature)
+     * nim.signTransaction("44'/242'/0'/0'", txContent).then(o => o.signature)
      */
     public async signTransaction(
         path: string,
@@ -240,9 +244,87 @@ export default class LowLevelApi {
         } while (isHeartbeat || chunkIndex < apdus.length);
 
         if (status !== SW_OK) throw new Error('Transaction approval request was rejected');
-        const signature = Buffer.from(response.slice(0, response.length - 2));
-        return {
-            signature: Uint8Array.from(signature),
-        };
+        const signature = response.slice(0, response.length - 2);
+        return { signature };
+    }
+
+    /**
+     * Sign a message with a Nimiq key.
+     * @param path - A path in BIP 32 format.
+     * @param message - Message to sign as utf8 string or arbitrary bytes.
+     * @param flags - Flags to pass. Currently supported: `preferDisplayTypeHex` and `preferDisplayTypeHash`.
+     * @returns An object with the signature.
+     * @example
+     * nim.signMessage("44'/242'/0'/0'", message).then(o => o.signature)
+     */
+    public async signMessage(
+        path: string,
+        message: string | Uint8Array,
+        flags?: number | {
+            preferDisplayTypeHex: boolean, // first choice, if multiple flags are set
+            preferDisplayTypeHash: boolean, // second choice, if multiple flags are set
+        },
+    ): Promise<{ signature: Uint8Array }> {
+        const pathBuffer = parsePath(path);
+        const messageBuffer = typeof message === 'string'
+            ? Buffer.from(message, 'utf8') // throws if invalid utf8
+            : Buffer.from(message);
+        flags = typeof flags === 'object'
+            // eslint-disable-next-line no-bitwise
+            ? (flags.preferDisplayTypeHex ? MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HEX : 0)
+                | (flags.preferDisplayTypeHash ? MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH : 0)
+            : flags || 0;
+        const flagsBuffer = Buffer.from([flags]);
+        if (messageBuffer.length >= 2 ** 32) {
+            // the message length must fit an uint32
+            throw new Error('Message too long');
+        }
+        const messageLengthBuffer = Buffer.alloc(4);
+        messageLengthBuffer.writeUInt32BE(messageBuffer.length);
+        const apdus = [];
+
+        let messageChunkSize = Math.min(
+            messageBuffer.length,
+            APDU_MAX_SIZE - pathBuffer.length - flagsBuffer.length - messageLengthBuffer.length,
+        );
+        let messageChunk = Buffer.alloc(messageChunkSize);
+        let messageOffset = 0;
+        messageBuffer.copy(messageChunk, 0, messageOffset, messageChunkSize);
+        apdus.push(Buffer.concat([pathBuffer, flagsBuffer, messageLengthBuffer, messageChunk]));
+        messageOffset += messageChunkSize;
+        while (messageOffset < messageBuffer.length) {
+            messageChunkSize = Math.min(messageBuffer.length - messageOffset, APDU_MAX_SIZE);
+            messageChunk = Buffer.alloc(messageChunkSize);
+            messageBuffer.copy(messageChunk, 0, messageOffset, messageOffset + messageChunkSize);
+            messageOffset += messageChunkSize;
+            apdus.push(messageChunk);
+        }
+
+        let isHeartbeat = false;
+        let chunkIndex = 0;
+        let status: number;
+        let response: Buffer;
+        do {
+            const data = apdus[chunkIndex];
+            // eslint-disable-next-line no-await-in-loop
+            response = await this._transport.send(
+                CLA,
+                isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_MESSAGE,
+                chunkIndex === 0 ? P1_FIRST_APDU : P1_MORE_APDU, // note that for heartbeat p1, p2 and data are ignored
+                chunkIndex === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
+                data,
+                [SW_OK, SW_CANCEL, SW_KEEP_ALIVE],
+            );
+            status = response.slice(response.length - 2).readUInt16BE(0);
+            isHeartbeat = status === SW_KEEP_ALIVE;
+            if (!isHeartbeat) {
+                // we can continue sending data or end the loop when all data was sent
+                ++chunkIndex;
+            }
+        } while (isHeartbeat || chunkIndex < apdus.length);
+
+        if (status !== SW_OK) throw new Error('Message approval request was rejected');
+        const signature = response.slice(0, response.length - 2);
+        return { signature };
     }
 }

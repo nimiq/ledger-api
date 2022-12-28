@@ -31,6 +31,7 @@ type RequestGetPublicKeyNimiqConstructor = typeof import('./requests/nimiq/reque
 type RequestGetAddressNimiqConstructor = typeof import('./requests/nimiq/request-get-address-nimiq').default;
 type RequestDeriveAddressesNimiqConstructor = typeof import('./requests/nimiq/request-derive-addresses-nimiq').default;
 type RequestSignTransactionNimiqConstructor = typeof import('./requests/nimiq/request-sign-transaction-nimiq').default;
+type RequestSignMessageNimiqConstructor = typeof import('./requests/nimiq/request-sign-message-nimiq').default;
 
 type RequestGetWalletIdBitcoinConstructor = typeof import('./requests/bitcoin/request-get-wallet-id-bitcoin').default;
 type RequestGetAddressAndPublicKeyBitcoinConstructor =
@@ -45,7 +46,7 @@ type RequestSignMessageBitcoinConstructor = typeof import('./requests/bitcoin/re
 /* eslint-disable @typescript-eslint/indent */
 type RequestConstructor = RequestGetWalletIdNimiqConstructor | RequestGetPublicKeyNimiqConstructor
     | RequestGetAddressNimiqConstructor | RequestDeriveAddressesNimiqConstructor
-    | RequestSignTransactionNimiqConstructor
+    | RequestSignTransactionNimiqConstructor | RequestSignMessageNimiqConstructor
     | RequestGetWalletIdBitcoinConstructor | RequestGetAddressAndPublicKeyBitcoinConstructor
     | RequestGetExtendedPublicKeyBitcoinConstructor | RequestSignTransactionBitcoinConstructor
     | RequestSignMessageBitcoinConstructor;
@@ -55,6 +56,7 @@ type Request = InstanceType<RequestConstructor>;
 type PublicKeyNimiq = import('@nimiq/core-web').PublicKey;
 type TransactionInfoNimiq = import('./requests/nimiq/request-sign-transaction-nimiq').TransactionInfoNimiq;
 type TransactionNimiq = import('@nimiq/core-web').Transaction;
+type SignatureNimiq = import('@nimiq/core-web').Signature;
 
 type TransactionInfoBitcoin = import('./requests/bitcoin/request-sign-transaction-bitcoin').TransactionInfoBitcoin;
 
@@ -158,6 +160,21 @@ export default class LedgerApi {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignTransactionNimiqConstructor>(
                 import('./requests/nimiq/request-sign-transaction-nimiq'),
                 keyPath, transaction, expectedWalletId,
+            ));
+        },
+
+        /**
+         * Sign a message for a signing key specified by its bip32 key path. The message can be either an
+         * utf8 string or an Uint8Array of arbitrary data. Optionally request the message to preferably be displayed as
+         * hex or hash instead of as ascii, or expect a specific wallet id. If no preference for the display type is
+         * specified, the message is by default tried to be displayed as ascii, hex or hash, in that order.
+         */
+        async signMessage(message: string | Uint8Array, keyPath: string,
+            flags?: { preferDisplayTypeHex: boolean, preferDisplayTypeHash: boolean } | number,
+            expectedWalletId?: string): Promise<{ signer: PublicKeyNimiq, signature: SignatureNimiq }> {
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignMessageNimiqConstructor>(
+                import('./requests/nimiq/request-sign-message-nimiq'),
+                keyPath, message, flags, expectedWalletId,
             ));
         },
     };

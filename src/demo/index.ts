@@ -9,7 +9,7 @@ import NetworkTransportForUrls from '@ledgerhq/hw-transport-http';
 import { listen as onLog } from '@ledgerhq/logs';
 import { verify as verifySignedMessageBitcoin } from 'bitcoinjs-message';
 /* eslint-enable import/no-extraneous-dependencies */
-import { loadNimiqCore } from '../lib/load-nimiq';
+import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
 
 // Our built library.
 // Typescript needs the import as specified to find the .d.ts file, see rollup.config.js
@@ -35,7 +35,7 @@ enum ApiType {
 
 enum DataUiType {
     HEX = 'hex',
-    ASCII = 'ascii',
+    TEXT = 'text',
     HTLC_CREATION = 'htlc-creation',
     VESTING_CREATION = 'vesting-creation',
 }
@@ -247,8 +247,8 @@ window.addEventListener('load', () => {
                             Hex
                         </label>
                         <label>
-                            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.ASCII}">
-                            Ascii
+                            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.TEXT}">
+                            Text
                         </label>
                         <label>
                             <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.HTLC_CREATION}">
@@ -263,9 +263,9 @@ window.addEventListener('load', () => {
                         <span>Data (Hex)</span>
                         <input class="nq-input" id="tx-data-hex-input-nimiq" placeholder="Optional">
                     </label>
-                    <label class="show-${DataUiType.ASCII}">
-                        <span>Data (Ascii)</span>
-                        <input class="nq-input" id="tx-data-ascii-input-nimiq" value="Hello world."
+                    <label class="show-${DataUiType.TEXT}">
+                        <span>Data (Text)</span>
+                        <input class="nq-input" id="tx-data-text-input-nimiq" value="Hello world."
                             placeholder="Optional">
                     </label>
                     <div class="show-${DataUiType.HTLC_CREATION}">
@@ -345,7 +345,45 @@ window.addEventListener('load', () => {
                         </label>
                     </div>
                     <button class="nq-button-s" id="sign-tx-button-nimiq">Sign</button>
-                    <div class="nq-text">Signature: <span id="signature-nimiq" class="mono"></span></div>
+                    <div class="nq-text">Signature: <span id="tx-signature-nimiq" class="mono"></span></div>
+                </div>
+            </section>
+
+            <section class="nq-text nq-card">
+                <h2 class="nq-card-header nq-h2">Sign Message</h2>
+                <div class="nq-card-body">
+                    <div id="message-type-selector-nimiq" class="selector">
+                        <span>Message Input</span>
+                        <label>
+                            <input type="radio" name="message-type-selector-nimiq" value="${DataUiType.TEXT}" checked>
+                            Text
+                        </label>
+                        <label>
+                            <input type="radio" name="message-type-selector-nimiq" value="${DataUiType.HEX}">
+                            Hex
+                        </label>
+                    </div>
+                    <textarea required class="nq-input" id="message-textarea-nimiq">Message to sign</textarea>
+                    <div class="selector">
+                        <span>Flags</span>
+                        <label>
+                            <input type="checkbox" id="message-flag-hex-display-checkbox-nimiq">
+                            Prefer Hex Display
+                        </label>
+                        <label>
+                            <input type="checkbox" id="message-flag-hash-display-checkbox-nimiq">
+                            Prefer Hash Display
+                        </label>
+                    </div>
+                    <div class="nq-text">
+                        <input required class="nq-input" id="bip32-path-message-input-nimiq" value="44'/242'/0'/0'"
+                            style="max-width: 20rem">
+                        <button class="nq-button-s" id="sign-message-button-nimiq">Sign Message</button>
+                    </div>
+                    <div class="nq-text show-${ApiType.HIGH_LEVEL}">
+                        Signer address: <span id="message-signer-nimiq" class="mono"></span>
+                    </div>
+                    <div class="nq-text">Signature: <span id="message-signature-nimiq" class="mono"></span></div>
                 </div>
             </section>
 
@@ -452,10 +490,10 @@ window.addEventListener('load', () => {
             <section class="nq-text nq-card">
                 <h2 class="nq-card-header nq-h2">Sign Message</h2>
                 <div class="nq-card-body">
-                    <textarea required class="nq-input" id="sign-message-textarea-bitcoin">Message to sign</textarea>
+                    <textarea required class="nq-input" id="message-textarea-bitcoin">Message to sign</textarea>
                     <div class="nq-text">
-                        <input required class="nq-input" id="bip32-path-sign-message-input-bitcoin"
-                            value="84'/1'/0'/0/0" style="max-width: 20rem">
+                        <input required class="nq-input" id="bip32-path-message-input-bitcoin" value="84'/1'/0'/0/0"
+                            style="max-width: 20rem">
                         <button class="nq-button-s" id="sign-message-button-bitcoin">Sign Message</button>
                     </div>
                     <div class="nq-text">Signer address: <span id="message-signer-bitcoin" class="mono"></span></div>
@@ -565,8 +603,9 @@ window.addEventListener('load', () => {
                 flex-grow: 1;
             }
 
+            #message-textarea-nimiq,
             #tx-info-textarea-bitcoin,
-            #sign-message-textarea-bitcoin {
+            #message-textarea-bitcoin {
                 min-width: 100%;
                 max-width: 100%;
             }
@@ -581,7 +620,7 @@ window.addEventListener('load', () => {
             body:not(.${Coin.BITCOIN}) .show-${Coin.BITCOIN},
             body:not(.${TransportType.NETWORK}) .show-${TransportType.NETWORK},
             #tx-data-ui-selector-nimiq:not(.${DataUiType.HEX}) ~ .show-${DataUiType.HEX},
-            #tx-data-ui-selector-nimiq:not(.${DataUiType.ASCII}) ~ .show-${DataUiType.ASCII},
+            #tx-data-ui-selector-nimiq:not(.${DataUiType.TEXT}) ~ .show-${DataUiType.TEXT},
             #tx-data-ui-selector-nimiq:not(.${DataUiType.HTLC_CREATION}) ~ .show-${DataUiType.HTLC_CREATION},
             #tx-data-ui-selector-nimiq:not(.${DataUiType.VESTING_CREATION}) ~ .show-${DataUiType.VESTING_CREATION} {
                 display: none;
@@ -629,7 +668,7 @@ window.addEventListener('load', () => {
     const $txFlagContractCreationCheckboxNimiq = getInputElement('#tx-flag-contract-checkbox-nimiq');
     const $txDataUiSelectorNimiq = document.getElementById('tx-data-ui-selector-nimiq')!;
     const $txDataHexInputNimiq = getInputElement('#tx-data-hex-input-nimiq');
-    const $txDataAsciiInputNimiq = getInputElement('#tx-data-ascii-input-nimiq');
+    const $txDataTextInputNimiq = getInputElement('#tx-data-text-input-nimiq');
     const $txDataHtlcSenderInputNimiq = getInputElement('#tx-data-htlc-sender-input-nimiq');
     const $txDataHtlcRecipientInputNimiq = getInputElement('#tx-data-htlc-recipient-input-nimiq');
     const $txDataHtlcAlgorithmSelectorNimiq = document.getElementById('tx-data-htlc-algorithm-selector-nimiq')!;
@@ -642,7 +681,15 @@ window.addEventListener('load', () => {
     const $txDataVestingStepAmountInputNimiq = getInputElement('#tx-data-vesting-step-amount-input-nimiq');
     const $txDataVestingTotalAmountInputNimiq = getInputElement('#tx-data-vesting-total-amount-input-nimiq');
     const $signTxButtonNimiq = document.getElementById('sign-tx-button-nimiq')!;
-    const $signatureNimiq = document.getElementById('signature-nimiq')!;
+    const $txSignatureNimiq = document.getElementById('tx-signature-nimiq')!;
+    const $messageTypeSelectorNimiq = document.getElementById('message-type-selector-nimiq')!;
+    const $messageTextareaNimiq = document.getElementById('message-textarea-nimiq') as HTMLTextAreaElement;
+    const $messageFlagHexDisplayCheckboxNimiq = getInputElement('#message-flag-hex-display-checkbox-nimiq');
+    const $messageFlagHashDisplayCheckboxNimiq = getInputElement('#message-flag-hash-display-checkbox-nimiq');
+    const $bip32PathMessageInputNimiq = getInputElement('#bip32-path-message-input-nimiq');
+    const $signMessageButtonNimiq = document.getElementById('sign-message-button-nimiq')!;
+    const $messageSignerNimiq = document.getElementById('message-signer-nimiq')!;
+    const $messageSignatureNimiq = document.getElementById('message-signature-nimiq')!;
     const $getAppNameAndVersionButtonNimiq = document.getElementById('get-app-name-and-version-button-nimiq')!;
     const $appNameNimiq = document.getElementById('app-name-nimiq')!;
     const $appVersionNimiq = document.getElementById('app-version-nimiq')!;
@@ -662,8 +709,8 @@ window.addEventListener('load', () => {
     const $txInfoTextareaBitcoin = document.getElementById('tx-info-textarea-bitcoin') as HTMLTextAreaElement;
     const $signTxButtonBitcoin = document.getElementById('sign-tx-button-bitcoin')!;
     const $signedTxBitcoin = document.getElementById('signed-tx-bitcoin')!;
-    const $signMessageTextareaBitcoin = document.getElementById('sign-message-textarea-bitcoin') as HTMLTextAreaElement;
-    const $bip32PathSignMessageInputBitcoin = getInputElement('#bip32-path-sign-message-input-bitcoin');
+    const $messageTextareaBitcoin = document.getElementById('message-textarea-bitcoin') as HTMLTextAreaElement;
+    const $bip32PathMessageInputBitcoin = getInputElement('#bip32-path-message-input-bitcoin');
     const $signMessageButtonBitcoin = document.getElementById('sign-message-button-bitcoin')!;
     const $messageSignerBitcoin = document.getElementById('message-signer-bitcoin')!;
     const $messageSignatureBitcoin = document.getElementById('message-signature-bitcoin')!;
@@ -897,7 +944,7 @@ window.addEventListener('load', () => {
     async function signTransactionNimiq() {
         if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         try {
-            $signatureNimiq.textContent = '';
+            $txSignatureNimiq.textContent = '';
             const [api, Nimiq] = await Promise.all([
                 createApi(),
                 loadNimiqCore(),
@@ -920,8 +967,8 @@ window.addEventListener('load', () => {
                 case DataUiType.HEX:
                     extraData = Nimiq.BufferUtils.fromHex($txDataHexInputNimiq.value);
                     break;
-                case DataUiType.ASCII:
-                    extraData = Nimiq.BufferUtils.fromAscii($txDataAsciiInputNimiq.value);
+                case DataUiType.TEXT:
+                    extraData = new Nimiq.SerialBuffer(Nimiq.BufferUtils.fromUtf8($txDataTextInputNimiq.value));
                     break;
                 case DataUiType.HTLC_CREATION: {
                     const htlcSender = Nimiq.Address.fromUserFriendlyAddress($txDataHtlcSenderInputNimiq.value);
@@ -1005,9 +1052,48 @@ window.addEventListener('load', () => {
                 )).proof);
                 signature = Nimiq.SignatureProof.unserialize(proofBytes).signature.serialize();
             }
-            $signatureNimiq.textContent = Nimiq.BufferUtils.toHex(signature);
+            $txSignatureNimiq.textContent = Nimiq.BufferUtils.toHex(signature);
         } catch (error) {
             displayStatus(error);
+        }
+    }
+
+    async function signMessageNimiq() {
+        if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
+        try {
+            $messageSignerNimiq.textContent = '';
+            $messageSignatureNimiq.textContent = '';
+            const message = getSelectorValue($messageTypeSelectorNimiq) === DataUiType.HEX
+                ? (await loadNimiqCore()).BufferUtils.fromHex($messageTextareaNimiq.value)
+                : $messageTextareaNimiq.value;
+            const flags = {
+                preferDisplayTypeHex: $messageFlagHexDisplayCheckboxNimiq.checked,
+                preferDisplayTypeHash: $messageFlagHashDisplayCheckboxNimiq.checked,
+            };
+            const bip32Path = $bip32PathMessageInputNimiq.value;
+            const api = await createApi();
+            displayStatus('Signing message...');
+            if (api instanceof LowLevelApi) {
+                const { signature } = await api.signMessage(bip32Path, message, flags);
+                $messageSignerNimiq.textContent = 'Not returned by LowLevelApi';
+                $messageSignatureNimiq.textContent = (await loadNimiqCore()).BufferUtils.toHex(signature);
+            } else {
+                const { signer, signature } = await api.Nimiq.signMessage(message, bip32Path, flags);
+                // verify the signature for testing purposes
+                const [Nimiq] = await Promise.all([loadNimiqCore(), loadNimiqCryptography()]);
+                const messageBytes = typeof message === 'string' ? Nimiq.BufferUtils.fromUtf8(message) : message;
+                const prefixedMessageHash = Nimiq.Hash.computeSha256(new Uint8Array([
+                    ...Nimiq.BufferUtils.fromAscii(`\x16Nimiq Signed Message:\n${messageBytes.length.toString()}`),
+                    ...messageBytes,
+                ]));
+                if (!signature.verify(signer, prefixedMessageHash)) throw new Error('Invalid signature');
+                $messageSignerNimiq.textContent = signer.toHex();
+                $messageSignatureNimiq.textContent = signature.toHex();
+            }
+            displayStatus('Signed message');
+        } catch (error) {
+            displayStatus(`Failed to sign message: ${error}`);
+            throw error;
         }
     }
 
@@ -1108,8 +1194,8 @@ window.addEventListener('load', () => {
         try {
             $messageSignerBitcoin.textContent = '';
             $messageSignatureBitcoin.textContent = '';
-            const message = $signMessageTextareaBitcoin.value;
-            const bip32Path = $bip32PathSignMessageInputBitcoin.value;
+            const message = $messageTextareaBitcoin.value;
+            const bip32Path = $bip32PathMessageInputBitcoin.value;
             const api = await createApi();
             if (api instanceof LowLevelApi) throw new Error('Bitcoin not supported by LowLevelApi');
             displayStatus('Signing message...');
@@ -1164,6 +1250,7 @@ window.addEventListener('load', () => {
         $txDataUiSelectorNimiq.addEventListener('change', () =>
             $txDataUiSelectorNimiq.className = `selector ${getSelectorValue($txDataUiSelectorNimiq)}`);
         $signTxButtonNimiq.addEventListener('click', signTransactionNimiq);
+        $signMessageButtonNimiq.addEventListener('click', signMessageNimiq);
         $getAppNameAndVersionButtonNimiq.addEventListener('click', getAppNameAndVersionNimiq);
         $getWalletIdButtonNimiq.addEventListener('click', getWalletIdNimiq);
 

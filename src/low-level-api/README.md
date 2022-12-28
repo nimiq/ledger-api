@@ -4,11 +4,10 @@
 
 ## Usage
 
-
 ```js
 import Transport from "@ledgerhq/hw-transport-webhid";
 // import Transport from "@ledgerhq/hw-transport-node-hid"; // for node; experimental
-import LowLevelApi from "@ledgerhq/hw-app-nim";
+import LowLevelApi from "@nimiq/ledger-api/low-level-api/low-level-api.es.js";
 
 const getNimAppVersion = async () => {
     const transport = await Transport.create();
@@ -20,26 +19,32 @@ const getNimAppVersion = async () => {
 getNimAppVersion().then(v => console.log(v));
 
 const getNimPublicKey = async () => {
-  const transport = await Transport.create();
-  const nim = new LowLevelApi(transport);
-  const result = await nim.getPublicKey("44'/242'/0'");
-  return result.publicKey;
+    const transport = await Transport.create();
+    const nim = new LowLevelApi(transport);
+    const result = await nim.getPublicKey("44'/242'/0'/0'");
+    return result.publicKey;
 };
-getNimPublicKey().then(pk => console.log(pk));
+getNimPublicKey().then(console.log);
 
 const signNimTransaction = async () => {
-  const transaction = ...;
-  const transport = await Transport.create();
-  const nim = new LowLevelApi(transport);
-  const result = await nim.signTransaction("44'/242'/0'", transaction.signatureBase());
+    const transaction = new Nimiq.BasicTransaction(...);
+    const transport = await Transport.create();
+    const nim = new LowLevelApi(transport);
+    const signatureBytes = await nim.signTransaction("44'/242'/0'/0'", transaction.serializeContent());
 
-  // add signature to transaction
-  // FIXME
-  transaction.signatures.push(decorated);
-
-  return transaction;
+    const signature = new Nimiq.Signature(signatureBytes);
+    transaction.signature = signature;
+    return signature;
 }
-signNimTransaction().then(s => console.log(s.toString('hex')));
+signNimTransaction().then(console.log);
+
+const signMessage = async () => {
+    const message = 'Nimiq rocks!';
+    const transport = await Transport.create();
+    const nim = new LowLevelApi(transport);
+    return await nim.signMessage("44'/242'/0'/0'", message, { preferDisplayTypeHex: true });
+}
+signMessage().then(console.log);
 ```
 
 
