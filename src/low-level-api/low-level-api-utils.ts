@@ -38,16 +38,16 @@ export async function publicKeyToAddress(publicKey: Buffer): Promise<string> {
         loadNimiqCore(),
         loadNimiqCryptography(), // needed for hashing public key to an address
     ]);
-    return Nimiq.PublicKey.unserialize(new Nimiq.SerialBuffer(publicKey)).toAddress().toUserFriendlyAddress();
+    return new Nimiq.PublicKey(publicKey).toAddress().toUserFriendlyAddress();
 }
 
 export async function verifySignature(
-    data: Buffer,
-    signature: Buffer,
-    publicKey: Buffer,
+    data: Buffer | Uint8Array,
+    signature: Buffer | Uint8Array,
+    publicKey: Buffer | Uint8Array,
 ): Promise<boolean> {
     const [Nimiq] = await Promise.all([loadNimiqCore(), loadNimiqCryptography()]);
-    const nimiqSignature = Nimiq.Signature.unserialize(new Nimiq.SerialBuffer(signature));
-    const nimiqPublicKey = Nimiq.PublicKey.unserialize(new Nimiq.SerialBuffer(publicKey));
+    const nimiqSignature = new Nimiq.Signature(signature);
+    const nimiqPublicKey = new Nimiq.PublicKey(publicKey);
     return nimiqSignature.verify(nimiqPublicKey, data);
 }
