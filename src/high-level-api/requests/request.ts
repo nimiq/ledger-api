@@ -26,6 +26,7 @@ export default abstract class Request<T> extends Observable {
     public abstract readonly minRequiredAppVersion: string;
     public readonly expectedWalletId?: string;
 
+    protected _coinAppConnection: CoinAppConnection | null = null;
     private _cancelled: boolean = false;
 
     protected static _isAppVersionSupported(versionString: string, minRequiredVersion: string): boolean {
@@ -50,6 +51,7 @@ export default abstract class Request<T> extends Observable {
     public abstract call(transport: Transport): Promise<T>;
 
     public canReuseCoinAppConnection(coinAppConnection: CoinAppConnection): boolean {
+        this._coinAppConnection = coinAppConnection;
         return coinAppConnection.coin === this.coin
             && coinAppConnection.app === this.requiredApp
             && Request._isAppVersionSupported(coinAppConnection.appVersion, this.minRequiredAppVersion)
@@ -72,6 +74,7 @@ export default abstract class Request<T> extends Observable {
 
     protected async checkCoinAppConnection(transport: Transport, scrambleKey: string): Promise<CoinAppConnection> {
         const { name: app, version: appVersion } = await getAppNameAndVersion(transport, scrambleKey);
+        this._coinAppConnection = { coin: this.coin, app, appVersion };
         if (app !== this.requiredApp && app !== 'app') { // speculos reports 'app' as app name
             throw new ErrorState(
                 ErrorType.WRONG_APP,
@@ -87,7 +90,9 @@ export default abstract class Request<T> extends Observable {
             );
         }
 
-        return { coin: this.coin, app, appVersion };
+        // Child classes overwriting checkCoinAppConnection have to apply changes to the same object returned here or
+        // overwrite _coinAppConnection to apply the changes to _coinAppConnection, too.
+        return this._coinAppConnection;
     }
 
     protected get _isWalletIdDerivationRequired() {

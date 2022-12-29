@@ -71,8 +71,8 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         }
 
         const walletId = new Sha256().update(publicKey, 'hex').digest('base64');
+        coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection
         this._checkExpectedWalletId(walletId);
-        coinAppConnection.walletId = walletId;
         return coinAppConnection;
     }
 

@@ -50,8 +50,8 @@ export default abstract class RequestNimiq<T> extends Request<T> {
 
         // Compute wallet id. Use sha256 as blake2b yields the nimiq address
         const walletId = Nimiq.Hash.sha256(firstAddressPubKeyBytes).toBase64();
+        coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection
         this._checkExpectedWalletId(walletId);
-        coinAppConnection.walletId = walletId;
         return coinAppConnection;
     }
 
