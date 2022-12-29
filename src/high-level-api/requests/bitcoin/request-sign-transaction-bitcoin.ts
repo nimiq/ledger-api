@@ -6,7 +6,7 @@ import ErrorState, { ErrorType } from '../../error-state';
 type Transport = import('@ledgerhq/hw-transport').default;
 type BitcoinJsTransaction = import('bitcoinjs-lib').Transaction;
 type BitcoinLib = typeof import('./bitcoin-lib');
-type CreateTransactionArg = Parameters<import('@ledgerhq/hw-app-btc').default['createPaymentTransactionNew']>[0];
+type CreateTransactionArg = Parameters<import('@ledgerhq/hw-app-btc').default['createPaymentTransaction']>[0];
 // serializeTransactionOutputs is typed unnecessarily strict as it only uses the outputs of a transaction
 type FixedSerializeTransactionOutputs =
     (tx: Pick<Parameters<import('@ledgerhq/hw-app-btc').default['serializeTransactionOutputs']>[0], 'outputs'>)
@@ -239,7 +239,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
 
         // Note: We make api calls outside of the try...catch block to let the exceptions fall through such that
         // _callLedger can decide how to behave depending on the api error.
-        return api.createPaymentTransactionNew(parsedTransaction);
+        return api.createPaymentTransaction(parsedTransaction);
     }
 
     private async _loadBitcoinLibIfNeeded(): Promise<null | BitcoinLib> {

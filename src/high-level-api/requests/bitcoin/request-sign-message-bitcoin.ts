@@ -90,7 +90,7 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
             v, // recId (not including the address type constant)
             r, // r of ECDSA signature
             s, // s of ECDSA signature
-        } = await api.signMessageNew(this.keyPath, messageBuffer.toString('hex'));
+        } = await api.signMessage(this.keyPath, messageBuffer.toString('hex'));
 
         // Create the signature header, see
         // https://github.com/bitcoin/bips/blob/master/bip-0137.mediawiki#procedure-for-signingverifying-a-signature

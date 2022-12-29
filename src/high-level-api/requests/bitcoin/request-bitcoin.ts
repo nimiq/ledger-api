@@ -78,13 +78,14 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
 
     protected async _getLowLevelApi(transport: Transport): Promise<LowLevelApi> {
         if (!RequestBitcoin._lowLevelApiPromise
-            || transport !== (await RequestBitcoin._lowLevelApiPromise as any).transport) {
+            // @ts-expect-error _transport is private
+            || transport !== (await RequestBitcoin._lowLevelApiPromise)._transport) {
             // No low level api instantiated yet or transport / transport type changed in the meantime.
-            // Note that property transport exists on AppBtc but is not defined in the types. Unfortunately we can't
-            // use type augmentation as it's the default export and therefore we cast to any.
             RequestBitcoin._lowLevelApiPromise = this._loadLowLevelApi()
                 .then(
-                    (LowLevelApi: LowLevelApiConstructor) => new LowLevelApi(transport),
+                    // Enforce use of the old api by passing 'legacy' as currency, because currently the old api is
+                    // used for all Bitcoin forks / altcoins.
+                    (LowLevelApi: LowLevelApiConstructor) => new LowLevelApi({ transport, currency: 'legacy' }),
                     (e) => {
                         RequestBitcoin._lowLevelApiPromise = null;
                         return Promise.reject(e);
