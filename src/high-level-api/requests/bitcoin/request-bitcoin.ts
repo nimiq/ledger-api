@@ -81,11 +81,18 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
             // @ts-expect-error _transport is private
             || transport !== (await RequestBitcoin._lowLevelApiPromise)._transport) {
             // No low level api instantiated yet or transport / transport type changed in the meantime.
+            // Note that we don't need to check for a change of the connected Bitcoin app version as changing the app
+            // or app version requires closing the app which triggers a transport change, see transport-comparison.md.
+
+            // The Bitcoin app includes a new api starting with 2.0 which is mandatory since 2.1. Versions since 2.0 and
+            // before 2.1 implement both, the old and the new api. Accordingly, on app versions beginning with 2.0 we
+            // use the new api, and the old api on previous versions. We use the currency parameter to choose which api
+            // to use, by passing 'bitcoin' for the new api and something else for the old api, because the old api is
+            // currently used for all Bitcoin forks / altcoins.
+            const apiToUse = parseInt(this._coinAppConnection!.appVersion, 10) >= 2 ? 'bitcoin' : 'legacy';
             RequestBitcoin._lowLevelApiPromise = this._loadLowLevelApi()
                 .then(
-                    // Enforce use of the old api by passing 'legacy' as currency, because currently the old api is
-                    // used for all Bitcoin forks / altcoins.
-                    (LowLevelApi: LowLevelApiConstructor) => new LowLevelApi({ transport, currency: 'legacy' }),
+                    (LowLevelApi: LowLevelApiConstructor) => new LowLevelApi({ transport, currency: apiToUse }),
                     (e) => {
                         RequestBitcoin._lowLevelApiPromise = null;
                         return Promise.reject(e);
