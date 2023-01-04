@@ -1,5 +1,5 @@
 import RequestBitcoin from './request-bitcoin';
-import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../constants';
+import { AddressTypeBitcoin, Coin, LedgerAddressFormatMapBitcoin, Network, RequestTypeBitcoin } from '../../constants';
 import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 
@@ -41,12 +41,6 @@ export default class RequestGetAddressAndPublicKeyBitcoin extends RequestBitcoin
     public async call(transport: Transport): Promise<BtcAddressInfo> {
         const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
 
-        const format = {
-            [AddressTypeBitcoin.LEGACY]: 'legacy' as 'legacy',
-            [AddressTypeBitcoin.P2SH_SEGWIT]: 'p2sh' as 'p2sh',
-            [AddressTypeBitcoin.NATIVE_SEGWIT]: 'bech32' as 'bech32',
-        }[this._addressType] || 'bech32';
-
         // TODO Requesting the pubic key causes a confirmation screen to be displayed on the Ledger for u2f and WebAuthn
         //  if the user has this privacy feature enabled. Subsequent requests can provide a permission token to avoid
         //  this screen (see https://github.com/LedgerHQ/app-bitcoin/blob/master/doc/btc.asc#get-wallet-public-key).
@@ -54,7 +48,7 @@ export default class RequestGetAddressAndPublicKeyBitcoin extends RequestBitcoin
         //  ourselves.
         const { bitcoinAddress: address, publicKey, chainCode } = await api.getWalletPublicKey(this.keyPath, {
             verify: this.display,
-            format,
+            format: LedgerAddressFormatMapBitcoin[this._addressType],
         });
 
         if (this.expectedAddress && this.expectedAddress !== address) {

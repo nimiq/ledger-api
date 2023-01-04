@@ -18,6 +18,12 @@ export enum AddressTypeBitcoin {
     NATIVE_SEGWIT = 'native-segwit-bitcoin',
 }
 
+export const LedgerAddressFormatMapBitcoin = {
+    [AddressTypeBitcoin.LEGACY]: 'legacy' as 'legacy',
+    [AddressTypeBitcoin.P2SH_SEGWIT]: 'p2sh' as 'p2sh',
+    [AddressTypeBitcoin.NATIVE_SEGWIT]: 'bech32' as 'bech32',
+};
+
 export const REQUEST_EVENT_CANCEL = 'cancel';
 
 export enum RequestTypeNimiq {

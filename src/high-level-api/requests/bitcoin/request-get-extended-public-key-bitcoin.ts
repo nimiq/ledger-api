@@ -1,6 +1,6 @@
 import RequestBitcoin from './request-bitcoin';
 import { compressPublicKey, getNetworkInfo } from './bitcoin-utils';
-import { AddressTypeBitcoin, Network, RequestTypeBitcoin } from '../../constants';
+import { AddressTypeBitcoin, LedgerAddressFormatMapBitcoin, Network, RequestTypeBitcoin } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
 
 type Transport = import('@ledgerhq/hw-transport').default;
@@ -25,6 +25,8 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
         super(expectedWalletId);
         this.keyPath = keyPath;
 
+        // TODO check which paths are actually still allowed, ledgerjs' old implementation, new implementation and
+        //  https://github.com/LedgerHQ/app-bitcoin-new/blob/master/doc/bitcoin.md#description seem to differ.
         // Check for keyPath validity. Not using parseBip32Path from bip32-utils as we allow exporting xpubs at
         // arbitrary levels. Further restrictions could be circumvented anyways by deriving from higher level xpub.
         const keyPathMatch = keyPath.match(KEY_PATH_REGEX);
@@ -53,9 +55,13 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
     }
 
     public async call(transport: Transport): Promise<string> {
-        // Build xpub as specified in bip32
+        // Get xpub as specified in bip32.
         // (https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#serialization-format)
         const verificationPath = '0/0';
+        // The new api implemented in the Bitcoin app starting with 2.0 only supports original xpub (for mainnet)
+        // and tpub (for testnet) versions, which were initially defined for the legacy address type, see
+        // https://github.com/satoshilabs/slips/blob/master/slip-0132.md#registered-hd-version-bytes
+        const ledgerXpubVersion = this.network === Network.MAINNET ? /* xpub */ 0x0488b21e : /* tpub */ 0x043587cf;
 
         // Note: We make api calls outside of the try...catch block to let the exceptions fall through such that
         // _callLedger can decide how to behave depending on the api error. Load errors are converted to
@@ -63,99 +69,62 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
         // are converted to REQUEST_ASSERTION_FAILED errors which stop the execution of the request.
         const [
             { bip32 },
-            [parentPubKey, parentChainCode, pubKey, chainCode, verificationPubKey, verificationChainCode],
+            [ledgerXpub, verificationPubKey, verificationChainCode],
         ] = await Promise.all([
             this._loadBitcoinLib(), // throws LOADING_DEPENDENCIES_FAILED on failure
             (async () => {
-                // Fetch the data from Ledger required for xpub calculation
+                const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
+                // Don't use Promise.all here because ledger requests have to be sent sequentially as ledger can only
+                // perform one request at a time.
+                const xpub = await api.getWalletXpub({
+                    path: this.keyPath,
+                    xpubVersion: ledgerXpubVersion,
+                });
                 // TODO Requesting the public key causes a confirmation screen to be displayed on the Ledger for u2f and
                 //  WebAuthn for every request if the user has this privacy feature enabled in the Bitcoin app.
                 //  Subsequent requests can provide a permission token in _getLowLevelApi to avoid this screen (see
                 //  https://github.com/LedgerHQ/app-bitcoin/blob/master/doc/btc.asc#get-wallet-public-key). This token
                 //  is however not supported in @ledgerhq/hw-app-btc and therefore has to be implemented by ourselves.
-                const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED
-                const parentPath = this.keyPath.substring(0, this.keyPath.lastIndexOf('/'));
-                // ledger requests have to be sent sequentially as ledger can only perform one request at a time
-                const {
-                    publicKey: parentPubKeyHex,
-                    chainCode: parentChainCodeHex,
-                } = await api.getWalletPublicKey(parentPath);
-                const {
-                    publicKey: pubKeyHex,
-                    chainCode: chainCodeHex,
-                } = await api.getWalletPublicKey(this.keyPath);
                 const {
                     publicKey: verificationPubKeyHex,
                     chainCode: verificationChainCodeHex,
-                } = await api.getWalletPublicKey(`${this.keyPath}/${verificationPath}`);
+                } = await api.getWalletPublicKey(
+                    `${this.keyPath}/${verificationPath}`,
+                    { format: LedgerAddressFormatMapBitcoin[this._addressType] }, // must pass the appropriate format
+                );
                 return [
-                    Buffer.from(compressPublicKey(parentPubKeyHex), 'hex'),
-                    Buffer.from(parentChainCodeHex, 'hex'),
-                    Buffer.from(compressPublicKey(pubKeyHex), 'hex'),
-                    Buffer.from(chainCodeHex, 'hex'),
+                    xpub,
                     Buffer.from(compressPublicKey(verificationPubKeyHex), 'hex'),
                     Buffer.from(verificationChainCodeHex, 'hex'),
-                ];
+                ] as [string, Buffer, Buffer];
             })(),
         ]);
 
         try {
             // Note getNetworkInfo is only async because it lazy loads the bitcoin lib, which is already loaded at this
-            // point. Therefore putting it into the Promise.all has no further upside and errors within the call should
-            // become REQUEST_ASSERTION_FAILED exceptions.
+            // point. Therefore, putting it into the Promise.all has no further upside and errors within the call should
+            // become REQUEST_ASSERTION_FAILED exceptions anyway.
             const networkInfo = await getNetworkInfo(this.network, this._addressType);
-            const parent = bip32.fromPublicKey(parentPubKey, parentChainCode, networkInfo);
-            const parentFingerprint = parent.fingerprint.readUInt32BE(0); // this is calculated from the pub key only
-            const keyPathParts = this.keyPath.split('/');
-            const depth = keyPathParts.length;
-            const index = Number.parseInt(keyPathParts[depth - 1], 10)
-                + (this.keyPath.endsWith('\'') ? 0x80000000 : 0); // set index for hardened paths according to bip32
 
-            // Create the xpub from the data we collected. Unfortunately, the bip32 lib does not expose the generic
-            // constructor, such that we have to set some private properties manually. But we try to do it in a future
-            // proof and minification safe manner.
-            // TODO make this less hacky
-            /* eslint-disable dot-notation */
-            /* eslint-disable @typescript-eslint/dot-notation */
-            const extendedPubKey = bip32.fromPublicKey(pubKey, chainCode, networkInfo) as
-                ReturnType<typeof bip32.fromPublicKey> & {
-                    __DEPTH: number,
-                    __INDEX: number,
-                    __PARENT_FINGERPRINT: number,
-                };
-            if (extendedPubKey.__DEPTH === 0) {
-                extendedPubKey.__DEPTH = depth;
-            } else if (extendedPubKey['__DEPTH'] === 0) {
-                extendedPubKey['__DEPTH'] = depth;
-            } else {
-                throw new Error('Failed to construct xpub, couldn\'t set __DEPTH.');
-            }
-            if (extendedPubKey.__INDEX === 0) {
-                extendedPubKey.__INDEX = index;
-            } else if (extendedPubKey['__INDEX'] === 0) {
-                extendedPubKey['__INDEX'] = index;
-            } else {
-                throw new Error('Failed to construct xpub, couldn\'t set __INDEX.');
-            }
-            if (extendedPubKey.__PARENT_FINGERPRINT === 0) {
-                extendedPubKey.__PARENT_FINGERPRINT = parentFingerprint;
-            } else if (extendedPubKey['__PARENT_FINGERPRINT'] === 0) {
-                extendedPubKey['__PARENT_FINGERPRINT'] = parentFingerprint;
-            } else {
-                throw new Error('Failed to construct xpub, couldn\'t set __PARENT_FINGERPRINT.');
-            }
-            /* eslint-enable dot-notation */
-            /* eslint-enable @typescript-eslint/dot-notation */
+            const extendedPubKey = bip32.fromBase58(ledgerXpub, {
+                ...networkInfo,
+                bip32: { ...networkInfo.bip32, public: ledgerXpubVersion },
+            });
 
             // Verify that the generated xpub is correct by deriving an example child and comparing it to the result
-            // calculated by the Ledger device. Do not verify the Ledger generated address as it is derived from the
-            // pub key anyways.
+            // calculated by the Ledger device. No need to verify the Ledger generated address as it is derived from the
+            // pub key anyway.
             const verificationDerivation = extendedPubKey.derivePath(verificationPath);
             if (!verificationDerivation.publicKey.equals(verificationPubKey)
                 || !verificationDerivation.chainCode.equals(verificationChainCode)) {
                 throw new Error('Failed to verify the constructed xpub.');
             }
 
+            // Export extended public key versioned as xpub, ypub, zpub, tpub, upub or vpub, according to the network
+            // and address type. We do this for compatibility with previous versions of our api and the Nimiq Keyguard
+            // and because it's still common practice. However, encoding as versions other than xpub and tpub is
+            // a somewhat deprecated standard nowadays. They're for example not used in PSBTs or descriptor wallets.
+            extendedPubKey.network = networkInfo;
             return extendedPubKey.toBase58();
         } catch (e) {
             throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e, this);

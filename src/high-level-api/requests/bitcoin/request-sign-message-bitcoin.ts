@@ -1,5 +1,5 @@
 import RequestBitcoin from './request-bitcoin';
-import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../constants';
+import { AddressTypeBitcoin, Coin, LedgerAddressFormatMapBitcoin, Network, RequestTypeBitcoin } from '../../constants';
 import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 
@@ -79,12 +79,10 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
 
         // Note: We make api calls outside of the try...catch block to let the exceptions fall through such that
         // _callLedger can decide how to behave depending on the api error.
-        const addressFormat = {
-            [AddressTypeBitcoin.LEGACY]: 'legacy' as 'legacy',
-            [AddressTypeBitcoin.P2SH_SEGWIT]: 'p2sh' as 'p2sh',
-            [AddressTypeBitcoin.NATIVE_SEGWIT]: 'bech32' as 'bech32',
-        }[this._addressType];
-        const { bitcoinAddress: signerAddress } = await api.getWalletPublicKey(this.keyPath, { format: addressFormat });
+        const { bitcoinAddress: signerAddress } = await api.getWalletPublicKey(
+            this.keyPath,
+            { format: LedgerAddressFormatMapBitcoin[this._addressType] },
+        );
 
         const {
             v, // recId (not including the address type constant)
