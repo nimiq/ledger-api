@@ -89,6 +89,9 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                 ...inputs.map((input) => input.keyPath),
                 ...(changePath ? [changePath] : []),
             ];
+            // Parent path of the keyPaths for the common account, equivalent to its computation in @ledgerhq/hw-app-btc
+            // createPaymentTransaction, stripping off the last two derivation levels.
+            let accountPath: string | null = null;
             let network: Network | null = null;
             let inputType: AddressTypeBitcoin | null = null;
             for (const keyPath of keyPaths) {
@@ -97,22 +100,30 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                     throw new Error(`${keyPath} not a Bitcoin bip32 path following bip44`);
                 }
 
-                // Note that we don't have to verify the network of outputs. They will be displayed on the ledger screen
-                // depending on whether Bitcoin mainnet or testnet app is used. User will spot differences.
-                if (network && parsedKeyPath.network !== network) {
-                    throw new Error('Not all key paths specify keys on the same network');
+                // Check whether all input and change keyPaths are from the same account, because that is a requirement
+                // of @ledgerhq/hw-app-btc's BtcNew's createPaymentTransaction because it only uses a single, simple
+                // wallet policy based on the common account xpub. Note that this check also ensures that all paths are
+                // on the same network and of the same input type, which is required because signing of inputs depends
+                // on param segwit and whether bech32 is set as an additional, i.e. all inputs are treated the same and
+                // signed according to these parameters, also in BtcOld. For different accountPaths, the transaction
+                // could be split and each input be signed separately, but that would be a lot of work.
+                // Outputs can be of arbitrary type. We also don't have to check the output network because they will be
+                // displayed on the Ledger screen and the user will spot differences.
+                if (accountPath && parsedKeyPath.accountPath !== accountPath) {
+                    if (parseInt(this._coinAppConnection!.appVersion, 10) >= 2) {
+                        // Not throwing because ledgerhq/hw-app-btc BtcNew will throw instead.
+                        console.error('All inputs and change must be from the same account. If this error is shown but '
+                            + 'signing succeeds, it means that this requirement has been removed from '
+                            + '@ledgerhq/hw-app-btc. Please notify us in that case.');
+                    } else {
+                        // BtcOld has the implicit requirement that all inputs are of the same network and address type,
+                        // see above, but does not throw. While change can be arbitrary for BtcOld, for simplification
+                        // we use the same single check.
+                        throw new Error('All inputs and change must be from the same account.');
+                    }
                 }
+                accountPath = parsedKeyPath.accountPath;
                 network = parsedKeyPath.network;
-
-                // Note that we don't have to verify the address type of outputs and change; these can be arbitrary.
-                // Inputs must all be of the same type because Ledger's signing of input depends on parameter segwit and
-                // whether bech32 is set as an additional, i.e. all inputs are treated the same and signed according to
-                // these parameters. The transaction could be split and each input be signed separately but that would
-                // be a lot of work.
-                if (keyPath === changePath) continue; // could still also be an input, but we ignore that corner case
-                if (inputType && parsedKeyPath.addressType !== inputType) {
-                    throw new Error('Must not use mixed input types');
-                }
                 inputType = parsedKeyPath.addressType;
             }
             this.network = network!;

@@ -63,7 +63,7 @@ export function getBip32Path(params: Bip32PathParams): string {
 /**
  * Parse bip32 path according to path layout specified in bip44.
  */
-export function parseBip32Path(path: string): Required<Bip32PathParams> {
+export function parseBip32Path(path: string): Required<Bip32PathParams> & { accountPath: string } {
     const pathMatch = path.match(PATH_REGEX);
     if (!pathMatch) throw new Error(`${path} is not a supported bip32 path.`);
     const purposeId = parseInt(pathMatch[1], 10);
@@ -77,6 +77,7 @@ export function parseBip32Path(path: string): Required<Bip32PathParams> {
     // not accepted by the regex.
     if (accountIndex >= 2 ** 31 || addressIndex >= 2 ** 31) throw new Error('Invalid index');
 
+    const accountPath = `${purposeId}'/${coinType}'/${accountIndex}'`;
     switch (coinType) {
         case 242:
             // Nimiq
@@ -87,6 +88,7 @@ export function parseBip32Path(path: string): Required<Bip32PathParams> {
                 coin: Coin.NIMIQ,
                 accountIndex,
                 addressIndex,
+                accountPath,
             };
         case 0:
         case 1: {
@@ -106,6 +108,7 @@ export function parseBip32Path(path: string): Required<Bip32PathParams> {
                 addressType,
                 network,
                 isInternal,
+                accountPath,
             };
         }
         default:
