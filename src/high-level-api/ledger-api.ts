@@ -326,7 +326,10 @@ export default class LedgerApi {
         try {
             const { currentRequest, _currentConnection: currentConnection } = LedgerApi;
             const expectedApp = coin === Coin.NIMIQ ? 'Nimiq' : `Bitcoin${network === Network.TESTNET ? ' Test' : ''}`;
-            if (currentConnection && currentConnection.coin === coin && currentConnection.app === expectedApp) {
+            if (currentConnection && currentConnection.coin === coin && (
+                currentConnection.app === expectedApp
+                || (coin === Coin.BITCOIN && currentConnection.app === expectedApp.replace(/(?: Legacy)?$/, ' Legacy'))
+            )) {
                 // Already connected.
                 return true;
             }

@@ -110,7 +110,8 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                 // Outputs can be of arbitrary type. We also don't have to check the output network because they will be
                 // displayed on the Ledger screen and the user will spot differences.
                 if (accountPath && parsedKeyPath.accountPath !== accountPath) {
-                    if (parseInt(this._coinAppConnection!.appVersion, 10) >= 2) {
+                    const { app, appVersion } = this._coinAppConnection!;
+                    if (RequestBitcoin._isNewApiSupported(app, appVersion)) {
                         // Not throwing because ledgerhq/hw-app-btc BtcNew will throw instead.
                         console.error('All inputs and change must be from the same account. If this error is shown but '
                             + 'signing succeeds, it means that this requirement has been removed from '

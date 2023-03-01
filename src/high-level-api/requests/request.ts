@@ -29,6 +29,17 @@ export default abstract class Request<T> extends Observable {
     protected _coinAppConnection: CoinAppConnection | null = null;
     private _cancelled: boolean = false;
 
+    protected static _isAppSupported(
+        app: string,
+        requiredApp: string,
+        allowLegacyApp: boolean,
+        allowSpeculos: boolean,
+    ): boolean {
+        return app === requiredApp
+            || (allowLegacyApp && app === requiredApp.replace(/(?: Legacy)?$/, ' Legacy'))
+            || (allowSpeculos && app === 'app'); // speculos reports 'app' as appName
+    }
+
     protected static _isAppVersionSupported(versionString: string, minRequiredVersion: string): boolean {
         const version = versionString.split('.').map((part) => parseInt(part, 10));
         const parsedMinRequiredVersion = minRequiredVersion.split('.').map((part) => parseInt(part, 10));
@@ -48,12 +59,17 @@ export default abstract class Request<T> extends Observable {
         return this._cancelled;
     }
 
+    public get allowLegacyApp(): boolean {
+        return this.requiredApp.endsWith(' Legacy');
+    }
+
     public abstract call(transport: Transport): Promise<T>;
 
     public canReuseCoinAppConnection(coinAppConnection: CoinAppConnection): boolean {
         this._coinAppConnection = coinAppConnection;
         return coinAppConnection.coin === this.coin
-            && coinAppConnection.app === this.requiredApp
+            // Do not allow name 'app' for speculos here, as we wouldn't be able then to detect a speculos app switch.
+            && Request._isAppSupported(coinAppConnection.app, this.requiredApp, this.allowLegacyApp, false)
             && Request._isAppVersionSupported(coinAppConnection.appVersion, this.minRequiredAppVersion)
             && (!this.expectedWalletId || coinAppConnection.walletId === this.expectedWalletId);
     }
@@ -75,7 +91,7 @@ export default abstract class Request<T> extends Observable {
     protected async checkCoinAppConnection(transport: Transport, scrambleKey: string): Promise<CoinAppConnection> {
         const { name: app, version: appVersion } = await getAppNameAndVersion(transport, scrambleKey);
         this._coinAppConnection = { coin: this.coin, app, appVersion };
-        if (app !== this.requiredApp && app !== 'app') { // speculos reports 'app' as app name
+        if (!Request._isAppSupported(app, this.requiredApp, this.allowLegacyApp, /* allowSpeculos */ true)) {
             throw new ErrorState(
                 ErrorType.WRONG_APP,
                 `Wrong app connected: ${app}, required: ${this.requiredApp}`,

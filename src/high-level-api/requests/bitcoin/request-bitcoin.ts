@@ -11,6 +11,15 @@ type BitcoinLib = typeof import('./bitcoin-lib');
 export { RequestTypeBitcoin };
 
 export default abstract class RequestBitcoin<T> extends Request<T> {
+    protected static _isNewApiSupported(app: string, appVersion: string): boolean {
+        // The Bitcoin app includes a new api starting with 2.0 which is mandatory since 2.1. Versions since 2.0 and
+        // before 2.1 implement both, the old and the new api.
+        return parseInt(appVersion, 10) >= 2
+            // "Bitcoin Legacy" and "Bitcoin Test Legacy" apps available in Ledger Live implement the old api,
+            // regardless of the app version.
+            && !app.endsWith(' Legacy');
+    }
+
     private static _lowLevelApiPromise: Promise<LowLevelApi> | null = null;
 
     public readonly coin: Coin.BITCOIN = Coin.BITCOIN;
@@ -25,6 +34,10 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         // path is specified. The testnet app since version 1.4.6 shows a warning when accessing mainnet paths. For
         // these reason we generally block using the Bitcoin mainnet and testnet apps interchangeably.
         return `Bitcoin${this.network === Network.TESTNET ? ' Test' : ''}`;
+    }
+
+    public get allowLegacyApp(): boolean {
+        return true;
     }
 
     protected constructor(expectedWalletId?: string) {
@@ -83,15 +96,13 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
             // No low level api instantiated yet or transport / transport type changed in the meantime.
             // Note that we don't need to check for a change of the connected Bitcoin app version as changing the app
             // or app version requires closing the app which triggers a transport change, see transport-comparison.md.
-
-            // The Bitcoin app includes a new api starting with 2.0 which is mandatory since 2.1. Versions since 2.0 and
-            // before 2.1 implement both, the old and the new api. Accordingly, on app versions beginning with 2.0 we
-            // use the new api, and the old api on previous versions. We use the currency parameter to choose which api
-            // to use, by passing 'bitcoin' for the new api and something else for the old api, because the old api is
-            // currently used for all Bitcoin forks / altcoins.
-            const apiToUse = parseInt(this._coinAppConnection!.appVersion, 10) >= 2 ? 'bitcoin' : 'legacy';
+            const { app, appVersion } = this._coinAppConnection!;
+            const apiToUse = RequestBitcoin._isNewApiSupported(app, appVersion) ? 'bitcoin' : 'legacy';
             RequestBitcoin._lowLevelApiPromise = this._loadLowLevelApi()
                 .then(
+                    // We use the currency parameter to choose which api to use, by passing 'bitcoin' for the new api
+                    // and something else for the old api, because the old api is currently used for all Bitcoin forks /
+                    // altcoins.
                     (LowLevelApi: LowLevelApiConstructor) => new LowLevelApi({ transport, currency: apiToUse }),
                     (e) => {
                         RequestBitcoin._lowLevelApiPromise = null;
