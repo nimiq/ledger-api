@@ -141,6 +141,20 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
         this._loadBitcoinLibIfNeeded().catch(() => {});
     }
 
+    public get requiredApp(): string {
+        // The new Bitcoin app does not allow custom input scripts (for example custom witness scripts) unless an
+        // associated wallet policy had been registered. For this reason, we currently still require using the old api
+        // if custom input scripts are set.
+        if (!this.transaction.inputs.some(({ customScript }) => !!customScript)) return super.requiredApp;
+        if (this._coinAppConnection && this._coinAppConnection.app === super.requiredApp
+            && !RequestBitcoin._isNewApiSupported(this._coinAppConnection.app, this._coinAppConnection.appVersion)) {
+            // We're already connected to an appropriate Bitcoin app on which we don't use the new api, e.g. a Bitcoin
+            // app before 2.0. Thus, no need to specifically require the Legacy app variant.
+            return super.requiredApp;
+        }
+        return super.requiredApp.replace(/(?: Legacy)?$/, ' Legacy'); // require Legacy app variant
+    }
+
     public async call(transport: Transport): Promise<string> {
         // Resources:
         // - to learn more about scripts and how input and output script relate to each other:
