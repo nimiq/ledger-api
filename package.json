@@ -68,6 +68,7 @@
     "@nimiq/core-web": "^1.6.0",
     "@rollup/plugin-virtual": "^2.0.3",
     "@types/ledgerhq__hw-transport-u2f": "^4.21.2",
+    "@types/w3c-web-usb": "^1.0.6",
     "bitcoinjs-lib": "^5.2.0"
   }
 }
