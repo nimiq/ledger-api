@@ -1,5 +1,6 @@
 import Request, { CoinAppConnection } from '../request';
 import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../constants';
+import { isAppVersionSupported, isLegacyApp } from '../../app-utils';
 import { getBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 
@@ -14,10 +15,10 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
     protected static _isNewApiSupported(app: string, appVersion: string): boolean {
         // The Bitcoin app includes a new api starting with 2.0 which is mandatory since 2.1. Versions since 2.0 and
         // before 2.1 implement both, the old and the new api.
-        return parseInt(appVersion, 10) >= 2
+        return isAppVersionSupported(appVersion, '2')
             // "Bitcoin Legacy" and "Bitcoin Test Legacy" apps available in Ledger Live implement the old api,
             // regardless of the app version.
-            && !app.endsWith(' Legacy');
+            && !isLegacyApp(app);
     }
 
     private static _lowLevelApiPromise: Promise<LowLevelApi> | null = null;

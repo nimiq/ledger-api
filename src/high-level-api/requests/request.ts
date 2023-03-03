@@ -1,4 +1,5 @@
 import { Coin, RequestTypeNimiq, RequestTypeBitcoin, REQUEST_EVENT_CANCEL } from '../constants';
+import { isAppSupported, isAppVersionSupported, isLegacyApp } from '../app-utils';
 import getAppNameAndVersion from '../../low-level-api/get-app-name-and-version';
 import ErrorState, { ErrorType } from '../error-state';
 import Observable, { EventListener } from '../../lib/observable';
@@ -29,27 +30,6 @@ export default abstract class Request<T> extends Observable {
     protected _coinAppConnection: CoinAppConnection | null = null;
     private _cancelled: boolean = false;
 
-    protected static _isAppSupported(
-        app: string,
-        requiredApp: string,
-        allowLegacyApp: boolean,
-        allowSpeculos: boolean,
-    ): boolean {
-        return app === requiredApp
-            || (allowLegacyApp && app === requiredApp.replace(/(?: Legacy)?$/, ' Legacy'))
-            || (allowSpeculos && app === 'app'); // speculos reports 'app' as appName
-    }
-
-    protected static _isAppVersionSupported(versionString: string, minRequiredVersion: string): boolean {
-        const version = versionString.split('.').map((part) => parseInt(part, 10));
-        const parsedMinRequiredVersion = minRequiredVersion.split('.').map((part) => parseInt(part, 10));
-        for (let i = 0; i < minRequiredVersion.length; ++i) {
-            if (typeof version[i] === 'undefined' || version[i] < parsedMinRequiredVersion[i]) return false;
-            if (version[i] > parsedMinRequiredVersion[i]) return true;
-        }
-        return true;
-    }
-
     protected constructor(expectedWalletId?: string) {
         super();
         this.expectedWalletId = expectedWalletId;
@@ -60,7 +40,7 @@ export default abstract class Request<T> extends Observable {
     }
 
     public get allowLegacyApp(): boolean {
-        return this.requiredApp.endsWith(' Legacy');
+        return isLegacyApp(this.requiredApp);
     }
 
     public abstract call(transport: Transport): Promise<T>;
@@ -69,8 +49,8 @@ export default abstract class Request<T> extends Observable {
         this._coinAppConnection = coinAppConnection;
         return coinAppConnection.coin === this.coin
             // Do not allow name 'app' for speculos here, as we wouldn't be able then to detect a speculos app switch.
-            && Request._isAppSupported(coinAppConnection.app, this.requiredApp, this.allowLegacyApp, false)
-            && Request._isAppVersionSupported(coinAppConnection.appVersion, this.minRequiredAppVersion)
+            && isAppSupported(coinAppConnection.app, this.requiredApp, this.allowLegacyApp, false)
+            && isAppVersionSupported(coinAppConnection.appVersion, this.minRequiredAppVersion)
             && (!this.expectedWalletId || coinAppConnection.walletId === this.expectedWalletId);
     }
 
@@ -91,14 +71,14 @@ export default abstract class Request<T> extends Observable {
     protected async checkCoinAppConnection(transport: Transport, scrambleKey: string): Promise<CoinAppConnection> {
         const { name: app, version: appVersion } = await getAppNameAndVersion(transport, scrambleKey);
         this._coinAppConnection = { coin: this.coin, app, appVersion };
-        if (!Request._isAppSupported(app, this.requiredApp, this.allowLegacyApp, /* allowSpeculos */ true)) {
+        if (!isAppSupported(app, this.requiredApp, this.allowLegacyApp, /* allowSpeculos */ true)) {
             throw new ErrorState(
                 ErrorType.WRONG_APP,
                 `Wrong app connected: ${app}, required: ${this.requiredApp}`,
                 this,
             );
         }
-        if (!Request._isAppVersionSupported(appVersion, this.minRequiredAppVersion)) {
+        if (!isAppVersionSupported(appVersion, this.minRequiredAppVersion)) {
             throw new ErrorState(
                 ErrorType.APP_OUTDATED,
                 `Ledger ${app} app is outdated: ${appVersion}, required: ${this.minRequiredAppVersion}`,

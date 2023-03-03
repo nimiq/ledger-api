@@ -1,5 +1,6 @@
 import RequestBitcoin from './request-bitcoin';
 import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../constants';
+import { getLegacyApp } from '../../app-utils';
 import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 
@@ -152,7 +153,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
             // app before 2.0. Thus, no need to specifically require the Legacy app variant.
             return super.requiredApp;
         }
-        return super.requiredApp.replace(/(?: Legacy)?$/, ' Legacy'); // require Legacy app variant
+        return getLegacyApp(super.requiredApp); // require Legacy app variant
     }
 
     public async call(transport: Transport): Promise<string> {

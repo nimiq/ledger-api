@@ -7,6 +7,7 @@ import {
     loadTransportLibrary,
     TransportType,
 } from './transport-utils';
+import { isAppSupported } from './app-utils';
 import { getBip32Path, parseBip32Path } from './bip32-utils';
 import ErrorState, { ErrorType } from './error-state';
 import {
@@ -326,9 +327,11 @@ export default class LedgerApi {
         try {
             const { currentRequest, _currentConnection: currentConnection } = LedgerApi;
             const expectedApp = coin === Coin.NIMIQ ? 'Nimiq' : `Bitcoin${network === Network.TESTNET ? ' Test' : ''}`;
-            if (currentConnection && currentConnection.coin === coin && (
-                currentConnection.app === expectedApp
-                || (coin === Coin.BITCOIN && currentConnection.app === expectedApp.replace(/(?: Legacy)?$/, ' Legacy'))
+            if (currentConnection && currentConnection.coin === coin && isAppSupported(
+                currentConnection.app,
+                expectedApp,
+                /* allowLegacy */ coin === Coin.BITCOIN,
+                /* allowSpeculos */ true,
             )) {
                 // Already connected.
                 return true;
