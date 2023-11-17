@@ -51,8 +51,8 @@ export async function getNetworkInfo(network: Network, addressType: AddressTypeB
 }
 
 // Taken from https://github.com/LedgerHQ/ledger-wallet-webtool/blob/master/src/PathFinderUtils.js#L31
-// Also see https://github.com/LedgerHQ/ledgerjs/blob/master/packages/hw-app-btc/src/compressPublicKey.js for a version
-// operating on buffers. However, usage requires then loading the Buffer polyfill.
+// Also see https://github.com/LedgerHQ/ledger-live/blob/main/libs/ledgerjs/packages/hw-app-btc/src/compressPublicKey.ts
+// for a version operating on buffers. However, usage requires then loading the Buffer polyfill.
 export function compressPublicKey(publicKey: string): string {
     let compressedKeyIndex;
     if (publicKey.substring(0, 2) !== '04') {

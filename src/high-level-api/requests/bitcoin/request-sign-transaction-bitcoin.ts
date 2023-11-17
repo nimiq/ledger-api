@@ -14,8 +14,8 @@ type FixedSerializeTransactionOutputs =
     => ReturnType<import('@ledgerhq/hw-app-btc').default['serializeTransactionOutputs']>;
 
 export interface TransactionInfoBitcoin {
-    // The inputs to consume for this transaction (prev outs). All inputs have to be of the same type (native segwit,
-    // p2sh segwit or legacy), determined from their key paths.
+    // The inputs to consume for this transaction (prev outs). @ledgerhq/hw-app-btc's createPaymentTransaction expects
+    // all inputs to be from the same account/xpub and thus also of the same type (native segwit, p2sh segwit or legacy)
     inputs: Array<{
         // full input transaction of which to take the output as input, either as serialized hex or in bitcoinjs-lib
         // transaction format
@@ -24,10 +24,12 @@ export interface TransactionInfoBitcoin {
         index: number,
         // bip32 path of the key which needs to sign for redeeming the input (e.g. the previous "recipient")
         keyPath: string,
-        // hex, optional custom script to be signed for consuming an input. This can be a witness script for segwit
-        // transactions (native segwit or p2sh segwit), or a redeem script for other p2sh transactions. Use this for
-        // example to redeem from contracts or multisigs. For regular transaction you'll typically not need to set this
-        // yourself as sensible defaults are used: for legacy transactions the prevOut output script is used; for segwit
+        // hex, optional custom script to be signed for consuming an input. In current versions of @ledgerhq/hw-app-btc
+        // this is essentially ignored (checked as of version 9.1.1), see hw-app-btc/src/newops/accounttype.ts. For
+        // p2wpkhWrapped a redeem script is accepted but only checked to be the expected one, other p2sh scripts are not
+        // accepted. On older versions, this could be a witness script for segwit transactions (native segwit or p2sh
+        // segwit), or a redeem script for other p2sh transactions and could be used for example to redeem from
+        // contracts or multisigs. Now, for legacy transactions the prevOut output script is used; for segwit
         // transactions an appropriate default script from the public key at keyPath.
         customScript?: string,
         // optional sequence number to use for this input when using replace by fee (RBF)
@@ -54,13 +56,14 @@ export interface TransactionInfoBitcoin {
     changePath?: string;
     // optional locktime; 0 by default
     locktime?: number;
-    // optional hash type specifying how to sign the transaction, SIGHASH_ALL (0x01) by default. Before changing this,
-    // make sure in https://github.com/LedgerHQ/app-bitcoin/blob/master/src/btchip_apdu_hash_sign.c that your desired
+    // optional hash type specifying how to sign the transaction, SIGHASH_DEFAULT (0x00) by default. Before changing
+    // this, make sure in https://github.com/LedgerHQ/app-bitcoin-new/blob/master/src/constants.h that your desired
     // sigHashType is supported.
     sigHashType?: number;
     // Enforce input amount verification also for segwit inputs. Note that on Bitcoin app >= 1.4.0 a warning is
     // displayed on the Ledger screen for unverified native segwit inputs and that for app versions < 1.4.0 setting
-    // useTrustedInputForSegwit is not supported. By default it's automatically set according to connected app version.
+    // useTrustedInputForSegwit is not supported. By default it's automatically set according to the connected app
+    // version. The newest @ledgerhq/hw-app-btc does not use this flag anymore for the BtcNew api.
     useTrustedInputForSegwit?: false;
 }
 
@@ -164,20 +167,31 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
         //   https://en.bitcoin.it/wiki/Transaction
         // - code for decoding of transactions for a deeper understanding:
         //   https://github.com/bitcoinjs/bitcoinjs-lib/blob/master/ts_src/transaction.ts (BitcoinJS)
-        //   https://github.com/LedgerHQ/ledgerjs/blob/master/packages/hw-app-btc/src/splitTransaction.js (parsing into
-        //   Ledger's representation. Code is a bit messy.)
+        //   https://github.com/LedgerHQ/ledger-live/blob/main/libs/ledgerjs/packages/hw-app-btc/src/splitTransaction.ts
+        //   (parsing into Ledger's representation. Code is a bit messy.)
         // - Ledger's notion of trusted inputs to connect inputs to their amount in a trusted fashion by rehashing the
         //   input transaction:
         //   https://bitcoinmagazine.com/articles/how-segregated-witness-is-about-to-fix-hardware-wallets-1478110057
         //   https://medium.com/segwit-co/segregated-witness-and-hardware-wallets-cc88ba532fb3
-        // - @ledgerhq/hw-app-btc documentation:
-        //   https://github.com/LedgerHQ/ledgerjs/tree/master/packages/hw-app-btc
-        // - @ledgerhq/hw-app-btc transaction building and signing logic:
-        //   https://github.com/LedgerHQ/ledgerjs/blob/master/packages/hw-app-btc/src/createTransaction.js
+        // - A write-up about the Bitcoin app's switch to using partially signed Bitcoin transactions (psbt) with 2.0.0:
+        //   https://blog.ledger.com/bitcoin-2/
+        //   The new Bitcoin api was introduced with 2.0.0, while the legacy api was still supported until 2.1.0.
+        // - @ledgerhq/hw-app-btc (the client lib) documentation:
+        //   https://github.com/LedgerHQ/ledger-live/tree/main/libs/ledgerjs/packages/hw-app-btc
+        // - @ledgerhq/hw-app-btc still contains the deprecated code for old Bitcoin apps before 2.0.0:
+        //   https://github.com/LedgerHQ/ledger-live/blob/main/libs/ledgerjs/packages/hw-app-btc/src/BtcOld.ts
+        //   The client code for the new Bitcoin apps can be found here:
+        //   https://github.com/LedgerHQ/ledger-live/blob/main/libs/ledgerjs/packages/hw-app-btc/src/BtcNew.ts
+        //   Additionally, the repository of the Ledger Bitcoin App contains another js client written from ground up,
+        //   which better supports the new api:
+        //   https://github.com/LedgerHQ/app-bitcoin-new/tree/develop/bitcoin_client_js
+        // - @ledgerhq/hw-app-btc legacy transaction building and signing logic:
+        //   https://github.com/LedgerHQ/ledger-live/blob/main/libs/ledgerjs/packages/hw-app-btc/src/createTransaction
+        //   The transaction building and signing logic for new Bitcoin app based on psbts is contained within BtcNew.ts
         // - Ledger Bitcoin App's api description:
-        //   https://github.com/LedgerHQ/app-bitcoin/blob/master/doc/btc.asc
+        //   https://github.com/LedgerHQ/app-bitcoin-new/blob/master/doc/bitcoin.md
         // - @ledgerhq/hw-app-btc's tests to see an example of correctly sent data:
-        //   https://github.com/LedgerHQ/ledgerjs/tree/master/packages/hw-app-btc/tests
+        //   https://github.com/LedgerHQ/app-bitcoin-new/tree/master/tests
         // - For decoding transactions:
         //   https://live.blockcypher.com/btc/decodetx/
         // - The demo page and code of this lib for demo usage

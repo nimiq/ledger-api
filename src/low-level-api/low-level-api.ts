@@ -27,6 +27,11 @@ const P2_CONFIRM = 0x01;
 const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HEX = 1 << 0; // eslint-disable-line no-bitwise
 const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH = 1 << 1; // eslint-disable-line no-bitwise
 
+// Definition of common status words:
+// - https://github.com/LedgerHQ/ledger-secure-sdk/blob/master/include/errors.h
+// - https://github.com/LedgerHQ/app-bitcoin-new/blob/master/src/boilerplate/sw.h
+// - https://github.com/LedgerHQ/app-bitcoin/blob/master/include/btchip_apdu_constants.h
+// - https://ledgerhq.github.io/btchip-doc/bitcoin-technical-beta.html#_status_words
 const SW_OK = 0x9000;
 const SW_CANCEL = 0x6985;
 const SW_KEEP_ALIVE = 0x6e02;

@@ -56,14 +56,19 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
         // - Description of v, r, s values the signature consists of:
         //   https://bitcoin.stackexchange.com/a/38909
         // - Ledger Bitcoin App's api description:
-        //   https://github.com/LedgerHQ/app-bitcoin/blob/master/doc/btc.asc#sign-message
+        //   Old app <2.0: https://github.com/LedgerHQ/app-bitcoin/blob/master/doc/btc.asc#sign-message
+        //   New app >=2.0: https://github.com/LedgerHQ/app-bitcoin-new/blob/master/doc/bitcoin.md#sign_message
         // - The implementation of the api call in @ledgerhq/hw-app-btc:
-        //   https://github.com/LedgerHQ/ledgerjs/blob/master/packages/hw-app-btc/src/signMessage.js
+        //   https://github.com/LedgerHQ/ledger-live/blob/develop/libs/ledgerjs/packages/hw-app-btc/src/signMessage.ts
         //   Also handles the conversion of the ASN-1 encoded signature created by the Ledger (defined in
         //   https://www.secg.org/sec1-v2.pdf) to BitcoinQT format. However note that the returned v value does not
         //   contain the address type constant yet. For converting this result to the final concatenated base64
-        //   signature including the address type see here:
-        //   https://github.com/LedgerHQ/ledgerjs/blob/master/packages/hw-app-btc/src/Btc.js#L92
+        //   signature including the address type see the jsdoc documentation of signMessage here:
+        //   https://github.com/LedgerHQ/ledger-live/blob/main/libs/ledgerjs/packages/hw-app-btc/src/Btc.ts
+        //   For new apps >=2.0 message signing is implemented here:
+        //   github.com/LedgerHQ/ledger-live/blob/develop/libs/ledgerjs/packages/hw-app-btc/src/newops/appClient.ts#L174
+        //   or alternatively here in the all-new ts client for app-bitcoin-new:
+        //   https://github.com/LedgerHQ/app-bitcoin-new/blob/develop/bitcoin_client_js/src/lib/appClient.ts
         // - For confirming signed messages online:
         //   https://www.verifybitcoinmessage.com/
         // - bitcoinjs-message library for client side signing and verification of message signatures:
