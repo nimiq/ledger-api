@@ -33,8 +33,8 @@
   },
   "homepage": "https://github.com/nimiq/ledger-api#readme",
   "devDependencies": {
-    "@ledgerhq/hw-transport-node-speculos": "^6.27.9",
-    "@ledgerhq/logs": "^6.10.1",
+    "@ledgerhq/hw-transport-node-speculos": "^6.27.20",
+    "@ledgerhq/logs": "^6.11.0",
     "@rbnlffl/rollup-plugin-eslint": "^1.1.4",
     "@rollup/plugin-alias": "^3.1.2",
     "@rollup/plugin-commonjs": "^17.1.0",
@@ -57,17 +57,17 @@
     "typescript": "^4.1.3"
   },
   "dependencies": {
-    "@ledgerhq/hw-app-btc": "^9.1.1",
-    "@ledgerhq/hw-transport": "^6.27.9",
-    "@ledgerhq/hw-transport-http": "^6.27.9",
+    "@ledgerhq/hw-app-btc": "^10.0.9",
+    "@ledgerhq/hw-transport": "^6.29.0",
+    "@ledgerhq/hw-transport-http": "^6.28.4",
     "@ledgerhq/hw-transport-u2f": "^5.36.0-deprecated",
-    "@ledgerhq/hw-transport-web-ble": "^6.27.9",
+    "@ledgerhq/hw-transport-web-ble": "^6.27.20",
     "@ledgerhq/hw-transport-webauthn": "^5.36.0-deprecated",
-    "@ledgerhq/hw-transport-webhid": "^6.27.9",
-    "@ledgerhq/hw-transport-webusb": "^6.27.9",
+    "@ledgerhq/hw-transport-webhid": "^6.27.20",
+    "@ledgerhq/hw-transport-webusb": "^6.27.20",
     "@nimiq/core-web": "^1.6.0",
     "@rollup/plugin-virtual": "^2.0.3",
-    "@types/ledgerhq__hw-transport-u2f": "^4.21.2",
+    "@types/ledgerhq__hw-transport-u2f": "^4.21.4",
     "@types/w3c-web-usb": "^1.0.6",
     "bitcoinjs-lib": "^5.2.0"
   }
