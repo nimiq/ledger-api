@@ -3,17 +3,17 @@ import path from 'path';
 import { walk } from 'estree-walker';
 import MagicString from 'magic-string';
 
-import typescript from '@rollup/plugin-typescript';
+import inject from '@rollup/plugin-inject';
 import alias from '@rollup/plugin-alias';
 import virtual from '@rollup/plugin-virtual';
 import resolve from '@rollup/plugin-node-resolve';
+import eslint from '@rbnlffl/rollup-plugin-eslint';
+import typescript from '@rollup/plugin-typescript';
+import sourcemaps from 'rollup-plugin-sourcemaps';
 import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
-import sourcemaps from 'rollup-plugin-sourcemaps';
-import eslint from '@rbnlffl/rollup-plugin-eslint';
 
 // demo page specific imports
-import polyfillNode from 'rollup-plugin-polyfill-node';
 import copy from 'rollup-plugin-copy';
 import serve from 'rollup-plugin-serve';
 import livereload from 'rollup-plugin-livereload';
@@ -126,35 +126,32 @@ export default (commandLineArgs) => {
         })),
         preserveEntrySignatures: 'allow-extension', // avoid rollup's additional facade chunk
         plugins: [
-            // First run plugins that map imports to the actual imported files, e.g. aliased imports or browser versions
-            // of packages, such that subsequent plugins operate on the right files.
+            // First run plugins that map imports to the actual imported files, e.g. aliased and shimmed imports or
+            // browser versions of packages, such that subsequent plugins operate on the right files. Especially, we
+            // polyfill node builtins via aliased and virtual packages and later inject their node globals via the
+            // inject plugin.
             alias({
                 entries: {
-                    // replace readable-stream imported by @ledgerhq/hw-app-btc/src/hashPublicKey > ripemd160 >
-                    // hash-base by stream which gets polyfilled by rollup-plugin-polyfill-node. Note that stream and
-                    // readable-stream are largely compatible and effectively the same code. However, the stream
-                    // polyfill used by rollup-plugin-polyfill-node is an older version which has less problems with
-                    // circular dependencies. The circular dependencies are currently being resolved in readable-stream
-                    // though and once merged (see https://github.com/nodejs/readable-stream/issues/348), this alias
-                    // should be removed or even turned around. Note that without the replacement, the stream polyfill
-                    // and readable-stream are both bundled, which is not desirable.
-                    'readable-stream': 'stream',
-                    // shim unnecessary axios for @ledgerhq/hw-transport-http
+                    // Polyfill node's builtin stream module via readable-stream, which is essentially node's stream
+                    // put into an npm package.
+                    stream: 'readable-stream',
+                    // Shim unnecessary axios for @ledgerhq/hw-transport-http.
                     axios: '../../../../src/lib/axios-shim.ts',
                 },
             }),
             virtual({
-                // don't bundle unnecessary WebSocket polyfill
+                // Don't bundle unnecessary WebSocket polyfill.
                 ws: 'export default {};',
+                // Polyfill node's global and process.env.NODE_ENV.
+                global: 'export default window;',
+                process: `export default { env: { NODE_ENV: ${isProduction ? '"production"' : '"development"'} } };`,
             }),
             resolve({
                 browser: true, // use browser versions of packages if defined in their package.json
-                preferBuiltins: false, // builtins are handled by polyfillNode
+                preferBuiltins: false, // process node builtins to use polyfill packages buffer, readable-stream, etc.
             }),
             // Have eslint high up in the hierarchy to lint the original files.
             eslint({
-                // TODO remove once https://github.com/snowpackjs/rollup-plugin-polyfill-node/pull/3 is merged
-                filterExclude: ['node_modules/**', /^polyfill-node:/], // ignore polyfill-node's virtual files
                 throwOnError: isProduction,
             }),
             // Check types and transpile ts to js. Note that ts does only transpile and not bundle imports.
@@ -167,22 +164,18 @@ export default (commandLineArgs) => {
                 rootDir: 'src',
                 noEmitOnError: isProduction,
             }),
-            // Read code including sourcemaps. Has to happen after ts as ts files should be loaded by typescript plugin
-            // and the sourcemaps plugin can't parse ts files.
-            sourcemaps({
-                // TODO remove once https://github.com/snowpackjs/rollup-plugin-polyfill-node/pull/3 is merged
-                exclude: [/^polyfill-node:/],
-            }),
+            // Read code including sourcemaps. Has to happen after typescript as ts files should be loaded by typescript
+            // plugin and the sourcemaps plugin can't parse ts files.
+            sourcemaps(),
             // Plugins for processing dependencies.
             commonjs(),
             json({ // required for import of bitcoin-ops/index.json imported by bitcoinjs-lib
                 compact: true,
             }),
-            polyfillNode({
-                include: [
-                    'src/**/*',
-                    'node_modules/**/*.js',
-                ],
+            inject({
+                Buffer: ['buffer', 'Buffer'], // add "import { Buffer } from 'buffer'" when node's Buffer global is used
+                global: 'global', // add "import global from 'global'" when node's global variable 'global' is used
+                process: 'process', // add "import process from 'process'" when node's global variable 'process' is used
             }),
             // Last steps in output generation.
             hoistDynamicImportDependencies(),
@@ -235,53 +228,53 @@ export default (commandLineArgs) => {
             sourcemapPathTransform,
         },
         plugins: [
-            // typescript needs the import as specified to find the .d.ts file but for actual import we need .es.js file
+            // First run plugins that map imports to the actual imported files, e.g. aliased and shimmed imports or
+            // browser versions of packages, such that subsequent plugins operate on the right files. Especially, we
+            // polyfill node builtins via aliased and virtual packages and later inject their node globals via the
+            // inject plugin.
             alias({
                 entries: {
+                    // typescript needs the imports as specified to find the .d.ts files but for actual import we need
+                    // the .es.js files.
                     '../../dist/low-level-api/low-level-api': '../low-level-api/low-level-api.es.js',
                     '../../dist/high-level-api/ledger-api': '../high-level-api/ledger-api.es.js',
-                    // shim unnecessary axios for @ledgerhq/hw-transport-http
+                    // Shim unnecessary axios for @ledgerhq/hw-transport-http.
                     axios: '../../../../src/lib/axios-shim.ts',
-                    // replace readable-stream imported by @ledgerhq/hw-app-btc/src/hashPublicKey > ripemd160 >
-                    // hash-base by stream which gets polyfilled by rollup-plugin-polyfill-node. Note that stream and
-                    // readable-stream are largely compatible and effectively the same code. However, the stream
-                    // polyfill used by rollup-plugin-polyfill-node is an older version which has less problems with
-                    // circular dependencies. The circular dependencies are currently being resolved in readable-stream
-                    // though and once merged (see https://github.com/nodejs/readable-stream/issues/348), this alias
-                    // should be removed or even turned around. Note that without the replacement, the stream polyfill
-                    // and readable-stream are both bundled, which is not desirable.
-                    'readable-stream': 'stream',
+                    // Polyfill node's builtin stream module via readable-stream, which is essentially node's stream
+                    // put into an npm package.
+                    stream: 'readable-stream',
                 },
             }),
             virtual({
-                // don't bundle unnecessary WebSocket polyfill
+                // Don't bundle unnecessary WebSocket polyfill.
                 ws: 'export default {};',
+                // Polyfill node's global and process.env.NODE_ENV.
+                global: 'export default window;',
+                process: `export default { env: { NODE_ENV: ${isProduction ? '"production"' : '"development"'} } };`,
             }),
             resolve({
                 browser: true, // use browser versions of packages if defined in their package.json
-                preferBuiltins: false, // builtins are handled by polyfillNode
+                preferBuiltins: false, // process node builtins to use polyfill packages buffer, readable-stream, etc.
             }),
             // Have eslint high up in the hierarchy to lint the original files.
             eslint({
-                // TODO remove once https://github.com/snowpackjs/rollup-plugin-polyfill-node/pull/3 is merged
-                filterExclude: ['node_modules/**', /^polyfill-node:/], // ignore polyfill-node's virtual files
                 throwOnError: isProduction,
             }),
+            // Check types and transpile ts to js. Note that ts does only transpile and not bundle imports.
             typescript({
                 include: ['src/demo/**', 'src/lib/**'],
                 noEmitOnError: isProduction,
             }),
-            sourcemaps({
-                // TODO remove once https://github.com/snowpackjs/rollup-plugin-polyfill-node/pull/3 is merged
-                exclude: [/^polyfill-node:/],
-            }),
+            // Read code including sourcemaps. Has to happen after typescript as ts files should be loaded by typescript
+            // plugin and the sourcemaps plugin can't parse ts files.
+            sourcemaps(),
+            // Plugins for processing dependencies.
             commonjs(),
             json(), // required for import of secp256k1/lib/messages.json in secp256k1 imported by bitcoinjs-message
-            polyfillNode({
-                include: [
-                    'src/**/*',
-                    'node_modules/**/*.js',
-                ],
+            inject({
+                Buffer: ['buffer', 'Buffer'], // add "import { Buffer } from 'buffer'" when node's Buffer global is used
+                global: 'global', // add "import global from 'global'" when node's global variable 'global' is used
+                process: 'process', // add "import process from 'process'" when node's global variable 'process' is used
             }),
             copy({
                 targets: [{
