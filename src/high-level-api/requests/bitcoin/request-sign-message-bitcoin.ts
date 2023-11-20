@@ -1,6 +1,5 @@
 import RequestBitcoin from './request-bitcoin';
 import { AddressTypeBitcoin, Coin, LedgerAddressFormatMapBitcoin, Network, RequestTypeBitcoin } from '../../constants';
-import { getLegacyApp } from '../../app-utils';
 import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 
@@ -34,18 +33,6 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
                 this,
             );
         }
-    }
-
-    public get requiredApp(): string {
-        // hw-app-btc does not support signing messages with the new Bitcoin app yet, therefore require the old or
-        // legacy app.
-        if (this._coinAppConnection && this._coinAppConnection.app === super.requiredApp
-            && !RequestBitcoin._isNewApiSupported(this._coinAppConnection.app, this._coinAppConnection.appVersion)) {
-            // We're already connected to an appropriate Bitcoin app on which we don't use the new api, e.g. a Bitcoin
-            // app before 2.0. Thus, no need to specifically require the Legacy app variant.
-            return super.requiredApp;
-        }
-        return getLegacyApp(super.requiredApp); // require Legacy app variant
     }
 
     public async call(transport: Transport): Promise<MessageSignatureInfo> {
