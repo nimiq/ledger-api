@@ -56,13 +56,4 @@ module.exports = {
         'import/no-unresolved': 'off',
         'import/extensions': 'off',
     },
-    overrides: [
-        {
-            files: ['*.config.js', '.eslintrc.js'],
-            rules: {
-                '@typescript-eslint/no-var-requires': 'off',
-                'import/no-extraneous-dependencies': 'off',
-            },
-        },
-    ],
 };

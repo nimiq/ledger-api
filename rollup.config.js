@@ -7,7 +7,7 @@ import inject from '@rollup/plugin-inject';
 import alias from '@rollup/plugin-alias';
 import virtual from '@rollup/plugin-virtual';
 import resolve from '@rollup/plugin-node-resolve';
-import eslint from '@rbnlffl/rollup-plugin-eslint';
+import eslint from '@rollup/plugin-eslint';
 import typescript from '@rollup/plugin-typescript';
 import sourcemaps from 'rollup-plugin-sourcemaps';
 import commonjs from '@rollup/plugin-commonjs';
