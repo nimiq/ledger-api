@@ -94,7 +94,7 @@ export default class RequestSignTransactionNimiq extends RequestWithKeyPathNimiq
                     fee, tx.validityStartHeight, /* signature */ undefined, networkId);
             }
         } catch (e) {
-            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e, this);
+            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
         }
 
         const { signature: signatureBytes } = await api.signTransaction(
@@ -111,7 +111,7 @@ export default class RequestSignTransactionNimiq extends RequestWithKeyPathNimiq
                 nimiqTx.proof = Nimiq.SignatureProof.singleSig(signerPubKey!, signature).serialize();
             }
         } catch (e) {
-            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e, this);
+            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
         }
 
         return nimiqTx;

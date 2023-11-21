@@ -32,7 +32,7 @@ export default class RequestGetAddressAndPublicKeyBitcoin extends RequestBitcoin
         } catch (e) {
             throw new ErrorState(
                 ErrorType.REQUEST_ASSERTION_FAILED,
-                `Invalid keyPath ${keyPath}: ${e.message || e}`,
+                `Invalid keyPath ${keyPath}: ${e instanceof Error ? e.message : e}`,
                 this,
             );
         }

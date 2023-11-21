@@ -159,9 +159,6 @@ export default (commandLineArgs) => {
                 include: ['src/high-level-api/**', 'src/low-level-api/**', 'src/lib/**'],
                 declaration: true,
                 declarationDir: 'dist',
-                // temporary, see https://github.com/rollup/plugins/issues/61#issuecomment-596270901 and
-                // https://github.com/rollup/plugins/issues/287
-                rootDir: 'src',
                 noEmitOnError: isProduction,
             }),
             // Read code including sourcemaps. Has to happen after typescript as ts files should be loaded by typescript
@@ -204,7 +201,6 @@ export default (commandLineArgs) => {
                 include: ['src/low-level-api/**', 'src/lib/**'],
                 declaration: true,
                 declarationDir: 'dist',
-                rootDir: 'src', // temporary, see https://github.com/rollup/plugins/issues/61#issuecomment-596270901
                 noEmitOnError: isProduction,
             }),
             resolve({

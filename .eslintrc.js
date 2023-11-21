@@ -17,6 +17,7 @@ module.exports = {
         ecmaVersion: 2020,
     },
     root: true,
+    plugins: ['import'],
     rules: {
         'no-console': 'off',
         'no-debugger': isProduction ? 'error' : 'off',
@@ -47,9 +48,10 @@ module.exports = {
         '@typescript-eslint/no-namespace': 'off',
         '@typescript-eslint/lines-between-class-members': 'off',
 
-        // False positives that are checked by TS
+        // Disable rules that are already checked by TS.
         indent: 'off',
         'no-redeclare': 'off',
+        '@typescript-eslint/no-redeclare': 'off',
         '@typescript-eslint/no-use-before-define': 'off',
         'import/no-unresolved': 'off',
         'import/extensions': 'off',

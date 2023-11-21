@@ -136,7 +136,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
         } catch (e) {
             throw new ErrorState(
                 ErrorType.REQUEST_ASSERTION_FAILED,
-                `Invalid request: ${e.message || e}`,
+                `Invalid request: ${e instanceof Error ? e.message : e}`,
                 this,
             );
         }
@@ -275,7 +275,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                 parsedTransaction.useTrustedInputForSegwit = useTrustedInputForSegwit;
             }
         } catch (e) {
-            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e, this);
+            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
         }
 
         // Note: We make api calls outside of the try...catch block to let the exceptions fall through such that

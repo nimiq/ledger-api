@@ -447,7 +447,7 @@ export default class LedgerApi {
             } catch (e) {
                 const error = new ErrorState(
                     ErrorType.LOADING_DEPENDENCIES_FAILED,
-                    `Failed loading dependencies: ${e.message || e}`,
+                    `Failed loading dependencies: ${e instanceof Error ? e.message : e}`,
                     undefined,
                 );
                 LedgerApi._setState(error);
@@ -517,7 +517,7 @@ export default class LedgerApi {
                             LedgerApi._setState(e);
                         }
 
-                        const message = (e.message || e || '').toLowerCase();
+                        const message = (e instanceof Error ? e.message : String(e)).toLowerCase();
                         // "timeout" used to happen for u2f, it's "device_ineligible" or "other_error" now (see
                         // transport-comparison.md). "timed out" is for Chrome WebAuthn timeout; "denied permission" for
                         // Firefox WebAuthn timeout.
@@ -613,7 +613,7 @@ export default class LedgerApi {
             try {
                 LedgerApi._currentConnection = await request.checkCoinAppConnection(transport);
             } catch (e) {
-                const message = (e.message || e || '').toLowerCase();
+                const message = (e instanceof Error ? e.message : String(e)).toLowerCase();
                 if (message.indexOf('busy') !== -1) {
                     throw new ErrorState(
                         ErrorType.LEDGER_BUSY,
@@ -669,7 +669,7 @@ export default class LedgerApi {
                 if (transportType === LedgerApi._transportType) {
                     throw new ErrorState(
                         ErrorType.LOADING_DEPENDENCIES_FAILED,
-                        `Failed loading dependencies: ${e.message || e}`,
+                        `Failed loading dependencies: ${e instanceof Error ? e.message : e}`,
                         request,
                     );
                 }
@@ -691,7 +691,7 @@ export default class LedgerApi {
                 );
             } catch (e) {
                 if (transportType === LedgerApi._transportType) {
-                    const message = (e.message || e).toLowerCase();
+                    const message = (e instanceof Error ? e.message : String(e)).toLowerCase();
                     if (/no device selected|access denied|cancelled the requestdevice/i.test(message)) {
                         LedgerApi._connectionAborted = true;
                         throw new ErrorState(
@@ -700,7 +700,11 @@ export default class LedgerApi {
                             request,
                         );
                     } else if (message.indexOf('user gesture') !== -1) {
-                        throw new ErrorState(ErrorType.USER_INTERACTION_REQUIRED, e, request);
+                        throw new ErrorState(
+                            ErrorType.USER_INTERACTION_REQUIRED,
+                            e instanceof Error ? e : String(e),
+                            request,
+                        );
                     } else {
                         throw e; // rethrow unknown exception
                     }

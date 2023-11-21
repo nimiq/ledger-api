@@ -29,7 +29,7 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
         } catch (e) {
             throw new ErrorState(
                 ErrorType.REQUEST_ASSERTION_FAILED,
-                `Invalid keyPath ${keyPath}: ${e.message || e}`,
+                `Invalid keyPath ${keyPath}: ${e instanceof Error ? e.message : e}`,
                 this,
             );
         }
@@ -74,7 +74,7 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
                 throw new Error('Message too long');
             }
         } catch (e) {
-            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e, this);
+            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
         }
 
         if (this.network === Network.TESTNET && this._addressType === AddressTypeBitcoin.LEGACY) {

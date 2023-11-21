@@ -79,7 +79,7 @@ export function getNetworkEndpoint(): string {
  * @param transportType
  */
 export async function loadTransportLibrary(transportType: TransportType)
-    : Promise<TransportWebUsbConstructor|TransportConstructor> {
+    : Promise<TransportWebUsbConstructor | TransportConstructor> {
     switch (transportType) {
         case TransportType.WEB_HID:
             return (await import('@ledgerhq/hw-transport-webhid')).default;

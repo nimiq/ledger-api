@@ -78,7 +78,7 @@ export default abstract class RequestNimiq<T> extends Request<T> {
         } catch (e) {
             throw new ErrorState(
                 ErrorType.LOADING_DEPENDENCIES_FAILED,
-                `Failed loading dependencies: ${e.message || e}`,
+                `Failed loading dependencies: ${e instanceof Error ? e.message : e}`,
                 this,
             );
         }
@@ -96,7 +96,7 @@ export default abstract class RequestNimiq<T> extends Request<T> {
         } catch (e) {
             throw new ErrorState(
                 ErrorType.LOADING_DEPENDENCIES_FAILED,
-                `Failed loading dependencies: ${e.message || e}`,
+                `Failed loading dependencies: ${e instanceof Error ? e.message : e}`,
                 this,
             );
         }

@@ -6,6 +6,7 @@ import TransportU2F from '@ledgerhq/hw-transport-u2f';
 import NetworkTransportForUrls from '@ledgerhq/hw-transport-http';
 // dev dependencies for the demo page
 /* eslint-disable import/no-extraneous-dependencies */
+// Note: we installed @ledgerhq/logs and bitcoinjs-message only as dev dependencies, as they're only used in the demo.
 import { listen as onLog } from '@ledgerhq/logs';
 import { verify as verifySignedMessageBitcoin } from 'bitcoinjs-message';
 /* eslint-enable import/no-extraneous-dependencies */
@@ -1053,7 +1054,7 @@ window.addEventListener('load', () => {
             }
             $txSignatureNimiq.textContent = Nimiq.BufferUtils.toHex(signature);
         } catch (error) {
-            displayStatus(error);
+            displayStatus(error instanceof Error ? error.message : String(error));
         }
     }
 

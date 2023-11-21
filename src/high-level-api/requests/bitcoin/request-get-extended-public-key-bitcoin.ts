@@ -127,7 +127,7 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
             extendedPubKey.network = networkInfo;
             return extendedPubKey.toBase58();
         } catch (e) {
-            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e, this);
+            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
         }
     }
 }

@@ -8,6 +8,7 @@ type Transport = import('@ledgerhq/hw-transport').default;
 type LowLevelApiConstructor = typeof import('@ledgerhq/hw-app-btc').default;
 type LowLevelApi = InstanceType<LowLevelApiConstructor>;
 type BitcoinLib = typeof import('./bitcoin-lib');
+type Sha256 = typeof import('sha.js/sha256').default;
 
 export { RequestTypeBitcoin };
 
@@ -46,7 +47,7 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         // Ignore errors.
         Promise.all([
             this._loadLowLevelApi(), // needed by all requests
-            this._isWalletIdDerivationRequired ? import('sha.js/sha256') : null,
+            this._isWalletIdDerivationRequired ? this._loadSha256() : null,
         ]).catch(() => {});
     }
 
@@ -54,7 +55,7 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         const coinAppConnection = await super.checkCoinAppConnection(transport, 'BTC');
         if (!this._isWalletIdDerivationRequired) return coinAppConnection; // skip wallet id derivation
 
-        // Note that api and sha256 are preloaded in the constructor, therefore we don't need to optimize for load order
+        // Note that api and Sha256 are preloaded in the constructor, therefore we don't need to optimize for load order
         // or execution order here.
         const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
         // TODO For u2f and WebAuthn, the Ledger displays a confirmation screen to get the public key if the user has
@@ -69,19 +70,9 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
             isInternal: false,
         }));
 
-        let Sha256: typeof import('sha.js/sha256').default;
-        try {
-            // Note that loading sha here only for wallet id calculation is not really wasteful as it's also imported
-            // by the ledger api and bitcoinjs.
-            Sha256 = (await import('sha.js/sha256')).default;
-        } catch (e) {
-            throw new ErrorState(
-                ErrorType.LOADING_DEPENDENCIES_FAILED,
-                `Failed loading dependencies: ${e.message || e}`,
-                this,
-            );
-        }
-
+        // Note that loading sha.js here only for wallet id calculation is not really wasteful as it's also imported by
+        // @ledgerhq/hw-app-bitcoin and bitcoinjs-lib via create-hash anyway.
+        const Sha256 = await this._loadSha256();
         const walletId = new Sha256().update(publicKey, 'hex').digest('base64');
         coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection
         this._checkExpectedWalletId(walletId);
@@ -118,7 +109,7 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         } catch (e) {
             throw new ErrorState(
                 ErrorType.LOADING_DEPENDENCIES_FAILED,
-                `Failed loading dependencies: ${e.message || e}`,
+                `Failed loading dependencies: ${e instanceof Error ? e.message : e}`,
                 this,
             );
         }
@@ -130,7 +121,21 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         } catch (e) {
             throw new ErrorState(
                 ErrorType.LOADING_DEPENDENCIES_FAILED,
-                `Failed loading dependencies: ${e.message || e}`,
+                `Failed loading dependencies: ${e instanceof Error ? e.message : e}`,
+                this,
+            );
+        }
+    }
+
+    protected async _loadSha256(): Promise<Sha256> {
+        try {
+            // Note: we've not installed sha.js as dependency, to make sure we're using the version that comes with
+            // @ledgerhq/hw-app-btc and bitcoinjs-lib#create-hash without the risk of bundling an additional version.
+            return (await import('sha.js/sha256')).default; // eslint-disable-line import/no-extraneous-dependencies
+        } catch (e) {
+            throw new ErrorState(
+                ErrorType.LOADING_DEPENDENCIES_FAILED,
+                `Failed loading dependencies: ${e instanceof Error ? e.message : e}`,
                 this,
             );
         }

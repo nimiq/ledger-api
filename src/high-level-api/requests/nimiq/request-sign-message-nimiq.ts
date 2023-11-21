@@ -44,7 +44,7 @@ export default class RequestSignMessageNimiq extends RequestWithKeyPathNimiq<Mes
                 throw new Error('Message too long');
             }
         } catch (e) {
-            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e, this);
+            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
         }
 
         const { publicKey } = await api.getPublicKey(
