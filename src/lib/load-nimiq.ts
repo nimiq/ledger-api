@@ -3,9 +3,7 @@ type Nimiq = typeof import('@nimiq/core-web');
 const coreBasePath = window.location.hostname.endsWith('.nimiq.com')
     ? 'https://cdn.nimiq.com/'
     // On third party domains use jsdelivr instead of nimiq cdn to avoid getting blocked by ad blockers.
-    // TODO currently using 1.5.8 due to a crossOrigin issue in Nimiq core 1.6.0. Use the latest version, once 1.6.1
-    //  has been released.
-    : 'https://cdn.jsdelivr.net/npm/@nimiq/core-web@1.5.8/';
+    : 'https://cdn.jsdelivr.net/npm/@nimiq/core-web/';
 
 let nimiqCorePromise: Promise<Nimiq> | null = null;
 let nimiqCryptographyPromise: Promise<void> | null = null;
