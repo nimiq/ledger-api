@@ -3,6 +3,7 @@
   "version": "2.3.0",
   "description": "Api for communicating with Ledger Hardware Wallets",
   "main": "dist/high-level-api/ledger-api.cjs.js",
+  "type": "module",
   "module": "dist/high-level-api/ledger-api.es.js",
   "types": "dist/high-level-api/ledger-api.d.ts",
   "files": [
@@ -35,23 +36,24 @@
   "devDependencies": {
     "@ledgerhq/hw-transport-node-speculos": "^6.27.20",
     "@ledgerhq/logs": "^6.11.0",
-    "@rollup/plugin-alias": "^3.1.2",
-    "@rollup/plugin-commonjs": "^22.0.0",
+    "@rollup/plugin-alias": "^5.0.1",
+    "@rollup/plugin-commonjs": "^25.0.7",
     "@rollup/plugin-eslint": "^9.0.5",
     "@rollup/plugin-inject": "^5.0.5",
-    "@rollup/plugin-json": "^4.1.0",
-    "@rollup/plugin-node-resolve": "^13.0.6",
-    "@rollup/plugin-typescript": "^8.1.1",
+    "@rollup/plugin-json": "^6.0.1",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.5",
+    "@rollup/plugin-virtual": "^3.0.2",
     "@typescript-eslint/eslint-plugin": "^6.12.0",
     "@typescript-eslint/parser": "^6.12.0",
     "bitcoinjs-message": "^2.2.0",
     "eslint": "^8.54.0",
     "eslint-config-airbnb-typescript": "^17.1.0",
     "eslint-plugin-import": "^2.29.0",
-    "rollup": "^2.68.0",
-    "rollup-plugin-copy": "^3.3.0",
-    "rollup-plugin-livereload": "^2.0.0",
-    "rollup-plugin-serve": "^1.1.0",
+    "rollup": "^4.5.1",
+    "rollup-plugin-copy": "^3.5.0",
+    "rollup-plugin-livereload": "^2.0.5",
+    "rollup-plugin-serve": "^2.0.2",
     "rollup-plugin-sourcemaps": "^0.6.3",
     "tslib": "^2.6.2",
     "typescript": "^5.2.2"
@@ -66,11 +68,18 @@
     "@ledgerhq/hw-transport-webhid": "^6.27.20",
     "@ledgerhq/hw-transport-webusb": "^6.27.20",
     "@nimiq/core-web": "^1.6.0",
-    "@rollup/plugin-virtual": "^2.0.3",
     "@types/ledgerhq__hw-transport-u2f": "^4.21.4",
     "@types/w3c-web-usb": "^1.0.6",
     "bitcoinjs-lib": "^5.2.0",
     "buffer": "^6.0.3",
     "readable-stream": "^4.4.2"
+  },
+  "resolutions": {
+    "rollup-plugin-sourcemaps/@rollup/pluginutils": "^5.0.5"
+  },
+  "overrides": {
+    "rollup-plugin-sourcemaps": {
+      "@rollup/pluginutils": "^5.0.5"
+    }
   }
 }
