@@ -2,9 +2,8 @@
   "name": "@nimiq/ledger-api",
   "version": "2.3.0",
   "description": "Api for communicating with Ledger Hardware Wallets",
-  "main": "dist/high-level-api/ledger-api.cjs.js",
+  "main": "dist/high-level-api/ledger-api.es.js",
   "type": "module",
-  "module": "dist/high-level-api/ledger-api.es.js",
   "types": "dist/high-level-api/ledger-api.d.ts",
   "files": [
     "transport-comparison.md",

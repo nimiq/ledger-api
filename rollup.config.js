@@ -121,19 +121,16 @@ export default async (commandLineArgs) => {
 
     const coreWasmJsIntegrityHash = await calculateIntegrityHash('./node_modules/@nimiq/core-web/worker-wasm.js');
 
-    const outputFormats = isProduction ? ['es', 'cjs'] : ['es'];
-
     const highLevelApiConfig = {
         input: 'src/high-level-api/ledger-api.ts',
-        output: outputFormats.map((format) => ({
-            format,
+        output: {
             dir: 'dist', // not dist/high-level-api as ts plugin creates sub folder structure in dist as in rootDir
             entryFileNames: 'high-level-api/[name].[format].js',
             chunkFileNames: 'high-level-api/lazy-chunk-[name].[format].js',
             exports: 'named', // enable multiple exports at the cost that cjs bundle must be imported as bundle.default
             sourcemap: true,
             sourcemapPathTransform,
-        })),
+        },
         preserveEntrySignatures: 'allow-extension', // avoid rollup's additional facade chunk
         plugins: [
             // First run plugins that map imports to the actual imported files, e.g. aliased and shimmed imports or
@@ -198,14 +195,13 @@ export default async (commandLineArgs) => {
 
     const lowLevelApiConfig = {
         input: 'src/low-level-api/low-level-api.ts',
-        output: outputFormats.map((format) => ({
-            format,
+        output: {
             dir: 'dist', // not dist/low-level-api as ts plugin creates sub folder structure in dist as in rootDir
             entryFileNames: 'low-level-api/[name].[format].js',
             sourcemap: true,
             sourcemapPathTransform,
             exports: 'default',
-        })),
+        },
         plugins: [
             eslint({
                 throwOnError: isProduction,
@@ -235,7 +231,6 @@ export default async (commandLineArgs) => {
         external: ['../low-level-api/low-level-api.es.js', '../high-level-api/ledger-api.es.js'],
         output: {
             dir: 'dist/demo',
-            format: 'es',
             sourcemap: true,
             sourcemapPathTransform,
         },
