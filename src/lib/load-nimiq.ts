@@ -1,5 +1,10 @@
 type Nimiq = typeof import('@nimiq/core-web');
 
+// Integrity hash is defined in rollup.config.js.
+declare module './load-nimiq' {
+    const __coreWasmJsIntegrityHash__: string; // eslint-disable-line @typescript-eslint/naming-convention
+}
+
 const coreBasePath = window.location.hostname.endsWith('.nimiq.com')
     ? 'https://cdn.nimiq.com/'
     // On third party domains use jsdelivr instead of nimiq cdn to avoid getting blocked by ad blockers.
@@ -50,9 +55,9 @@ export async function loadNimiqCore(coreVariant: 'web' | 'web-offline' = 'web-of
 export async function loadNimiqCryptography(): Promise<void> {
     nimiqCryptographyPromise = nimiqCryptographyPromise || (async () => {
         try {
-            // preload wasm in parallel
+            // Preload wasm in parallel.
             preloadAsset(`${coreBasePath}worker-wasm.wasm`, 'fetch', true);
-            preloadAsset(`${coreBasePath}worker-wasm.js`, 'script');
+            preloadAsset(`${coreBasePath}worker-wasm.js`, 'script', true, __coreWasmJsIntegrityHash__);
 
             const Nimiq = await loadNimiqCore();
             await Nimiq.WasmHelper.doImport();
@@ -64,12 +69,13 @@ export async function loadNimiqCryptography(): Promise<void> {
     return nimiqCryptographyPromise;
 }
 
-function preloadAsset(asset: string, as: string, crossOrigin?: boolean) {
+function preloadAsset(asset: string, as: string, crossOrigin?: boolean, integrity?: string) {
     const link = document.createElement('link');
     link.rel = 'preload';
     link.as = as;
     link.href = asset;
     link.onload = link.onerror = () => document.head.removeChild(link); // eslint-disable-line no-multi-assign
     if (crossOrigin) link.crossOrigin = '';
+    if (integrity) link.integrity = integrity;
     document.head.appendChild(link);
 }

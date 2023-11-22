@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { walk } from 'estree-walker';
 import MagicString from 'magic-string';
 
-import inject from '@rollup/plugin-inject';
 import alias from '@rollup/plugin-alias';
 import virtual from '@rollup/plugin-virtual';
 import resolve from '@rollup/plugin-node-resolve';
@@ -12,11 +12,19 @@ import typescript from '@rollup/plugin-typescript';
 import sourcemaps from 'rollup-plugin-sourcemaps';
 import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
+import inject from '@rollup/plugin-inject';
+import replace from '@rollup/plugin-replace';
 
 // demo page specific imports
 import copy from 'rollup-plugin-copy';
 import serve from 'rollup-plugin-serve';
 import livereload from 'rollup-plugin-livereload';
+
+async function calculateIntegrityHash(filename, algorithm = 'sha256') {
+    const fileContent = await fs.promises.readFile(filename);
+    const hash = crypto.createHash(algorithm).update(fileContent).digest('base64');
+    return `${algorithm}-${hash}`;
+}
 
 // change sourcemap paths to a separate protocol and path such that they appear in a "virtual folder" in dev tools
 const SOURCE_MAP_PREFIX = 'source-mapped://source-mapped/';
@@ -107,9 +115,11 @@ function hoistDynamicImportDependencies() {
     };
 }
 
-export default (commandLineArgs) => {
+export default async (commandLineArgs) => {
     const isProduction = commandLineArgs.configProduction; // called with --configProduction?
     const isServing = commandLineArgs.configServe;
+
+    const coreWasmJsIntegrityHash = await calculateIntegrityHash('./node_modules/@nimiq/core-web/worker-wasm.js');
 
     const outputFormats = isProduction ? ['es', 'cjs'] : ['es'];
 
@@ -175,6 +185,9 @@ export default (commandLineArgs) => {
                 process: 'process', // add "import process from 'process'" when node's global variable 'process' is used
             }),
             // Last steps in output generation.
+            replace({
+                __coreWasmJsIntegrityHash__: `'${coreWasmJsIntegrityHash}'`,
+            }),
             hoistDynamicImportDependencies(),
             // debugModuleDependencies('stream'),
         ],
@@ -208,6 +221,9 @@ export default (commandLineArgs) => {
             }),
             sourcemaps(),
             commonjs(),
+            replace({
+                __coreWasmJsIntegrityHash__: `'${coreWasmJsIntegrityHash}'`,
+            }),
         ],
         watch: {
             clearScreen: false,
@@ -289,7 +305,7 @@ export default (commandLineArgs) => {
         // Taken from https://github.com/webpack/webpack-dev-server/commit/e97741c84ca69913283ae5d48cc3f4e0cf8334e3
         // Note that webpack-dev-server in the mean time switched to generating a separate certificate per project but
         // we don't need that here.
-        const sslCertificate = fs.readFileSync('ssl/server.pem');
+        const sslCertificate = await fs.promises.readFile('ssl/server.pem');
         const httpsOptions = {
             key: sslCertificate,
             cert: sslCertificate,
