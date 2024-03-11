@@ -283,6 +283,9 @@ export default async (commandLineArgs) => {
                 global: 'global', // add "import global from 'global'" when node's global variable 'global' is used
                 process: 'process', // add "import process from 'process'" when node's global variable 'process' is used
             }),
+            replace({
+                __coreWasmJsIntegrityHash__: `'${coreWasmJsIntegrityHash}'`,
+            }),
             copy({
                 targets: [{
                     src: 'src/demo/template.html',
