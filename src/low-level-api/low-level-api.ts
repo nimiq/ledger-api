@@ -158,7 +158,7 @@ export default class LowLevelApi {
 
         const pathBuffer = parsePath(path);
         const verifyMsg = Buffer.from('p=np?', 'ascii');
-        const data = Buffer.concat([pathBuffer, verifyMsg]);
+        const data = boolValidate ? Buffer.concat([pathBuffer, verifyMsg]) : pathBuffer;
 
         let response: Buffer;
         response = await this._transport.send(
