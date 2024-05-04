@@ -1,7 +1,7 @@
-// eslint-disable-next-line import/no-extraneous-dependencies
-const SpeculosTransport = require('@ledgerhq/hw-transport-node-speculos').default;
-// eslint-disable-next-line import/no-extraneous-dependencies
-const WebSocketServer = require('ws').Server;
+/* eslint-disable import/no-extraneous-dependencies -- these are only used for dev purposes */
+const { default: { default: SpeculosTransport } } = await import('@ledgerhq/hw-transport-node-speculos');
+const { default: { Server: WebSocketServer } } = await import('ws');
+/* eslint-enable import/no-extraneous-dependencies */
 
 const WEBSOCKET_PORT = 9999;
 const SPECULOS_PORT = 40000;
