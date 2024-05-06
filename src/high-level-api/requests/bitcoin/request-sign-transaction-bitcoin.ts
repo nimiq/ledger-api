@@ -70,7 +70,7 @@ export interface TransactionInfoBitcoin {
 export default class RequestSignTransactionBitcoin extends RequestBitcoin<string> {
     public readonly type: RequestTypeBitcoin.SIGN_TRANSACTION = RequestTypeBitcoin.SIGN_TRANSACTION;
     public readonly transaction: TransactionInfoBitcoin;
-    public readonly network: Network;
+    public readonly network: Exclude<Network, Network.DEVNET>;
     private _inputType: AddressTypeBitcoin;
 
     constructor(transaction: TransactionInfoBitcoin, expectedWalletId?: string) {
@@ -96,7 +96,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
             // Parent path of the keyPaths for the common account, equivalent to its computation in @ledgerhq/hw-app-btc
             // createPaymentTransaction, stripping off the last two derivation levels.
             let accountPath: string | null = null;
-            let network: Network | null = null;
+            let network: Exclude<Network, Network.DEVNET> | null = null;
             let inputType: AddressTypeBitcoin | null = null;
             for (const keyPath of keyPaths) {
                 const parsedKeyPath = parseBip32Path(keyPath);

@@ -222,15 +222,15 @@ window.addEventListener('load', () => {
                     <div id="tx-network-selector-nimiq" class="selector">
                         <span>Network</span>
                         <label>
-                            <input type="radio" name="tx-network-selector-nimiq" value="test" checked>
+                            <input type="radio" name="tx-network-selector-nimiq" value="${Network.TESTNET}" checked>
                             Test
                         </label>
                         <label>
-                            <input type="radio" name="tx-network-selector-nimiq" value="dev">
+                            <input type="radio" name="tx-network-selector-nimiq" value="${Network.DEVNET}">
                             Dev
                         </label>
                         <label>
-                            <input type="radio" name="tx-network-selector-nimiq" value="main">
+                            <input type="radio" name="tx-network-selector-nimiq" value="${Network.MAINNET}">
                             Main
                         </label>
                     </div>
@@ -514,13 +514,13 @@ window.addEventListener('load', () => {
                 <div class="nq-card-body">
                     <span id="wallet-id-network-selector-bitcoin" class="selector" style="margin-right: 2rem">
                         <label>
-                            <input type="radio" name="wallet-id-network-selector-bitcoin" value="${Network.MAINNET}"
+                            <input type="radio" name="wallet-id-network-selector-bitcoin" value="${Network.TESTNET}"
                                 checked>
-                            Mainnet
+                            Testnet
                         </label>
                         <label>
-                            <input type="radio" name="wallet-id-network-selector-bitcoin" value="${Network.TESTNET}">
-                            Testnet
+                            <input type="radio" name="wallet-id-network-selector-bitcoin" value="${Network.MAINNET}">
+                            Mainnet
                         </label>
                     </span>
                     <button class="nq-button-s" id="get-wallet-id-button-bitcoin">Get Wallet Id</button>
@@ -958,7 +958,7 @@ window.addEventListener('load', () => {
             const amount = Math.round(Number.parseFloat($txAmountInputNimiq.value) * 1e5);
             const fee = Math.round(Number.parseFloat($txFeeInputNimiq.value) * 1e5);
             const validityStartHeight = Number.parseInt($txValidityStartHeightInputNimiq.value, 10);
-            const network = getSelectorValue($txNetworkSelectorNimiq) as 'main' | 'test' | 'dev';
+            const network = getSelectorValue($txNetworkSelectorNimiq) as Network;
             const flags = Nimiq.Transaction.Flag.NONE // eslint-disable-line no-bitwise
                 | ($txFlagContractCreationCheckboxNimiq.checked ? Nimiq.Transaction.Flag.CONTRACT_CREATION : 0);
 
@@ -1218,7 +1218,7 @@ window.addEventListener('load', () => {
             const api = await createApi();
             displayStatus('Getting wallet id...');
             if (api instanceof LowLevelApi) throw new Error('getWalletId not supported by LowLevelApi');
-            const network = getSelectorValue($walletIdNetworkSelectorBitcoin) as Network;
+            const network = getSelectorValue($walletIdNetworkSelectorBitcoin) as Exclude<Network, Network.DEVNET>;
             const walletId = await api.Bitcoin.getWalletId(network);
             $walletIdBitcoin.textContent = walletId;
             displayStatus('Received wallet id');

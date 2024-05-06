@@ -8,7 +8,7 @@ type Bip32PathParams = {
 } | {
     coin: Coin.BITCOIN,
     addressType?: AddressTypeBitcoin,
-    network?: Network,
+    network?: Exclude<Network, Network.DEVNET>,
     isInternal?: boolean,
 });
 

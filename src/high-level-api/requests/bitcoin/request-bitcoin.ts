@@ -26,7 +26,7 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
 
     public readonly coin: Coin.BITCOIN = Coin.BITCOIN;
     public readonly minRequiredAppVersion: string = '1.3.8'; // first version supporting web usb
-    public readonly abstract network: Network;
+    public readonly abstract network: Exclude<Network, Network.DEVNET>;
 
     public get requiredApp(): string {
         // Note that Ledger provides a separate Bitcoin testnet app which can be installed by enabling developer mode in

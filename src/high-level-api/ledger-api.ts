@@ -184,7 +184,7 @@ export default class LedgerApi {
         /**
          * Get the 32 byte wallet id of the currently connected Bitcoin wallet / app for a specific network as base64.
          */
-        async getWalletId(network: Network): Promise<string> {
+        async getWalletId(network: Exclude<Network, Network.DEVNET>): Promise<string> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetWalletIdBitcoinConstructor>(
                 import('./requests/bitcoin/request-get-wallet-id-bitcoin'),
                 network,
@@ -321,8 +321,11 @@ export default class LedgerApi {
      * @returns Whether connecting to the Ledger succeeded.
      */
     public static async connect(coin: Coin): Promise<boolean>;
-    public static async connect(coin: Coin.BITCOIN, network: Network): Promise<boolean>;
-    public static async connect(coin: Coin, network: Network = Network.MAINNET): Promise<boolean> {
+    public static async connect(coin: Coin.BITCOIN, network: Exclude<Network, Network.DEVNET>): Promise<boolean>;
+    public static async connect(
+        coin: Coin,
+        network: Exclude<Network, Network.DEVNET> = Network.MAINNET,
+    ): Promise<boolean> {
         LedgerApi._connectionAborted = false; // reset aborted flag on manual connection
         try {
             const { currentRequest, _currentConnection: currentConnection } = LedgerApi;

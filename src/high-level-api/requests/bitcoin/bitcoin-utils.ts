@@ -4,7 +4,10 @@ type NetworkInfo = import('./bitcoin-lib').networks.Network;
 
 // TODO if in the future the interchangeability of bitcoin-lib with the Nimiq hub's BitcoinJS is not needed anymore,
 //  this can move directly into the lazy loaded bitcoin-lib and then also be lazy loaded.
-export async function getNetworkInfo(network: Network, addressType: AddressTypeBitcoin): Promise<NetworkInfo> {
+export async function getNetworkInfo(
+    network: Exclude<Network, Network.DEVNET>,
+    addressType: AddressTypeBitcoin,
+): Promise<NetworkInfo> {
     // async because bitcoin-lib is lazy loaded
     const { networks } = await import('./bitcoin-lib');
 

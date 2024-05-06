@@ -13,7 +13,7 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
     public readonly type: RequestTypeBitcoin.SIGN_MESSAGE = RequestTypeBitcoin.SIGN_MESSAGE;
     public readonly keyPath: string;
     public readonly message: string | Uint8Array; // utf8 string or Uint8Array of arbitrary data
-    public readonly network: Network;
+    public readonly network: Exclude<Network, Network.DEVNET>;
     private readonly _addressType: AddressTypeBitcoin;
 
     constructor(keyPath: string, message: string | Uint8Array, expectedWalletId?: string) {

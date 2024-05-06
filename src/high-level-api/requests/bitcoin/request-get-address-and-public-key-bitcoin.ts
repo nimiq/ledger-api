@@ -15,7 +15,7 @@ export default class RequestGetAddressAndPublicKeyBitcoin extends RequestBitcoin
     public readonly keyPath: string;
     public readonly display?: boolean;
     public readonly expectedAddress?: string;
-    public readonly network: Network;
+    public readonly network: Exclude<Network, Network.DEVNET>;
     private readonly _addressType: AddressTypeBitcoin;
 
     constructor(keyPath: string, display?: boolean, expectedAddress?: string, expectedWalletId?: string) {

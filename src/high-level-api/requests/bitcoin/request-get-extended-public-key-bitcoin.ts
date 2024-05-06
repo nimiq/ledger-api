@@ -18,7 +18,7 @@ const KEY_PATH_REGEX = new RegExp(
 export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<string> {
     public readonly type: RequestTypeBitcoin.GET_EXTENDED_PUBLIC_KEY = RequestTypeBitcoin.GET_EXTENDED_PUBLIC_KEY;
     public readonly keyPath: string;
-    public readonly network: Network;
+    public readonly network: Exclude<Network, Network.DEVNET>;
     private readonly _addressType: AddressTypeBitcoin;
 
     constructor(keyPath: string, expectedWalletId?: string) {
@@ -29,7 +29,7 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
         //  https://github.com/LedgerHQ/app-bitcoin-new/blob/master/doc/bitcoin.md#description seem to differ.
         // Check for keyPath validity. Not using parseBip32Path from bip32-utils as we allow exporting xpubs at
         // arbitrary levels. Further restrictions could be circumvented anyways by deriving from higher level xpub.
-        const keyPathMatch = keyPath.match(KEY_PATH_REGEX);
+        const keyPathMatch = keyPath.match(KEY_PATH_REGEX) as null | [string, '44' | '49' | '84', '0' | '1'];
         if (!keyPathMatch) {
             throw new ErrorState(
                 ErrorType.REQUEST_ASSERTION_FAILED,
@@ -44,11 +44,11 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
             44: AddressTypeBitcoin.LEGACY,
             49: AddressTypeBitcoin.P2SH_SEGWIT,
             84: AddressTypeBitcoin.NATIVE_SEGWIT,
-        }[purposeId as '44' | '49' | '84'];
-        this.network = {
+        }[purposeId];
+        this.network = ({
             0: Network.MAINNET,
             1: Network.TESTNET,
-        }[networkId as '0' | '1'];
+        } as const)[networkId];
 
         // Preload bitcoin lib. Ledger Bitcoin api is already preloaded by parent class. Ignore errors.
         this._loadBitcoinLib().catch(() => {});

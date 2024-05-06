@@ -6,9 +6,9 @@ type Transport = import('@ledgerhq/hw-transport').default;
 
 export default class RequestGetWalletIdBitcoin extends RequestBitcoin<string> {
     public readonly type: RequestTypeBitcoin.GET_WALLET_ID = RequestTypeBitcoin.GET_WALLET_ID;
-    public readonly network: Network;
+    public readonly network: Exclude<Network, Network.DEVNET>;
 
-    constructor(network: Network) {
+    constructor(network: Exclude<Network, Network.DEVNET>) {
         super();
         this.network = network;
     }

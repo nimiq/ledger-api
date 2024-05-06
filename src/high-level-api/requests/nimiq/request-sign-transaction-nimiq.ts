@@ -1,5 +1,5 @@
 import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
-import { RequestTypeNimiq } from '../../constants';
+import { RequestTypeNimiq, Network } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
 
 type Transport = import('@ledgerhq/hw-transport').default;
@@ -16,7 +16,7 @@ export interface TransactionInfoNimiq {
     value: number; // In Luna
     fee?: number;
     validityStartHeight: number;
-    network?: 'main' | 'test' | 'dev';
+    network?: Network;
     flags?: number;
     extraData?: Uint8Array;
 }
@@ -65,10 +65,10 @@ export default class RequestSignTransactionNimiq extends RequestWithKeyPathNimiq
             let { network } = tx;
             if (!network) {
                 try {
-                    network = Nimiq.GenesisConfig.NETWORK_NAME as 'main' | 'test' | 'dev';
+                    network = Nimiq.GenesisConfig.NETWORK_NAME as Network;
                 } catch (e) {
                     // Genesis config not initialized
-                    network = 'main';
+                    network = Network.MAINNET;
                 }
             }
 

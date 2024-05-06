@@ -10,6 +10,7 @@ export enum Coin {
 export enum Network {
     MAINNET = 'main',
     TESTNET = 'test',
+    DEVNET = 'dev',
 }
 
 export enum AddressTypeBitcoin {
