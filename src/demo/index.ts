@@ -11,6 +11,7 @@ import { listen as onLog } from '@ledgerhq/logs';
 import { verify as verifySignedMessageBitcoin } from 'bitcoinjs-message';
 /* eslint-enable import/no-extraneous-dependencies */
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
+import { getInputElement, getSelectorValue, enableSelector } from './demo-utils';
 
 // Our built library.
 // Typescript needs the import as specified to find the .d.ts file, see rollup.config.js
@@ -629,12 +630,6 @@ window.addEventListener('load', () => {
         </style>
     `;
 
-    function getInputElement(selector: string, $parent: HTMLElement | Document = document): HTMLInputElement {
-        const input = $parent.querySelector(selector);
-        if (!input || input.tagName !== 'INPUT') throw new Error(`No input found by selector ${selector}.`);
-        return input as HTMLInputElement;
-    }
-
     const $status = document.getElementById('status')!;
     const $highLevelApiState = document.getElementById('high-level-api-state')!;
     const $highLevelApiLastEvent = document.getElementById('high-level-api-last-event')!;
@@ -724,18 +719,8 @@ window.addEventListener('load', () => {
         $status.textContent = msg;
     }
 
-    function enableSelector($selector: HTMLElement, enable: boolean) {
-        for (const el of $selector.getElementsByTagName('input')) {
-            el.disabled = !enable;
-        }
-    }
-
-    function getSelectorValue($selector: HTMLElement): string {
-        return getInputElement(':checked', $selector).value;
-    }
-
     function switchApi() {
-        const api = getSelectorValue($apiSelector);
+        const api = getSelectorValue($apiSelector, ApiType);
         document.body.classList.toggle(ApiType.LOW_LEVEL, api === ApiType.LOW_LEVEL);
         document.body.classList.toggle(ApiType.HIGH_LEVEL, api === ApiType.HIGH_LEVEL);
         enableSelector($coinSelector, api === ApiType.HIGH_LEVEL); // other coins than Nimiq only for high level api
@@ -743,7 +728,7 @@ window.addEventListener('load', () => {
     }
 
     function switchCoin() {
-        const coin = getSelectorValue($coinSelector);
+        const coin = getSelectorValue($coinSelector, Coin);
         document.body.classList.toggle(Coin.NIMIQ, coin === Coin.NIMIQ);
         document.body.classList.toggle(Coin.BITCOIN, coin === Coin.BITCOIN);
         enableSelector($apiSelector, coin === Coin.NIMIQ && !window._api); // only for Nimiq and only until initialized
@@ -751,11 +736,11 @@ window.addEventListener('load', () => {
     }
 
     function switchTransport() {
-        const transportType = getSelectorValue($transportSelector) as TransportType;
+        const transportType = getSelectorValue($transportSelector, TransportType);
         document.body.classList.remove(...Object.values(TransportType));
         document.body.classList.add(transportType);
 
-        const apiType = getSelectorValue($apiSelector);
+        const apiType = getSelectorValue($apiSelector, ApiType);
         if (!window._api || apiType !== ApiType.HIGH_LEVEL) return;
         const api = window._api as typeof HighLevelApi;
         if (transportType === TransportType.NETWORK) {
@@ -768,8 +753,8 @@ window.addEventListener('load', () => {
     function changeNetworkEndpoint(endpoint?: string) {
         endpoint = endpoint || $networkEndpointInput.value;
         $networkEndpointInput.value = endpoint;
-        const apiType = getSelectorValue($apiSelector);
-        const transportType = getSelectorValue($transportSelector);
+        const apiType = getSelectorValue($apiSelector, ApiType);
+        const transportType = getSelectorValue($transportSelector, TransportType);
         if (!window._api || apiType !== ApiType.HIGH_LEVEL || transportType !== TransportType.NETWORK) return;
         const api = window._api as typeof HighLevelApi;
         api.setTransportType(transportType, endpoint);
@@ -788,8 +773,8 @@ window.addEventListener('load', () => {
         try {
             enableSelector($apiSelector, false);
             displayStatus('Creating Api');
-            const apiType = getSelectorValue($apiSelector);
-            const transportType = getSelectorValue($transportSelector);
+            const apiType = getSelectorValue($apiSelector, ApiType);
+            const transportType = getSelectorValue($transportSelector, TransportType);
             if (apiType === ApiType.LOW_LEVEL) {
                 enableSelector($transportSelector, false);
                 $networkEndpointInput.disabled = true;
@@ -842,7 +827,7 @@ window.addEventListener('load', () => {
                     console.log('%cRequest cancelled', 'color: teal', ...args);
                     $highLevelApiLastEvent.textContent = 'Request cancelled';
                 });
-                window._api.setTransportType(transportType as TransportType);
+                window._api.setTransportType(transportType);
                 changeNetworkEndpoint();
             }
 
@@ -864,7 +849,7 @@ window.addEventListener('load', () => {
             const deviceModel = (window._transport.deviceModel || {}).productName || 'device type unknown';
             displayStatus(`Connected (app version ${version}, ${deviceModel})`);
         } else {
-            const coin = getSelectorValue($coinSelector) as Coin;
+            const coin = getSelectorValue($coinSelector, Coin);
             let connected: boolean;
             if (coin === Coin.BITCOIN && api.currentRequest && 'network' in api.currentRequest) {
                 connected = await api.connect(coin, api.currentRequest.network);
@@ -952,18 +937,20 @@ window.addEventListener('load', () => {
             ]);
             const bip32Path = $bip32PathAddressInputNimiq.value;
             const sender = Nimiq.Address.fromUserFriendlyAddress($txSenderInputNimiq.value);
-            const senderType = Nimiq.Account.Type.fromAny(getSelectorValue($txSenderTypeSelectorNimiq));
+            const senderTypeString = getSelectorValue($txSenderTypeSelectorNimiq, ['basic', 'htlc', 'vesting']);
+            const senderType = Nimiq.Account.Type.fromAny(senderTypeString);
             const recipient = Nimiq.Address.fromUserFriendlyAddress($txRecipientInputNimiq.value);
-            const recipientType = Nimiq.Account.Type.fromAny(getSelectorValue($txRecipientTypeSelectorNimiq));
+            const recipientTypeString = getSelectorValue($txRecipientTypeSelectorNimiq, ['basic', 'htlc', 'vesting']);
+            const recipientType = Nimiq.Account.Type.fromAny(recipientTypeString);
             const amount = Math.round(Number.parseFloat($txAmountInputNimiq.value) * 1e5);
             const fee = Math.round(Number.parseFloat($txFeeInputNimiq.value) * 1e5);
             const validityStartHeight = Number.parseInt($txValidityStartHeightInputNimiq.value, 10);
-            const network = getSelectorValue($txNetworkSelectorNimiq) as Network;
+            const network = getSelectorValue($txNetworkSelectorNimiq, Network);
             const flags = Nimiq.Transaction.Flag.NONE // eslint-disable-line no-bitwise
                 | ($txFlagContractCreationCheckboxNimiq.checked ? Nimiq.Transaction.Flag.CONTRACT_CREATION : 0);
 
             let extraData: InstanceType<typeof Nimiq.SerialBuffer>;
-            switch (getSelectorValue($txDataUiSelectorNimiq)) {
+            switch (getSelectorValue($txDataUiSelectorNimiq, DataUiType)) {
                 default:
                 case DataUiType.HEX:
                     extraData = Nimiq.BufferUtils.fromHex($txDataHexInputNimiq.value);
@@ -974,8 +961,11 @@ window.addEventListener('load', () => {
                 case DataUiType.HTLC_CREATION: {
                     const htlcSender = Nimiq.Address.fromUserFriendlyAddress($txDataHtlcSenderInputNimiq.value);
                     const htlcRecipient = Nimiq.Address.fromUserFriendlyAddress($txDataHtlcRecipientInputNimiq.value);
-                    const hashAlgorithm = Nimiq.Hash.Algorithm.fromAny(
-                        getSelectorValue($txDataHtlcAlgorithmSelectorNimiq));
+                    const hashAlgorithmString = getSelectorValue(
+                        $txDataHtlcAlgorithmSelectorNimiq,
+                        ['blake2b', 'argon2d', 'sha256', 'sha512'],
+                    );
+                    const hashAlgorithm = Nimiq.Hash.Algorithm.fromAny(hashAlgorithmString);
                     const hashRoot = Nimiq.BufferUtils.fromHex($txDataHtlcHashRootInputNimiq.value);
                     const hashCount = Number.parseInt($txDataHtlcHashCountInputNimiq.value, 10);
                     const timeout = Number.parseInt($txDataHtlcTimeoutInputNimiq.value, 10);
@@ -1063,7 +1053,8 @@ window.addEventListener('load', () => {
         try {
             $messageSignerNimiq.textContent = '';
             $messageSignatureNimiq.textContent = '';
-            const message = getSelectorValue($messageTypeSelectorNimiq) === DataUiType.HEX
+            const messageType = getSelectorValue($messageTypeSelectorNimiq, [DataUiType.HEX, DataUiType.TEXT]);
+            const message = messageType === DataUiType.HEX
                 ? (await loadNimiqCore()).BufferUtils.fromHex($messageTextareaNimiq.value)
                 : $messageTextareaNimiq.value;
             const flags = {
@@ -1218,7 +1209,7 @@ window.addEventListener('load', () => {
             const api = await createApi();
             displayStatus('Getting wallet id...');
             if (api instanceof LowLevelApi) throw new Error('getWalletId not supported by LowLevelApi');
-            const network = getSelectorValue($walletIdNetworkSelectorBitcoin) as Exclude<Network, Network.DEVNET>;
+            const network = getSelectorValue($walletIdNetworkSelectorBitcoin, [Network.MAINNET, Network.TESTNET]);
             const walletId = await api.Bitcoin.getWalletId(network);
             $walletIdBitcoin.textContent = walletId;
             displayStatus('Received wallet id');
@@ -1248,7 +1239,7 @@ window.addEventListener('load', () => {
         $getAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(false));
         $confirmAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(true));
         $txDataUiSelectorNimiq.addEventListener('change', () =>
-            $txDataUiSelectorNimiq.className = `selector ${getSelectorValue($txDataUiSelectorNimiq)}`);
+            $txDataUiSelectorNimiq.className = `selector ${getSelectorValue($txDataUiSelectorNimiq, DataUiType)}`);
         $signTxButtonNimiq.addEventListener('click', signTransactionNimiq);
         $signMessageButtonNimiq.addEventListener('click', signMessageNimiq);
         $getAppNameAndVersionButtonNimiq.addEventListener('click', getAppNameAndVersionNimiq);
