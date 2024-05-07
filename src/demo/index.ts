@@ -11,7 +11,17 @@ import { listen as onLog } from '@ledgerhq/logs';
 import { verify as verifySignedMessageBitcoin } from 'bitcoinjs-message';
 /* eslint-enable import/no-extraneous-dependencies */
 import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
-import { getInputElement, getSelectorValue, enableSelector } from './demo-utils';
+import {
+    getInputElement,
+    getSelectorValue,
+    enableSelector,
+    bufferToHex,
+    bufferFromHex,
+    bufferFromAscii,
+    bufferFromUtf8,
+    bufferFromUint32,
+    bufferFromUint64,
+} from './demo-utils';
 
 // Our built library.
 // Typescript needs the import as specified to find the .d.ts file, see rollup.config.js
@@ -28,6 +38,7 @@ import HighLevelApi, {
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
+// For low level api, see low-level-api.ts
 window.Buffer = Buffer;
 
 enum ApiType {
@@ -883,7 +894,6 @@ window.addEventListener('load', () => {
         try {
             $publicKeyNimiq.textContent = '';
             const bip32Path = $bip32PathPublicKeyInputNimiq.value;
-            const loadNimiqPromise = loadNimiqCore();
             const api = await createApi();
             const msg = confirm ? 'Confirm public key...' : 'Getting public key...';
             displayStatus(msg);
@@ -894,8 +904,7 @@ window.addEventListener('load', () => {
                 if (confirm) throw new Error('High level api does not provide the option to confirm a public key');
                 publicKey = (await api.Nimiq.getPublicKey(bip32Path)).serialize();
             }
-            const Nimiq = await loadNimiqPromise;
-            $publicKeyNimiq.textContent = Nimiq.BufferUtils.toHex(publicKey);
+            $publicKeyNimiq.textContent = bufferToHex(publicKey);
             displayStatus('Received public key');
         } catch (error) {
             displayStatus(`Failed to get public key: ${error}`);
@@ -949,14 +958,14 @@ window.addEventListener('load', () => {
             const flags = Nimiq.Transaction.Flag.NONE // eslint-disable-line no-bitwise
                 | ($txFlagContractCreationCheckboxNimiq.checked ? Nimiq.Transaction.Flag.CONTRACT_CREATION : 0);
 
-            let extraData: InstanceType<typeof Nimiq.SerialBuffer>;
+            let extraData: Uint8Array;
             switch (getSelectorValue($txDataUiSelectorNimiq, DataUiType)) {
                 default:
                 case DataUiType.HEX:
-                    extraData = Nimiq.BufferUtils.fromHex($txDataHexInputNimiq.value);
+                    extraData = bufferFromHex($txDataHexInputNimiq.value);
                     break;
                 case DataUiType.TEXT:
-                    extraData = new Nimiq.SerialBuffer(Nimiq.BufferUtils.fromUtf8($txDataTextInputNimiq.value));
+                    extraData = bufferFromUtf8($txDataTextInputNimiq.value);
                     break;
                 case DataUiType.HTLC_CREATION: {
                     const htlcSender = Nimiq.Address.fromUserFriendlyAddress($txDataHtlcSenderInputNimiq.value);
@@ -966,17 +975,17 @@ window.addEventListener('load', () => {
                         ['blake2b', 'argon2d', 'sha256', 'sha512'],
                     );
                     const hashAlgorithm = Nimiq.Hash.Algorithm.fromAny(hashAlgorithmString);
-                    const hashRoot = Nimiq.BufferUtils.fromHex($txDataHtlcHashRootInputNimiq.value);
+                    const hashRoot = bufferFromHex($txDataHtlcHashRootInputNimiq.value);
                     const hashCount = Number.parseInt($txDataHtlcHashCountInputNimiq.value, 10);
                     const timeout = Number.parseInt($txDataHtlcTimeoutInputNimiq.value, 10);
-                    extraData = new Nimiq.SerialBuffer(htlcSender.serializedSize + htlcRecipient.serializedSize
-                        + /* hash algorithm */ 1 + hashRoot.byteLength + /* hash count */ 1 + /* timeout */ 4);
-                    htlcSender.serialize(extraData);
-                    htlcRecipient.serialize(extraData);
-                    extraData.writeUint8(hashAlgorithm);
-                    extraData.write(hashRoot);
-                    extraData.writeUint8(hashCount);
-                    extraData.writeUint32(timeout);
+                    extraData = new Uint8Array([
+                        ...htlcSender.serialize(),
+                        ...htlcRecipient.serialize(),
+                        hashAlgorithm,
+                        ...hashRoot,
+                        hashCount,
+                        ...bufferFromUint32(timeout),
+                    ]);
                     break;
                 }
                 case DataUiType.VESTING_CREATION: {
@@ -990,31 +999,31 @@ window.addEventListener('load', () => {
                     }
                     const vestingOwner = Nimiq.Address.fromUserFriendlyAddress($txDataVestingOwnerInputNimiq.value);
                     const vestingStepBlocks = Number.parseInt($txDataVestingStepBlocksInputNimiq.value, 10);
-                    extraData = new Nimiq.SerialBuffer(vestingOwner.serializedSize
-                        + /* vesting step blocks */ 4
-                        + ($txDataVestingStartInputNimiq.value && $txDataVestingStepAmountInputNimiq.value ? 12 : 0)
-                        + ($txDataVestingTotalAmountInputNimiq.value ? 8 : 0),
-                    );
-                    vestingOwner.serialize(extraData);
-                    if ($txDataVestingStartInputNimiq.value) {
-                        const vestingStart = Number.parseInt($txDataVestingStartInputNimiq.value, 10);
-                        extraData.writeUint32(vestingStart);
-                    }
-                    extraData.writeUint32(vestingStepBlocks);
-                    if ($txDataVestingStepAmountInputNimiq.value) {
-                        const vestingStepAmount = Math.round(
-                            Number.parseFloat($txDataVestingStepAmountInputNimiq.value) * 1e5);
-                        extraData.writeUint64(vestingStepAmount);
-                    }
-                    if ($txDataVestingTotalAmountInputNimiq.value) {
-                        const vestingTotalAmount = Math.round(
-                            Number.parseFloat($txDataVestingTotalAmountInputNimiq.value) * 1e5);
-                        extraData.writeUint64(vestingTotalAmount);
-                    }
+                    extraData = new Uint8Array([
+                        ...vestingOwner.serialize(),
+                        // Vesting start
+                        ...($txDataVestingStartInputNimiq.value
+                            ? bufferFromUint32(Number.parseInt($txDataVestingStartInputNimiq.value, 10))
+                            : []
+                        ),
+                        ...bufferFromUint32(vestingStepBlocks),
+                        // Vesting step amount
+                        ...($txDataVestingStepAmountInputNimiq.value
+                            ? bufferFromUint64(BigInt(Math.round(Number.parseFloat(
+                                $txDataVestingStepAmountInputNimiq.value) * 1e5)))
+                            : []
+                        ),
+                        // Vesting total amount
+                        ...($txDataVestingTotalAmountInputNimiq.value
+                            ? bufferFromUint64(BigInt(Math.round(Number.parseFloat(
+                                $txDataVestingTotalAmountInputNimiq.value) * 1e5)))
+                            : []
+                        ),
+                    ]);
                     break;
                 }
             }
-            $txDataHexInputNimiq.value = Nimiq.BufferUtils.toHex(extraData);
+            $txDataHexInputNimiq.value = bufferToHex(extraData);
 
             displayStatus('Signing transaction...');
             let signature: Uint8Array;
@@ -1042,7 +1051,7 @@ window.addEventListener('load', () => {
                 )).proof);
                 signature = Nimiq.SignatureProof.unserialize(proofBytes).signature.serialize();
             }
-            $txSignatureNimiq.textContent = Nimiq.BufferUtils.toHex(signature);
+            $txSignatureNimiq.textContent = bufferToHex(signature);
         } catch (error) {
             displayStatus(error instanceof Error ? error.message : String(error));
         }
@@ -1055,7 +1064,7 @@ window.addEventListener('load', () => {
             $messageSignatureNimiq.textContent = '';
             const messageType = getSelectorValue($messageTypeSelectorNimiq, [DataUiType.HEX, DataUiType.TEXT]);
             const message = messageType === DataUiType.HEX
-                ? (await loadNimiqCore()).BufferUtils.fromHex($messageTextareaNimiq.value)
+                ? bufferFromHex($messageTextareaNimiq.value)
                 : $messageTextareaNimiq.value;
             const flags = {
                 preferDisplayTypeHex: $messageFlagHexDisplayCheckboxNimiq.checked,
@@ -1067,14 +1076,14 @@ window.addEventListener('load', () => {
             if (api instanceof LowLevelApi) {
                 const { signature } = await api.signMessage(bip32Path, message, flags);
                 $messageSignerNimiq.textContent = 'Not returned by LowLevelApi';
-                $messageSignatureNimiq.textContent = (await loadNimiqCore()).BufferUtils.toHex(signature);
+                $messageSignatureNimiq.textContent = bufferToHex(signature);
             } else {
                 const { signer, signature } = await api.Nimiq.signMessage(message, bip32Path, flags);
                 // verify the signature for testing purposes
                 const [Nimiq] = await Promise.all([loadNimiqCore(), loadNimiqCryptography()]);
-                const messageBytes = typeof message === 'string' ? Nimiq.BufferUtils.fromUtf8(message) : message;
+                const messageBytes = typeof message === 'string' ? bufferFromUtf8(message) : message;
                 const prefixedMessageHash = Nimiq.Hash.computeSha256(new Uint8Array([
-                    ...Nimiq.BufferUtils.fromAscii(`\x16Nimiq Signed Message:\n${messageBytes.length.toString()}`),
+                    ...bufferFromAscii(`\x16Nimiq Signed Message:\n${messageBytes.length.toString()}`),
                     ...messageBytes,
                 ]));
                 if (!signature.verify(signer, prefixedMessageHash)) throw new Error('Invalid signature');

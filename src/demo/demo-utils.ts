@@ -26,3 +26,31 @@ export function enableSelector($selector: HTMLElement, enable: boolean) {
         el.disabled = !enable;
     }
 }
+
+export function bufferToHex(buffer: Uint8Array): string {
+    return Buffer.from(buffer).toString('hex');
+}
+
+export function bufferFromHex(hex: string): Uint8Array {
+    return Buffer.from(hex, 'hex');
+}
+
+export function bufferFromAscii(ascii: string): Uint8Array {
+    return Buffer.from(ascii, 'ascii');
+}
+
+export function bufferFromUtf8(utf8: string): Uint8Array {
+    return Buffer.from(utf8, 'utf8');
+}
+
+export function bufferFromUint32(uint32: number): Uint8Array {
+    const uint8Array = new Uint8Array(4);
+    new DataView(uint8Array.buffer).setUint32(0, uint32);
+    return uint8Array;
+}
+
+export function bufferFromUint64(uint64: bigint): Uint8Array {
+    const uint8Array = new Uint8Array(8);
+    new DataView(uint8Array.buffer).setBigUint64(0, uint64);
+    return uint8Array;
+}
