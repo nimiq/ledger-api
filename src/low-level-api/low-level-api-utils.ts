@@ -1,4 +1,5 @@
-import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
+import { NimiqVersion } from '../lib/constants';
+import { isNimiqLegacy, loadNimiqCore, loadNimiqLegacyCore, loadNimiqLegacyCryptography } from '../lib/load-nimiq';
 
 export function parsePath(path: string): Buffer {
     if (!path.startsWith('44\'/242\'')) {
@@ -33,11 +34,12 @@ export function parsePath(path: string): Buffer {
     return pathBuffer;
 }
 
-export async function publicKeyToAddress(publicKey: Buffer): Promise<string> {
-    const [Nimiq] = await Promise.all([
-        loadNimiqCore(),
-        loadNimiqCryptography(), // needed for hashing public key to an address
-    ]);
+export async function publicKeyToAddress(publicKey: Buffer, nimiqVersion: NimiqVersion): Promise<string> {
+    const [Nimiq] = await Promise.all(nimiqVersion === NimiqVersion.ALBATROSS
+        ? [loadNimiqCore()]
+        // loadNimiqLegacyCryptography needed for hashing public key to an address
+        : [loadNimiqLegacyCore(), loadNimiqLegacyCryptography()],
+    );
     return new Nimiq.PublicKey(publicKey).toAddress().toUserFriendlyAddress();
 }
 
@@ -45,9 +47,20 @@ export async function verifySignature(
     data: Buffer | Uint8Array,
     signature: Buffer | Uint8Array,
     publicKey: Buffer | Uint8Array,
+    nimiqVersion: NimiqVersion,
 ): Promise<boolean> {
-    const [Nimiq] = await Promise.all([loadNimiqCore(), loadNimiqCryptography()]);
-    const nimiqSignature = new Nimiq.Signature(signature);
-    const nimiqPublicKey = new Nimiq.PublicKey(publicKey);
-    return nimiqSignature.verify(nimiqPublicKey, data);
+    const [Nimiq] = await Promise.all(nimiqVersion === NimiqVersion.ALBATROSS
+        ? [loadNimiqCore()]
+        // loadNimiqLegacyCryptography needed for hashing public key to an address
+        : [loadNimiqLegacyCore(), loadNimiqLegacyCryptography()],
+    );
+    if (isNimiqLegacy(Nimiq)) {
+        const nimiqSignature = new Nimiq.Signature(signature);
+        const nimiqPublicKey = new Nimiq.PublicKey(publicKey);
+        return nimiqSignature.verify(nimiqPublicKey, data);
+    } else {
+        const nimiqSignature = Nimiq.Signature.fromBytes(signature);
+        const nimiqPublicKey = new Nimiq.PublicKey(publicKey);
+        return nimiqPublicKey.verify(nimiqSignature, data);
+    }
 }

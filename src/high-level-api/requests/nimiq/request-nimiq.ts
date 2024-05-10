@@ -2,9 +2,9 @@ import Request, { CoinAppConnection } from '../request';
 import { Coin, RequestTypeNimiq } from '../../constants';
 import { getBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
-import { loadNimiqCore, loadNimiqCryptography } from '../../../lib/load-nimiq';
+import { NimiqVersion } from '../../../lib/constants';
+import { loadNimiqCore, loadNimiqLegacyCore, loadNimiqLegacyCryptography, type Nimiq } from '../../../lib/load-nimiq';
 
-type Nimiq = typeof import('@nimiq/core-web');
 type Transport = import('@ledgerhq/hw-transport').default;
 type LowLevelApiConstructor = typeof import('../../../low-level-api/low-level-api').default;
 
@@ -12,15 +12,18 @@ type LowLevelApi = InstanceType<LowLevelApiConstructor>;
 
 export { RequestTypeNimiq };
 
-export default abstract class RequestNimiq<T> extends Request<T> {
+export default abstract class RequestNimiq<Version extends NimiqVersion, T>
+    extends Request<T> {
     private static _lowLevelApiPromise: Promise<LowLevelApi> | null = null;
 
     public readonly coin: Coin.NIMIQ = Coin.NIMIQ;
     public readonly requiredApp: string = 'Nimiq';
     public readonly minRequiredAppVersion: string = '1.4.2'; // first version supporting web usb
+    public readonly nimiqVersion: Version;
 
-    protected constructor(expectedWalletId?: string) {
+    protected constructor(nimiqVersion: Version, expectedWalletId?: string) {
         super(expectedWalletId);
+        this.nimiqVersion = nimiqVersion;
 
         // Preload dependencies. Nimiq lib is preloaded individually by request child classes that need it.
         // Ignore errors.
@@ -44,12 +47,14 @@ export default abstract class RequestNimiq<T> extends Request<T> {
             getBip32Path({ coin: Coin.NIMIQ, addressIndex: 0 }),
             false, // validate
             false, // display
+            this.nimiqVersion,
         );
 
         const Nimiq = await this._loadNimiq(); // throws LOADING_DEPENDENCIES_FAILED on failure
 
-        // Compute wallet id. Use sha256 as blake2b yields the nimiq address
-        const walletId = Nimiq.Hash.sha256(firstAddressPubKeyBytes).toBase64();
+        // Compute base64 wallet id. Use sha256 as blake2b yields the nimiq address
+        const walletIdHash = Nimiq.Hash.computeSha256(firstAddressPubKeyBytes);
+        const walletId = btoa(String.fromCodePoint(...walletIdHash));
         coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection
         this._checkExpectedWalletId(walletId);
         return coinAppConnection;
@@ -84,15 +89,17 @@ export default abstract class RequestNimiq<T> extends Request<T> {
         }
     }
 
-    protected async _loadNimiq(): Promise<Nimiq> {
+    protected async _loadNimiq(): Promise<Nimiq<Version>> {
         try {
-            // Note that we don't need to cache a promise as loadNimiqCore and loadNimiqCryptography already do that.
+            // We don't need to cache a promise as loadNimiqCore, loadNimiqLegacyCore and loadNimiqLegacyCryptography
+            // already do that.
+            if (this.nimiqVersion === NimiqVersion.ALBATROSS) return await loadNimiqCore() as Nimiq<Version>;
             const [Nimiq] = await Promise.all([
-                loadNimiqCore(),
+                loadNimiqLegacyCore(),
                 // needed for wallet id hashing and pub key to address derivation in SignatureProof and BasicTransaction
-                loadNimiqCryptography(),
+                loadNimiqLegacyCryptography(),
             ]);
-            return Nimiq;
+            return Nimiq as Nimiq<Version>;
         } catch (e) {
             throw new ErrorState(
                 ErrorType.LOADING_DEPENDENCIES_FAILED,

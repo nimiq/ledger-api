@@ -1,16 +1,17 @@
 import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
 import { RequestTypeNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
+import { NimiqVersion } from '../../../lib/constants';
+import { isNimiqLegacy, NimiqPrimitive } from '../../../lib/load-nimiq';
 
 type Transport = import('@ledgerhq/hw-transport').default;
-type PublicKey = import('@nimiq/core-web').PublicKey;
-type Signature = import('@nimiq/core-web').Signature;
-type MessageSignatureInfo = {
-    signer: PublicKey,
-    signature: Signature,
+export type MessageSignatureInfoNimiq<Version extends NimiqVersion> = {
+    signer: NimiqPrimitive<'PublicKey', Version>,
+    signature: NimiqPrimitive<'Signature', Version>,
 };
 
-export default class RequestSignMessageNimiq extends RequestWithKeyPathNimiq<MessageSignatureInfo> {
+export default class RequestSignMessageNimiq<Version extends NimiqVersion>
+    extends RequestWithKeyPathNimiq<Version, MessageSignatureInfoNimiq<Version>> {
     public readonly type: RequestTypeNimiq.SIGN_MESSAGE;
     public readonly message: string | Uint8Array; // utf8 string or Uint8Array of arbitrary data
     public readonly flags?: number | {
@@ -18,10 +19,15 @@ export default class RequestSignMessageNimiq extends RequestWithKeyPathNimiq<Mes
         preferDisplayTypeHash: boolean, // second choice, if multiple flags are set
     };
 
-    constructor(keyPath: string, message: string | Uint8Array, flags?: RequestSignMessageNimiq['flags'],
-        expectedWalletId?: string) {
+    constructor(
+        nimiqVersion: Version,
+        keyPath: string,
+        message: string | Uint8Array,
+        flags?: RequestSignMessageNimiq<Version>['flags'],
+        expectedWalletId?: string,
+    ) {
         const type = RequestTypeNimiq.SIGN_MESSAGE;
-        super(keyPath, expectedWalletId, { type, message, flags });
+        super(nimiqVersion, keyPath, expectedWalletId, { type, message, flags });
         this.type = type;
         this.message = message;
         this.flags = flags;
@@ -30,7 +36,7 @@ export default class RequestSignMessageNimiq extends RequestWithKeyPathNimiq<Mes
         this._loadNimiq().catch(() => {});
     }
 
-    public async call(transport: Transport): Promise<MessageSignatureInfo> {
+    public async call(transport: Transport): Promise<MessageSignatureInfoNimiq<Version>> {
         const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
 
         let messageBuffer: Buffer;
@@ -51,6 +57,7 @@ export default class RequestSignMessageNimiq extends RequestWithKeyPathNimiq<Mes
             this.keyPath,
             true, // validate
             false, // display
+            this.nimiqVersion,
         );
         const { signature } = await api.signMessage(
             this.keyPath,
@@ -62,7 +69,7 @@ export default class RequestSignMessageNimiq extends RequestWithKeyPathNimiq<Mes
 
         return {
             signer: new Nimiq.PublicKey(publicKey),
-            signature: new Nimiq.Signature(signature),
-        };
+            signature: isNimiqLegacy(Nimiq) ? new Nimiq.Signature(signature) : Nimiq.Signature.fromBytes(signature),
+        } as MessageSignatureInfoNimiq<Version>;
     }
 }

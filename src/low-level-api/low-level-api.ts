@@ -1,10 +1,7 @@
-import {
-    parsePath,
-    publicKeyToAddress,
-    verifySignature,
-} from './low-level-api-utils';
+import { parsePath, publicKeyToAddress, verifySignature } from './low-level-api-utils';
 import getAppNameAndVersion from './get-app-name-and-version';
-import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
+import { NimiqVersion } from '../lib/constants';
+import { loadNimiqCore, loadNimiqLegacyCore, loadNimiqLegacyCryptography } from '../lib/load-nimiq';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
@@ -118,6 +115,7 @@ export default class LowLevelApi {
      * @param path - A path in BIP 32 format.
      * @param boolValidate - Optionally enable key pair validation.
      * @param boolDisplay - Optionally display the address on the ledger.
+     * @param nimiqVersion - Optionally choose which Nimiq library version to use for internal computations.
      * @returns An object with the address.
      * @example
      * nim.getAddress("44'/242'/0'/0'").then(o => o.address)
@@ -126,13 +124,18 @@ export default class LowLevelApi {
         path: string,
         boolValidate: boolean = true,
         boolDisplay: boolean = false,
+        nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
     ): Promise<{ address: string }> {
         // start loading Nimiq core later needed for transforming public key to address and optional validation
-        loadNimiqCore();
-        loadNimiqCryptography();
+        if (nimiqVersion === NimiqVersion.ALBATROSS) {
+            loadNimiqCore();
+        } else {
+            loadNimiqLegacyCore();
+            loadNimiqLegacyCryptography();
+        }
 
-        const { publicKey } = await this.getPublicKey(path, boolValidate, boolDisplay);
-        const address = await publicKeyToAddress(Buffer.from(publicKey));
+        const { publicKey } = await this.getPublicKey(path, boolValidate, boolDisplay, nimiqVersion);
+        const address = await publicKeyToAddress(Buffer.from(publicKey), nimiqVersion);
         return { address };
     }
 
@@ -141,6 +144,7 @@ export default class LowLevelApi {
      * @param path - A path in BIP 32 format.
      * @param boolValidate - Optionally enable key pair validation.
      * @param boolDisplay - Optionally display the corresponding address on the ledger.
+     * @param nimiqVersion - Optionally choose which Nimiq library version to use for internal computations.
      * @returns An object with the publicKey.
      * @example
      * nim.getPublicKey("44'/242'/0'/0'").then(o => o.publicKey)
@@ -149,11 +153,16 @@ export default class LowLevelApi {
         path: string,
         boolValidate: boolean = true,
         boolDisplay: boolean = false,
+        nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
     ): Promise<{ publicKey: Uint8Array }> {
         if (boolValidate) {
             // start loading Nimiq core later needed for validation
-            loadNimiqCore();
-            loadNimiqCryptography();
+            if (nimiqVersion === NimiqVersion.ALBATROSS) {
+                loadNimiqCore();
+            } else {
+                loadNimiqLegacyCore();
+                loadNimiqLegacyCryptography();
+            }
         }
 
         const pathBuffer = parsePath(path);
@@ -180,7 +189,7 @@ export default class LowLevelApi {
         offset += 32;
         if (boolValidate) {
             const signature = response.slice(offset, offset + 64);
-            if (!await verifySignature(verifyMsg, signature, publicKey)) {
+            if (!await verifySignature(verifyMsg, signature, publicKey, nimiqVersion)) {
                 throw new Error(
                     'Bad signature. Keypair is invalid. Please report this.',
                 );

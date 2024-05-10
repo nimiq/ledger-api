@@ -10,7 +10,7 @@ import NetworkTransportForUrls from '@ledgerhq/hw-transport-http';
 import { listen as onLog } from '@ledgerhq/logs';
 import { verify as verifySignedMessageBitcoin } from 'bitcoinjs-message';
 /* eslint-enable import/no-extraneous-dependencies */
-import { loadNimiqCore, loadNimiqCryptography } from '../lib/load-nimiq';
+import { isNimiqLegacy, isNimiqLegacyPrimitive, type NimiqPrimitive } from '../lib/load-nimiq';
 import {
     getInputElement,
     getSelectorValue,
@@ -21,6 +21,7 @@ import {
     bufferFromUtf8,
     bufferFromUint32,
     bufferFromUint64,
+    loadNimiq,
 } from './demo-utils';
 
 // Our built library.
@@ -34,6 +35,10 @@ import HighLevelApi, {
     Network,
     State,
     TransportType,
+    NimiqVersion,
+    AccountTypeNimiq,
+    TransactionFlagsNimiq,
+    NetworkIdNimiq,
 } from '../../dist/high-level-api/ledger-api';
 
 type Transport = import('@ledgerhq/hw-transport').default;
@@ -93,6 +98,16 @@ window.addEventListener('load', () => {
                 <label>
                     <input type="radio" name="coin-selector" value="${Coin.BITCOIN}">
                     Bitcoin
+                </label>
+            </div>
+            <div id="version-selector-nimiq" class="selector show-${Coin.NIMIQ}">
+                <label>
+                    <input type="radio" name="version-selector-nimiq" value="${NimiqVersion.ALBATROSS}" checked>
+                    Albatross
+                </label>
+                <label>
+                    <input type="radio" name="version-selector-nimiq" value="${NimiqVersion.LEGACY}">
+                    Legacy
                 </label>
             </div>
             <div id="transport-selector" class="selector">
@@ -184,15 +199,17 @@ window.addEventListener('load', () => {
                     <div id="tx-sender-type-selector-nimiq" class="selector">
                         <span>Sender Type</span>
                         <label>
-                            <input type="radio" name="tx-sender-type-selector-nimiq" value="basic" checked>
+                            <input type="radio" name="tx-sender-type-selector-nimiq" value="${AccountTypeNimiq.BASIC}"
+                                checked>
                             Basic
                         </label>
                         <label>
-                            <input type="radio" name="tx-sender-type-selector-nimiq" value="htlc">
+                            <input type="radio" name="tx-sender-type-selector-nimiq" value="${AccountTypeNimiq.HTLC}">
                             HTLC
                         </label>
                         <label>
-                            <input type="radio" name="tx-sender-type-selector-nimiq" value="vesting">
+                            <input type="radio" name="tx-sender-type-selector-nimiq"
+                                value="${AccountTypeNimiq.VESTING}">
                             Vesting
                         </label>
                     </div>
@@ -204,15 +221,18 @@ window.addEventListener('load', () => {
                     <div id="tx-recipient-type-selector-nimiq" class="selector">
                         <span>Recipient Type</span>
                         <label>
-                            <input type="radio" name="tx-recipient-type-selector-nimiq" value="basic" checked>
+                            <input type="radio" name="tx-recipient-type-selector-nimiq"
+                                value="${AccountTypeNimiq.BASIC}" checked>
                             Basic
                         </label>
                         <label>
-                            <input type="radio" name="tx-recipient-type-selector-nimiq" value="htlc">
+                            <input type="radio" name="tx-recipient-type-selector-nimiq"
+                                value="${AccountTypeNimiq.HTLC}">
                             HTLC
                         </label>
                         <label>
-                            <input type="radio" name="tx-recipient-type-selector-nimiq" value="vesting">
+                            <input type="radio" name="tx-recipient-type-selector-nimiq"
+                                value="${AccountTypeNimiq.VESTING}">
                             Vesting
                         </label>
                     </div>
@@ -295,19 +315,19 @@ window.addEventListener('load', () => {
                         <div id="tx-data-htlc-algorithm-selector-nimiq" class="selector">
                             <span>HTLC Hash Algorithm</span>
                             <label>
-                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="blake2b">
+                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="1">
                                 blake2b
                             </label>
                             <label>
-                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="argon2d">
+                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="2">
                                 argon2d
                             </label>
                             <label>
-                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="sha256" checked>
+                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="3" checked>
                                 sha256
                             </label>
                             <label>
-                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="sha512">
+                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="4">
                                 sha512
                             </label>
                         </div>
@@ -646,6 +666,7 @@ window.addEventListener('load', () => {
     const $highLevelApiLastEvent = document.getElementById('high-level-api-last-event')!;
     const $apiSelector = document.getElementById('api-selector')!;
     const $coinSelector = document.getElementById('coin-selector')!;
+    const $versionSelectorNimiq = document.getElementById('version-selector-nimiq')!;
     const $transportSelector = document.getElementById('transport-selector')!;
     const $networkEndpointInput = getInputElement('#network-endpoint-input');
     const $networkEnpointLedgerLiveButton = document.getElementById('network-endpoint-ledger-live-button')!;
@@ -864,6 +885,8 @@ window.addEventListener('load', () => {
             let connected: boolean;
             if (coin === Coin.BITCOIN && api.currentRequest && 'network' in api.currentRequest) {
                 connected = await api.connect(coin, api.currentRequest.network);
+            } else if (coin === Coin.NIMIQ) {
+                connected = await api.connect(coin, getSelectorValue($versionSelectorNimiq, NimiqVersion));
             } else {
                 connected = await api.connect(coin);
             }
@@ -894,15 +917,16 @@ window.addEventListener('load', () => {
         try {
             $publicKeyNimiq.textContent = '';
             const bip32Path = $bip32PathPublicKeyInputNimiq.value;
+            const nimiqVersion = getSelectorValue($versionSelectorNimiq, NimiqVersion);
             const api = await createApi();
             const msg = confirm ? 'Confirm public key...' : 'Getting public key...';
             displayStatus(msg);
             let publicKey: Uint8Array;
             if (api instanceof LowLevelApi) {
-                ({ publicKey } = await api.getPublicKey(bip32Path, false, confirm));
+                ({ publicKey } = await api.getPublicKey(bip32Path, false, confirm, nimiqVersion));
             } else {
                 if (confirm) throw new Error('High level api does not provide the option to confirm a public key');
-                publicKey = (await api.Nimiq.getPublicKey(bip32Path)).serialize();
+                publicKey = (await api.Nimiq.getPublicKey(bip32Path, undefined, nimiqVersion)).serialize();
             }
             $publicKeyNimiq.textContent = bufferToHex(publicKey);
             displayStatus('Received public key');
@@ -917,16 +941,17 @@ window.addEventListener('load', () => {
         try {
             $addressNimiq.textContent = '';
             const bip32Path = $bip32PathAddressInputNimiq.value;
+            const nimiqVersion = getSelectorValue($versionSelectorNimiq, NimiqVersion);
             const api = await createApi();
             const msg = confirm ? 'Confirm address...' : 'Getting address...';
             displayStatus(msg);
             let address: string;
             if (api instanceof LowLevelApi) {
-                ({ address } = await api.getAddress(bip32Path, true, confirm));
+                ({ address } = await api.getAddress(bip32Path, true, confirm, nimiqVersion));
             } else {
                 address = confirm
-                    ? await api.Nimiq.getConfirmedAddress(bip32Path)
-                    : await api.Nimiq.getAddress(bip32Path);
+                    ? await api.Nimiq.getConfirmedAddress(bip32Path, undefined, nimiqVersion)
+                    : await api.Nimiq.getAddress(bip32Path, false, undefined, undefined, nimiqVersion);
             }
             $addressNimiq.textContent = address;
             displayStatus('Received address');
@@ -940,23 +965,19 @@ window.addEventListener('load', () => {
         if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         try {
             $txSignatureNimiq.textContent = '';
-            const [api, Nimiq] = await Promise.all([
-                createApi(),
-                loadNimiqCore(),
-            ]);
+            const nimiqVersion = getSelectorValue($versionSelectorNimiq, NimiqVersion);
+            const [api, Nimiq] = await Promise.all([createApi(), loadNimiq(nimiqVersion)]);
             const bip32Path = $bip32PathAddressInputNimiq.value;
             const sender = Nimiq.Address.fromUserFriendlyAddress($txSenderInputNimiq.value);
-            const senderTypeString = getSelectorValue($txSenderTypeSelectorNimiq, ['basic', 'htlc', 'vesting']);
-            const senderType = Nimiq.Account.Type.fromAny(senderTypeString);
+            const senderType = getSelectorValue($txSenderTypeSelectorNimiq, AccountTypeNimiq);
             const recipient = Nimiq.Address.fromUserFriendlyAddress($txRecipientInputNimiq.value);
-            const recipientTypeString = getSelectorValue($txRecipientTypeSelectorNimiq, ['basic', 'htlc', 'vesting']);
-            const recipientType = Nimiq.Account.Type.fromAny(recipientTypeString);
+            const recipientType = getSelectorValue($txRecipientTypeSelectorNimiq, AccountTypeNimiq);
             const amount = Math.round(Number.parseFloat($txAmountInputNimiq.value) * 1e5);
             const fee = Math.round(Number.parseFloat($txFeeInputNimiq.value) * 1e5);
             const validityStartHeight = Number.parseInt($txValidityStartHeightInputNimiq.value, 10);
             const network = getSelectorValue($txNetworkSelectorNimiq, Network);
-            const flags = Nimiq.Transaction.Flag.NONE // eslint-disable-line no-bitwise
-                | ($txFlagContractCreationCheckboxNimiq.checked ? Nimiq.Transaction.Flag.CONTRACT_CREATION : 0);
+            const flags = TransactionFlagsNimiq.NONE // eslint-disable-line no-bitwise
+                | ($txFlagContractCreationCheckboxNimiq.checked ? TransactionFlagsNimiq.CONTRACT_CREATION : 0);
 
             let extraData: Uint8Array;
             switch (getSelectorValue($txDataUiSelectorNimiq, DataUiType)) {
@@ -970,11 +991,11 @@ window.addEventListener('load', () => {
                 case DataUiType.HTLC_CREATION: {
                     const htlcSender = Nimiq.Address.fromUserFriendlyAddress($txDataHtlcSenderInputNimiq.value);
                     const htlcRecipient = Nimiq.Address.fromUserFriendlyAddress($txDataHtlcRecipientInputNimiq.value);
-                    const hashAlgorithmString = getSelectorValue(
-                        $txDataHtlcAlgorithmSelectorNimiq,
-                        ['blake2b', 'argon2d', 'sha256', 'sha512'],
-                    );
-                    const hashAlgorithm = Nimiq.Hash.Algorithm.fromAny(hashAlgorithmString);
+                    // Note that serialized, numeric values for hashAlgorithms (blake2b: 1, argon2d: 2, sha256: 3,
+                    // sha512: 4) are consistent between Nimiq Legacy and Nimiq Albatross, see:
+                    // - Hash.Algorithm in core-js/src/main/generic/consensus/base/primitive/Hash.js
+                    // - Serialize for AnyHash in core-rs-albatross/primitives/transaction/src/account/htlc_contract.rs
+                    const hashAlgorithm = getSelectorValue($txDataHtlcAlgorithmSelectorNimiq, [1, 2, 3, 4]);
                     const hashRoot = bufferFromHex($txDataHtlcHashRootInputNimiq.value);
                     const hashCount = Number.parseInt($txDataHtlcHashCountInputNimiq.value, 10);
                     const timeout = Number.parseInt($txDataHtlcTimeoutInputNimiq.value, 10);
@@ -1028,13 +1049,23 @@ window.addEventListener('load', () => {
             displayStatus('Signing transaction...');
             let signature: Uint8Array;
             if (api instanceof LowLevelApi) {
-                const networkId = Nimiq.GenesisConfig.CONFIGS[network].NETWORK_ID;
-                // Don't have to distinguish BasicTransaction and ExtendedTransaction as serialized content is the same
-                const tx = new Nimiq.ExtendedTransaction(sender, senderType, recipient, recipientType, amount, fee,
-                    validityStartHeight, flags, extraData, /* proof */ undefined, networkId);
+                let tx;
+                if (isNimiqLegacy(Nimiq)) {
+                    const networkId = Nimiq.GenesisConfig.CONFIGS[network].NETWORK_ID;
+                    // Don't have to distinguish BasicTransaction/ExtendedTransaction as serialized content is the same
+                    // @ts-expect-error types for sender, senderType, recipient, recipientType not narrowed to Legacy
+                    tx = new Nimiq.ExtendedTransaction(sender, senderType, recipient, recipientType, amount, fee,
+                        validityStartHeight, flags, extraData, /* proof */ undefined, networkId);
+                } else {
+                    const networkId = NetworkIdNimiq[network];
+                    tx = new Nimiq.Transaction(
+                        sender as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, senderType, undefined,
+                        recipient as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, recipientType, extraData,
+                        BigInt(amount), BigInt(fee), flags, validityStartHeight, networkId);
+                }
                 ({ signature } = await api.signTransaction(bip32Path, tx.serializeContent()));
             } else {
-                const proofBytes = new Nimiq.SerialBuffer((await api.Nimiq.signTransaction(
+                const signedTx = await api.Nimiq.signTransaction(
                     {
                         sender,
                         senderType,
@@ -1044,12 +1075,31 @@ window.addEventListener('load', () => {
                         fee,
                         validityStartHeight,
                         flags,
-                        extraData,
                         network,
+                        ...(nimiqVersion === NimiqVersion.LEGACY ? {
+                            extraData,
+                        } : {
+                            senderData: undefined,
+                            recipientData: extraData,
+                        }),
                     },
                     bip32Path,
-                )).proof);
-                signature = Nimiq.SignatureProof.unserialize(proofBytes).signature.serialize();
+                    undefined,
+                    nimiqVersion,
+                );
+                const proofBytes = signedTx.proof;
+                if (isNimiqLegacy(Nimiq)) {
+                    const proof = Nimiq.SignatureProof.unserialize(new Nimiq.SerialBuffer(proofBytes));
+                    signature = proof.signature.serialize();
+                } else {
+                    // Unfortunately, class SignatureProof provides no method to unserialize from proof bytes, therefore
+                    // deserialize signature manually. For SignatureProof serialization format, see Serialize for
+                    // SignatureProof in core-rs-albatross/primitives/transaction/src/signature_proof.rs
+                    const signatureOffset = /* type_and_flags byte */ 1
+                        + /* serialized public_key */ 32
+                        + /* empty merkle_path only encoding the length, see Serialize for MerklePath */ 1;
+                    signature = new Uint8Array(proofBytes.buffer, signatureOffset, 64);
+                }
             }
             $txSignatureNimiq.textContent = bufferToHex(signature);
         } catch (error) {
@@ -1078,15 +1128,26 @@ window.addEventListener('load', () => {
                 $messageSignerNimiq.textContent = 'Not returned by LowLevelApi';
                 $messageSignatureNimiq.textContent = bufferToHex(signature);
             } else {
-                const { signer, signature } = await api.Nimiq.signMessage(message, bip32Path, flags);
-                // verify the signature for testing purposes
-                const [Nimiq] = await Promise.all([loadNimiqCore(), loadNimiqCryptography()]);
+                const nimiqVersion = getSelectorValue($versionSelectorNimiq, NimiqVersion);
+                const { signer, signature } = await api.Nimiq.signMessage(message, bip32Path, flags, undefined,
+                    nimiqVersion);
+                // Verify the signature for testing purposes. Do this only for the high level api to not unnecessarily
+                // load the Nimiq lib for the low level api just for testing purposes.
                 const messageBytes = typeof message === 'string' ? bufferFromUtf8(message) : message;
-                const prefixedMessageHash = Nimiq.Hash.computeSha256(new Uint8Array([
-                    ...bufferFromAscii(`\x16Nimiq Signed Message:\n${messageBytes.length.toString()}`),
+                const prefixedMessageBytes = new Uint8Array([
+                    ...bufferFromAscii(`\x16Nimiq Signed Message:\n${messageBytes.length}`),
                     ...messageBytes,
-                ]));
-                if (!signature.verify(signer, prefixedMessageHash)) throw new Error('Invalid signature');
+                ]);
+                const Nimiq = await loadNimiq(nimiqVersion, true);
+                const prefixedMessageHash = Nimiq.Hash.computeSha256(prefixedMessageBytes);
+                let isValidSignature = false;
+                if (isNimiqLegacyPrimitive<'PublicKey'>(signer) && isNimiqLegacyPrimitive<'Signature'>(signature)) {
+                    isValidSignature = signature.verify(signer, prefixedMessageHash);
+                } else if (!isNimiqLegacyPrimitive<'PublicKey'>(signer)
+                    && !isNimiqLegacyPrimitive<'Signature'>(signature)) {
+                    isValidSignature = signer.verify(signature, prefixedMessageHash);
+                }
+                if (!isValidSignature) throw new Error('Failed to verify signature');
                 $messageSignerNimiq.textContent = signer.toHex();
                 $messageSignatureNimiq.textContent = signature.toHex();
             }
@@ -1122,7 +1183,8 @@ window.addEventListener('load', () => {
             const api = await createApi();
             displayStatus('Getting wallet id...');
             if (api instanceof LowLevelApi) throw new Error('getWalletId not supported by LowLevelApi');
-            const walletId = await api.Nimiq.getWalletId();
+            const nimiqVersion = getSelectorValue($versionSelectorNimiq, NimiqVersion);
+            const walletId = await api.Nimiq.getWalletId(nimiqVersion);
             $walletIdNimiq.textContent = walletId;
             displayStatus('Received wallet id');
         } catch (error) {

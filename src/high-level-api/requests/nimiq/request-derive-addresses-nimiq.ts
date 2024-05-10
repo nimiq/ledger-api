@@ -2,15 +2,17 @@ import RequestNimiq from './request-nimiq';
 import { Coin, RequestTypeNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
 import { parseBip32Path } from '../../bip32-utils';
+import { NimiqVersion } from '../../../lib/constants';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
-export default class RequestDeriveAddressesNimiq extends RequestNimiq<Array<{ address: string, keyPath: string }>> {
+export default class RequestDeriveAddressesNimiq
+    extends RequestNimiq<NimiqVersion, Array<{ address: string, keyPath: string }>> {
     public readonly type: RequestTypeNimiq.DERIVE_ADDRESSES = RequestTypeNimiq.DERIVE_ADDRESSES;
     public readonly pathsToDerive: Iterable<string>;
 
-    constructor(pathsToDerive: Iterable<string>, expectedWalletId?: string) {
-        super(expectedWalletId);
+    constructor(nimiqVersion: NimiqVersion, pathsToDerive: Iterable<string>, expectedWalletId?: string) {
+        super(nimiqVersion, expectedWalletId);
         this.pathsToDerive = pathsToDerive;
 
         for (const keyPath of pathsToDerive) {
@@ -36,6 +38,7 @@ export default class RequestDeriveAddressesNimiq extends RequestNimiq<Array<{ ad
                 keyPath,
                 true, // validate
                 false, // display
+                this.nimiqVersion,
             );
             addressRecords.push({ address, keyPath });
         }

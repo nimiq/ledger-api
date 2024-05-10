@@ -89,6 +89,7 @@ function hoistDynamicImportDependencies() {
                         // Note that only the .es output generates dynamic imports
                         if (node.type !== 'ImportExpression') return;
                         const { value: importPath } = node.source;
+                        if (!importPath) return; // unknown import path; for example for dynamic template strings
 
                         // as specified by chunkFileNames
                         const importBundleId = `high-level-api${importPath.substring(1)}`;
@@ -119,7 +120,8 @@ export default async (commandLineArgs) => {
     const isProduction = commandLineArgs.configProduction; // called with --configProduction?
     const isServing = commandLineArgs.configServe;
 
-    const coreWasmJsIntegrityHash = await calculateIntegrityHash('./node_modules/@nimiq/core-web/worker-wasm.js');
+    const nimiqLegacyCoreWasmIntegrityHash = await calculateIntegrityHash(
+        './node_modules/@nimiq/core-web/worker-wasm.js');
 
     const highLevelApiConfig = {
         input: 'src/high-level-api/ledger-api.ts',
@@ -183,7 +185,7 @@ export default async (commandLineArgs) => {
             }),
             // Last steps in output generation.
             replace({
-                __coreWasmJsIntegrityHash__: `'${coreWasmJsIntegrityHash}'`,
+                __nimiqLegacyCoreWasmIntegrityHash__: `'${nimiqLegacyCoreWasmIntegrityHash}'`,
             }),
             hoistDynamicImportDependencies(),
             // debugModuleDependencies('stream'),
@@ -218,7 +220,7 @@ export default async (commandLineArgs) => {
             sourcemaps(),
             commonjs(),
             replace({
-                __coreWasmJsIntegrityHash__: `'${coreWasmJsIntegrityHash}'`,
+                __nimiqLegacyCoreWasmIntegrityHash__: `'${nimiqLegacyCoreWasmIntegrityHash}'`,
             }),
         ],
         watch: {
@@ -284,7 +286,7 @@ export default async (commandLineArgs) => {
                 process: 'process', // add "import process from 'process'" when node's global variable 'process' is used
             }),
             replace({
-                __coreWasmJsIntegrityHash__: `'${coreWasmJsIntegrityHash}'`,
+                __nimiqLegacyCoreWasmIntegrityHash__: `'${nimiqLegacyCoreWasmIntegrityHash}'`,
             }),
             copy({
                 targets: [{

@@ -1,17 +1,24 @@
 import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
 import { RequestTypeNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
+import { NimiqVersion } from '../../../lib/constants';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
-export default class RequestGetAddressNimiq extends RequestWithKeyPathNimiq<string> {
+export default class RequestGetAddressNimiq extends RequestWithKeyPathNimiq<NimiqVersion, string> {
     public readonly type: RequestTypeNimiq.GET_ADDRESS;
     public readonly display?: boolean;
     public readonly expectedAddress?: string;
 
-    constructor(keyPath: string, display?: boolean, expectedAddress?: string, expectedWalletId?: string) {
+    constructor(
+        nimiqVersion: NimiqVersion,
+        keyPath: string,
+        display?: boolean,
+        expectedAddress?: string,
+        expectedWalletId?: string,
+    ) {
         const type = RequestTypeNimiq.GET_ADDRESS;
-        super(keyPath, expectedWalletId, { type, display, expectedAddress });
+        super(nimiqVersion, keyPath, expectedWalletId, { type, display, expectedAddress });
         this.type = type;
         this.display = display;
         this.expectedAddress = expectedAddress;
@@ -23,6 +30,7 @@ export default class RequestGetAddressNimiq extends RequestWithKeyPathNimiq<stri
             this.keyPath,
             true, // validate
             !!this.display, // display
+            this.nimiqVersion,
         );
 
         if (this.expectedAddress
