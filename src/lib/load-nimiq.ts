@@ -28,10 +28,14 @@ export function isNimiqLegacyPrimitive<Primitive extends CommonPrimitives = /* e
 export async function loadNimiq<Version extends NimiqVersion>(
     nimiqVersion: Version,
     inlcudeNimiqLegacyCryptography: boolean,
+    preloadWasm = true,
 ): Promise<Nimiq<Version>> {
     const [Nimiq] = await Promise.all(nimiqVersion === NimiqVersion.ALBATROSS
-        ? [loadNimiqAlbatrossCore()]
-        : [loadNimiqLegacyCore(), ...(inlcudeNimiqLegacyCryptography ? [loadNimiqLegacyCryptography()] : [])],
+        ? [loadNimiqAlbatrossCore(preloadWasm)]
+        : [
+            loadNimiqLegacyCore(),
+            ...(inlcudeNimiqLegacyCryptography ? [loadNimiqLegacyCryptography(preloadWasm)] : []),
+        ],
     );
     return Nimiq as Nimiq<Version>;
 }
@@ -67,11 +71,14 @@ const nimiqCoreBasePath = isNimiqAlbatrossHub
     : 'https://cdn.jsdelivr.net/npm/@nimiq/core-web@next/web/';
 let nimiqCorePromise: Promise<Nimiq<NimiqVersion.ALBATROSS>> | null = null;
 
-async function loadNimiqAlbatrossCore(): Promise<Nimiq<NimiqVersion.ALBATROSS>> {
+async function loadNimiqAlbatrossCore(preloadWasm = true): Promise<Nimiq<NimiqVersion.ALBATROSS>> {
     nimiqCorePromise = nimiqCorePromise || (async () => {
         try {
-            // Preload wasm in parallel. We only need the main wasm, not the Client or worker.
-            preloadAsset(`${nimiqCoreBasePath}main-wasm/index_bg.wasm`, 'fetch', true);
+            if (preloadWasm) {
+                // Preload wasm in parallel. We only need the main wasm, not the Client or worker.
+                // No integrity hash here, because main-wasm/index.js loads the wasm without integrity hash.
+                preloadAsset(`${nimiqCoreBasePath}main-wasm/index_bg.wasm`, 'fetch', true);
+            }
 
             // Note: we don't import /web/index.js or run the Hub's loadAlbatross because we don't need the Client which
             // depends on and loads the worker, including the worker wasm, and is auto-instantiated in /web/index.js. We
@@ -136,17 +143,19 @@ async function loadNimiqLegacyCore(coreVariant: 'web' | 'web-offline' = 'web-off
  * Load the WebAssembly and module for cryptographic functions. You will have to do this before calculating hashes,
  * deriving keys or addresses, signing transactions or messages, etc.
  */
-async function loadNimiqLegacyCryptography(): Promise<void> {
+async function loadNimiqLegacyCryptography(preloadWasm = true): Promise<void> {
     nimiqLegacyCryptographyPromise = nimiqLegacyCryptographyPromise || (async () => {
         try {
-            // Preload wasm in parallel.
-            preloadAsset(`${nimiqLegacyCoreBasePath}worker-wasm.wasm`, 'fetch', true);
-            preloadAsset(
-                `${nimiqLegacyCoreBasePath}worker-wasm.js`,
-                'script',
-                true,
-                __nimiqLegacyCoreWasmIntegrityHash__,
-            );
+            if (preloadWasm) {
+                // Preload wasm and wasm handler in parallel.
+                preloadAsset(`${nimiqLegacyCoreBasePath}worker-wasm.wasm`, 'fetch', true);
+                preloadAsset(
+                    `${nimiqLegacyCoreBasePath}worker-wasm.js`,
+                    'script',
+                    true,
+                    __nimiqLegacyCoreWasmIntegrityHash__,
+                );
+            }
 
             const NimiqLegacy = await loadNimiqLegacyCore();
             // Note: this will not import the wasm again if it has already been imported, for example by the parent app.

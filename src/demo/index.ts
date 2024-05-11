@@ -870,6 +870,16 @@ window.addEventListener('load', () => {
         }
     }
 
+    async function loadNimiqWithoutPreloading(nimiqVersion: NimiqVersion, includeCryptography: boolean) {
+        // If Nimiq needs to be loaded separately on the demo page, don't preload its wasm. As the APIs are used from
+        // separate pre-built bundles, the cached load promises between the API bundles and the demo page bundle are
+        // different, and thus the wasm would be preloaded again, which is then not actually used anymore by the browser
+        // if it already loaded the wasm, resulting in a warning in the console. Additionally, without the preload, the
+        // browser apparently doesn't even fetch the wasm again: there's no second entry in the network tab of the dev
+        // tools.
+        return loadNimiq(nimiqVersion, includeCryptography, /* preload wasm */ false);
+    }
+
     async function connect() {
         if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         const api = await createApi();
@@ -965,7 +975,10 @@ window.addEventListener('load', () => {
         try {
             $txSignatureNimiq.textContent = '';
             const nimiqVersion = getSelectorValue($versionSelectorNimiq, NimiqVersion);
-            const [api, Nimiq] = await Promise.all([createApi(), loadNimiq(nimiqVersion, /* include crypto */ false)]);
+            const [api, Nimiq] = await Promise.all([
+                createApi(),
+                loadNimiqWithoutPreloading(nimiqVersion, /* include cryptography */ false),
+            ]);
             const bip32Path = $bip32PathAddressInputNimiq.value;
             const sender = Nimiq.Address.fromUserFriendlyAddress($txSenderInputNimiq.value);
             const senderType = getSelectorValue($txSenderTypeSelectorNimiq, AccountTypeNimiq);
@@ -1137,7 +1150,7 @@ window.addEventListener('load', () => {
                     ...bufferFromAscii(`\x16Nimiq Signed Message:\n${messageBytes.length}`),
                     ...messageBytes,
                 ]);
-                const Nimiq = await loadNimiq(nimiqVersion, /* include cryptography */ true);
+                const Nimiq = await loadNimiqWithoutPreloading(nimiqVersion, /* include cryptography */ true);
                 const prefixedMessageHash = Nimiq.Hash.computeSha256(prefixedMessageBytes);
                 let isValidSignature = false;
                 if (isNimiqLegacyPrimitive<'PublicKey'>(signer) && isNimiqLegacyPrimitive<'Signature'>(signature)) {
