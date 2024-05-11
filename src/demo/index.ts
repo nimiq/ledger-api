@@ -1075,7 +1075,7 @@ window.addEventListener('load', () => {
                         recipient as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, recipientType, extraData,
                         BigInt(amount), BigInt(fee), flags, validityStartHeight, networkId);
                 }
-                ({ signature } = await api.signTransaction(bip32Path, tx.serializeContent()));
+                ({ signature } = await api.signTransaction(bip32Path, tx.serializeContent(), nimiqVersion));
             } else {
                 const signedTx = await api.Nimiq.signTransaction(
                     {

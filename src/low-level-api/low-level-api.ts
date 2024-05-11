@@ -113,9 +113,9 @@ export default class LowLevelApi {
     /**
      * Get Nimiq address for a given BIP 32 path.
      * @param path - A path in BIP 32 format.
-     * @param boolValidate - Optionally enable key pair validation.
-     * @param boolDisplay - Optionally display the address on the ledger.
-     * @param nimiqVersion - Optionally choose which Nimiq library version to use for internal computations.
+     * @param [boolValidate] - Optionally enable key pair validation.
+     * @param [boolDisplay] - Optionally display the address on the ledger.
+     * @param [nimiqVersion] - Optionally choose which Nimiq library version to use for internal computations.
      * @returns An object with the address.
      * @example
      * nim.getAddress("44'/242'/0'/0'").then(o => o.address)
@@ -137,9 +137,9 @@ export default class LowLevelApi {
     /**
      * Get Nimiq public key for a given BIP 32 path.
      * @param path - A path in BIP 32 format.
-     * @param boolValidate - Optionally enable key pair validation.
-     * @param boolDisplay - Optionally display the corresponding address on the ledger.
-     * @param nimiqVersion - Optionally choose which Nimiq library version to use for internal computations.
+     * @param [boolValidate] - Optionally enable key pair validation.
+     * @param [boolDisplay] - Optionally display the corresponding address on the ledger.
+     * @param [nimiqVersion] - Optionally choose which Nimiq library version to use for internal computations.
      * @returns An object with the publicKey.
      * @example
      * nim.getPublicKey("44'/242'/0'/0'").then(o => o.publicKey)
@@ -188,10 +188,14 @@ export default class LowLevelApi {
         return { publicKey };
     }
 
+    /* eslint-disable lines-between-class-members */
     /**
      * Sign a Nimiq transaction.
      * @param path - A path in BIP 32 format.
      * @param txContent - Transaction content in serialized form.
+     * @param [nimiqVersion] - Of which format / version the serialized transaction is. Defaults to legacy.
+     * @param [appVersion] - For legacy transactions used to determine whether to transmit a version byte. If the
+     *  connected app version is already known, you can pass it to avoid the overhead of querying it again.
      * @returns An object with the signature.
      * @example
      * nim.signTransaction("44'/242'/0'/0'", txContent).then(o => o.signature)
@@ -199,28 +203,55 @@ export default class LowLevelApi {
     public async signTransaction(
         path: string,
         txContent: Uint8Array,
+        nimiqVersion: NimiqVersion.LEGACY,
+        appVersion?: string,
+    ): Promise<{ signature: Uint8Array }>;
+    public async signTransaction(
+        path: string,
+        txContent: Uint8Array,
+        nimiqVersion?: NimiqVersion,
+    ): Promise<{ signature: Uint8Array }>;
+    public async signTransaction(
+        path: string,
+        txContent: Uint8Array,
+        nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
+        appVersion?: string,
     ): Promise<{ signature: Uint8Array }> {
+        // The Nimiq version byte was added in app version 2. It supports both, legacy and Albatross transactions, and
+        // is the first app version to support Albatross. Note that wrongly sending a legacy transaction without version
+        // byte to the 2.0 app does no harm, as the app will reject it. Neither does sending an Albatross transaction,
+        // with version byte, to a legacy app before 2.0 as the app will interpret the version byte of value 1 as the
+        // first byte of the uint16 data length, resulting in a data length longer than the allowed max which will be
+        // rejected.
+        if (nimiqVersion === NimiqVersion.LEGACY && !appVersion) {
+            ({ version: appVersion } = await this.getAppNameAndVersion());
+        }
+        const includeVersionByte = nimiqVersion === NimiqVersion.ALBATROSS || parseInt(appVersion || '') >= 2;
+
         const pathBuffer = parsePath(path);
-        const transaction = Buffer.from(txContent);
+        const versionByteBuffer = includeVersionByte
+            ? new Uint8Array([nimiqVersion === NimiqVersion.ALBATROSS ? 1 : 0])
+            : new Uint8Array();
+        const transactionBuffer = Buffer.from(txContent);
         const apdus = [];
-        let chunkSize = APDU_MAX_SIZE - pathBuffer.length;
-        if (transaction.length <= chunkSize) {
+        let transactionChunkSize = APDU_MAX_SIZE - pathBuffer.length - versionByteBuffer.length;
+        if (transactionBuffer.length <= transactionChunkSize) {
             // it fits in a single apdu
-            apdus.push(Buffer.concat([pathBuffer, transaction]));
+            apdus.push(Buffer.concat([pathBuffer, versionByteBuffer, transactionBuffer]));
         } else {
             // we need to send multiple apdus to transmit the entire transaction
-            let chunk = Buffer.alloc(chunkSize);
+            let transactionChunk = Buffer.alloc(transactionChunkSize);
             let offset = 0;
-            transaction.copy(chunk, 0, offset, chunkSize);
-            apdus.push(Buffer.concat([pathBuffer, chunk]));
-            offset += chunkSize;
-            while (offset < transaction.length) {
-                const remaining = transaction.length - offset;
-                chunkSize = remaining < APDU_MAX_SIZE ? remaining : APDU_MAX_SIZE;
-                chunk = Buffer.alloc(chunkSize);
-                transaction.copy(chunk, 0, offset, offset + chunkSize);
-                offset += chunkSize;
-                apdus.push(chunk);
+            transactionBuffer.copy(transactionChunk, 0, offset, transactionChunkSize);
+            apdus.push(Buffer.concat([pathBuffer, versionByteBuffer, transactionChunk]));
+            offset += transactionChunkSize;
+            while (offset < transactionBuffer.length) {
+                const remaining = transactionBuffer.length - offset;
+                transactionChunkSize = remaining < APDU_MAX_SIZE ? remaining : APDU_MAX_SIZE;
+                transactionChunk = Buffer.alloc(transactionChunkSize);
+                transactionBuffer.copy(transactionChunk, 0, offset, offset + transactionChunkSize);
+                offset += transactionChunkSize;
+                apdus.push(transactionChunk);
             }
         }
 
@@ -251,6 +282,7 @@ export default class LowLevelApi {
         const signature = response.slice(0, response.length - 2);
         return { signature };
     }
+    /* eslint-enable lines-between-class-members */
 
     /**
      * Sign a message with a Nimiq key.

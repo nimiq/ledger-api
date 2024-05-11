@@ -135,10 +135,18 @@ export default class RequestSignTransactionNimiq<Version extends NimiqVersion>
             throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
         }
 
-        const { signature: signatureBytes } = await api.signTransaction(
-            this.keyPath,
-            nimiqTx.serializeContent(),
-        );
+        const { signature: signatureBytes } = this.nimiqVersion === NimiqVersion.LEGACY
+            ? await api.signTransaction(
+                this.keyPath,
+                nimiqTx.serializeContent(),
+                this.nimiqVersion,
+                this._coinAppConnection?.appVersion,
+            )
+            : await api.signTransaction(
+                this.keyPath,
+                nimiqTx.serializeContent(),
+                this.nimiqVersion,
+            );
 
         try {
             if (isNimiqLegacy(Nimiq)) {
