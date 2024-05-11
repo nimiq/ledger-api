@@ -1,8 +1,3 @@
-import { loadNimiqCore, loadNimiqLegacyCore, loadNimiqLegacyCryptography, type Nimiq } from '../lib/load-nimiq';
-// Our built library.
-// Typescript needs the import as specified to find the .d.ts file, see rollup.config.js
-import { NimiqVersion } from '../../dist/high-level-api/ledger-api';
-
 export function getInputElement(selector: string, $parent: HTMLElement | Document = document): HTMLInputElement {
     const input = $parent.querySelector(selector);
     if (!input || input.tagName !== 'INPUT') throw new Error(`No input found by selector ${selector}.`);
@@ -58,15 +53,4 @@ export function bufferFromUint64(uint64: bigint): Uint8Array {
     const uint8Array = new Uint8Array(8);
     new DataView(uint8Array.buffer).setBigUint64(0, uint64);
     return uint8Array;
-}
-
-export async function loadNimiq<Version extends NimiqVersion>(
-    nimiqVersion: Version,
-    inlcudeNimiqLegacyCryptography = false,
-): Promise<Nimiq<Version>> {
-    const [Nimiq] = await Promise.all(nimiqVersion === NimiqVersion.ALBATROSS
-        ? [loadNimiqCore()]
-        : [loadNimiqLegacyCore(), ...(inlcudeNimiqLegacyCryptography ? [loadNimiqLegacyCryptography()] : [])],
-    );
-    return Nimiq as Nimiq<Version>;
 }

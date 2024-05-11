@@ -10,7 +10,7 @@ import NetworkTransportForUrls from '@ledgerhq/hw-transport-http';
 import { listen as onLog } from '@ledgerhq/logs';
 import { verify as verifySignedMessageBitcoin } from 'bitcoinjs-message';
 /* eslint-enable import/no-extraneous-dependencies */
-import { isNimiqLegacy, isNimiqLegacyPrimitive, type NimiqPrimitive } from '../lib/load-nimiq';
+import { isNimiqLegacy, isNimiqLegacyPrimitive, loadNimiq, type NimiqPrimitive } from '../lib/load-nimiq';
 import {
     getInputElement,
     getSelectorValue,
@@ -21,7 +21,6 @@ import {
     bufferFromUtf8,
     bufferFromUint32,
     bufferFromUint64,
-    loadNimiq,
 } from './demo-utils';
 
 // Our built library.
@@ -966,7 +965,7 @@ window.addEventListener('load', () => {
         try {
             $txSignatureNimiq.textContent = '';
             const nimiqVersion = getSelectorValue($versionSelectorNimiq, NimiqVersion);
-            const [api, Nimiq] = await Promise.all([createApi(), loadNimiq(nimiqVersion)]);
+            const [api, Nimiq] = await Promise.all([createApi(), loadNimiq(nimiqVersion, /* include crypto */ false)]);
             const bip32Path = $bip32PathAddressInputNimiq.value;
             const sender = Nimiq.Address.fromUserFriendlyAddress($txSenderInputNimiq.value);
             const senderType = getSelectorValue($txSenderTypeSelectorNimiq, AccountTypeNimiq);
@@ -1138,7 +1137,7 @@ window.addEventListener('load', () => {
                     ...bufferFromAscii(`\x16Nimiq Signed Message:\n${messageBytes.length}`),
                     ...messageBytes,
                 ]);
-                const Nimiq = await loadNimiq(nimiqVersion, true);
+                const Nimiq = await loadNimiq(nimiqVersion, /* include cryptography */ true);
                 const prefixedMessageHash = Nimiq.Hash.computeSha256(prefixedMessageBytes);
                 let isValidSignature = false;
                 if (isNimiqLegacyPrimitive<'PublicKey'>(signer) && isNimiqLegacyPrimitive<'Signature'>(signature)) {

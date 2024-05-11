@@ -25,6 +25,17 @@ export function isNimiqLegacyPrimitive<Primitive extends CommonPrimitives = /* e
     return !('__destroy_into_raw' in primitive || '__wrap' in primitive.constructor);
 }
 
+export async function loadNimiq<Version extends NimiqVersion>(
+    nimiqVersion: Version,
+    inlcudeNimiqLegacyCryptography: boolean,
+): Promise<Nimiq<Version>> {
+    const [Nimiq] = await Promise.all(nimiqVersion === NimiqVersion.ALBATROSS
+        ? [loadNimiqAlbatrossCore()]
+        : [loadNimiqLegacyCore(), ...(inlcudeNimiqLegacyCryptography ? [loadNimiqLegacyCryptography()] : [])],
+    );
+    return Nimiq as Nimiq<Version>;
+}
+
 declare module './load-nimiq' {
     // Nimiq Hub defines globals Nimiq and loadAlbatross, which we'll use for special treatment if running in the Hub
     // (the main consumer of this ledger-api). Although they are in fact global variables in the Hub, we don't do a
@@ -56,7 +67,7 @@ const nimiqCoreBasePath = isNimiqAlbatrossHub
     : 'https://cdn.jsdelivr.net/npm/@nimiq/core-web@next/web/';
 let nimiqCorePromise: Promise<Nimiq<NimiqVersion.ALBATROSS>> | null = null;
 
-export async function loadNimiqCore(): Promise<Nimiq<NimiqVersion.ALBATROSS>> {
+async function loadNimiqAlbatrossCore(): Promise<Nimiq<NimiqVersion.ALBATROSS>> {
     nimiqCorePromise = nimiqCorePromise || (async () => {
         try {
             // Preload wasm in parallel. We only need the main wasm, not the Client or worker.
@@ -91,7 +102,7 @@ let nimiqLegacyCryptographyPromise: Promise<void> | null = null;
 /**
  * Lazy-load the Nimiq core api from the cdn server if it's not loaded yet.
  */
-export async function loadNimiqLegacyCore(coreVariant: 'web' | 'web-offline' = 'web-offline')
+async function loadNimiqLegacyCore(coreVariant: 'web' | 'web-offline' = 'web-offline')
     : Promise<Nimiq<NimiqVersion.LEGACY>> {
     // Return global Nimiq if already loaded from @nimiq/core-web, for example in Nimiq Hub.
     if (typeof Nimiq !== 'undefined') return Nimiq;
@@ -125,7 +136,7 @@ export async function loadNimiqLegacyCore(coreVariant: 'web' | 'web-offline' = '
  * Load the WebAssembly and module for cryptographic functions. You will have to do this before calculating hashes,
  * deriving keys or addresses, signing transactions or messages, etc.
  */
-export async function loadNimiqLegacyCryptography(): Promise<void> {
+async function loadNimiqLegacyCryptography(): Promise<void> {
     nimiqLegacyCryptographyPromise = nimiqLegacyCryptographyPromise || (async () => {
         try {
             // Preload wasm in parallel.

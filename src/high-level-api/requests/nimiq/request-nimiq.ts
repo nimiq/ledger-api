@@ -3,7 +3,7 @@ import { Coin, RequestTypeNimiq } from '../../constants';
 import { getBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 import { NimiqVersion } from '../../../lib/constants';
-import { loadNimiqCore, loadNimiqLegacyCore, loadNimiqLegacyCryptography, type Nimiq } from '../../../lib/load-nimiq';
+import { loadNimiq, type Nimiq } from '../../../lib/load-nimiq';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type LowLevelApiConstructor = typeof import('../../../low-level-api/low-level-api').default;
@@ -91,15 +91,9 @@ export default abstract class RequestNimiq<Version extends NimiqVersion, T>
 
     protected async _loadNimiq(): Promise<Nimiq<Version>> {
         try {
-            // We don't need to cache a promise as loadNimiqCore, loadNimiqLegacyCore and loadNimiqLegacyCryptography
-            // already do that.
-            if (this.nimiqVersion === NimiqVersion.ALBATROSS) return await loadNimiqCore() as Nimiq<Version>;
-            const [Nimiq] = await Promise.all([
-                loadNimiqLegacyCore(),
-                // needed for wallet id hashing and pub key to address derivation in SignatureProof and BasicTransaction
-                loadNimiqLegacyCryptography(),
-            ]);
-            return Nimiq as Nimiq<Version>;
+            // Note: cryptography is needed for wallet id hashing, if requested, and pub key to address derivation in
+            // SignatureProof and BasicTransaction.
+            return await loadNimiq(this.nimiqVersion, /* include cryptography */ true);
         } catch (e) {
             throw new ErrorState(
                 ErrorType.LOADING_DEPENDENCIES_FAILED,

@@ -1,7 +1,7 @@
 import { parsePath, publicKeyToAddress, verifySignature } from './low-level-api-utils';
 import getAppNameAndVersion from './get-app-name-and-version';
 import { NimiqVersion } from '../lib/constants';
-import { loadNimiqCore, loadNimiqLegacyCore, loadNimiqLegacyCryptography } from '../lib/load-nimiq';
+import { loadNimiq } from '../lib/load-nimiq';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
@@ -126,13 +126,8 @@ export default class LowLevelApi {
         boolDisplay: boolean = false,
         nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
     ): Promise<{ address: string }> {
-        // start loading Nimiq core later needed for transforming public key to address and optional validation
-        if (nimiqVersion === NimiqVersion.ALBATROSS) {
-            loadNimiqCore();
-        } else {
-            loadNimiqLegacyCore();
-            loadNimiqLegacyCryptography();
-        }
+        // Start loading Nimiq core later needed for hashing public key to address and optional validation.
+        loadNimiq(nimiqVersion, /* include cryptography */ true).catch(() => {});
 
         const { publicKey } = await this.getPublicKey(path, boolValidate, boolDisplay, nimiqVersion);
         const address = await publicKeyToAddress(Buffer.from(publicKey), nimiqVersion);
@@ -156,13 +151,8 @@ export default class LowLevelApi {
         nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
     ): Promise<{ publicKey: Uint8Array }> {
         if (boolValidate) {
-            // start loading Nimiq core later needed for validation
-            if (nimiqVersion === NimiqVersion.ALBATROSS) {
-                loadNimiqCore();
-            } else {
-                loadNimiqLegacyCore();
-                loadNimiqLegacyCryptography();
-            }
+            // Start loading Nimiq core later needed for validation.
+            loadNimiq(nimiqVersion, /* include cryptography */ true).catch(() => {});
         }
 
         const pathBuffer = parsePath(path);
