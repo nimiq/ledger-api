@@ -343,7 +343,7 @@ window.addEventListener('load', () => {
                         </label>
                         <label>
                             <span>HTLC Timeout</span>
-                            <input type="number" min="0" max="${2 ** 32 - 1}" required class="nq-input"
+                            <input type="number" min="0" max="${2 ** 64 - 1}" required class="nq-input"
                                 id="tx-data-htlc-timeout-input-nimiq" value="12345">
                         </label>
                     </div>
@@ -355,13 +355,13 @@ window.addEventListener('load', () => {
                         </label>
                         <label>
                             <span>Vesting Start</span>
-                            <input type="number" min="0" max="${2 ** 32 - 1}" class="nq-input"
+                            <input type="number" min="0" max="${2 ** 64 - 1}" class="nq-input"
                                 id="tx-data-vesting-start-input-nimiq" placeholder="Optional, default: 0">
                         </label>
                         <label>
-                            <span>Vesting Step Blocks</span>
-                            <input type="number" min="0" max="${2 ** 32 - 1}" required class="nq-input"
-                                id="tx-data-vesting-step-blocks-input-nimiq" value="10000">
+                            <span>Vesting Step Time</span>
+                            <input type="number" min="0" max="${2 ** 64 - 1}" required class="nq-input"
+                                id="tx-data-vesting-step-time-input-nimiq" value="10000">
                         </label>
                         <label>
                             <span>Vesting Step Amount</span>
@@ -704,7 +704,7 @@ window.addEventListener('load', () => {
     const $txDataHtlcTimeoutInputNimiq = getInputElement('#tx-data-htlc-timeout-input-nimiq');
     const $txDataVestingOwnerInputNimiq = getInputElement('#tx-data-vesting-owner-input-nimiq');
     const $txDataVestingStartInputNimiq = getInputElement('#tx-data-vesting-start-input-nimiq');
-    const $txDataVestingStepBlocksInputNimiq = getInputElement('#tx-data-vesting-step-blocks-input-nimiq');
+    const $txDataVestingStepTimeInputNimiq = getInputElement('#tx-data-vesting-step-time-input-nimiq');
     const $txDataVestingStepAmountInputNimiq = getInputElement('#tx-data-vesting-step-amount-input-nimiq');
     const $txDataVestingTotalAmountInputNimiq = getInputElement('#tx-data-vesting-total-amount-input-nimiq');
     const $signTxButtonNimiq = document.getElementById('sign-tx-button-nimiq')!;
@@ -991,14 +991,15 @@ window.addEventListener('load', () => {
             const flags = TransactionFlagsNimiq.NONE // eslint-disable-line no-bitwise
                 | ($txFlagContractCreationCheckboxNimiq.checked ? TransactionFlagsNimiq.CONTRACT_CREATION : 0);
 
-            let extraData: Uint8Array;
+            let recipientData: Uint8Array;
+            const bufferFromBlockOrTime = nimiqVersion === NimiqVersion.LEGACY ? bufferFromUint32 : bufferFromUint64;
             switch (getSelectorValue($txDataUiSelectorNimiq, DataUiType)) {
                 default:
                 case DataUiType.HEX:
-                    extraData = bufferFromHex($txDataHexInputNimiq.value);
+                    recipientData = bufferFromHex($txDataHexInputNimiq.value);
                     break;
                 case DataUiType.TEXT:
-                    extraData = bufferFromUtf8($txDataTextInputNimiq.value);
+                    recipientData = bufferFromUtf8($txDataTextInputNimiq.value);
                     break;
                 case DataUiType.HTLC_CREATION: {
                     const htlcSender = Nimiq.Address.fromUserFriendlyAddress($txDataHtlcSenderInputNimiq.value);
@@ -1011,13 +1012,13 @@ window.addEventListener('load', () => {
                     const hashRoot = bufferFromHex($txDataHtlcHashRootInputNimiq.value);
                     const hashCount = Number.parseInt($txDataHtlcHashCountInputNimiq.value, 10);
                     const timeout = Number.parseInt($txDataHtlcTimeoutInputNimiq.value, 10);
-                    extraData = new Uint8Array([
+                    recipientData = new Uint8Array([
                         ...htlcSender.serialize(),
                         ...htlcRecipient.serialize(),
                         hashAlgorithm,
                         ...hashRoot,
                         hashCount,
-                        ...bufferFromUint32(timeout),
+                        ...bufferFromBlockOrTime(timeout),
                     ]);
                     break;
                 }
@@ -1031,32 +1032,32 @@ window.addEventListener('load', () => {
                             + ' must be specified too.');
                     }
                     const vestingOwner = Nimiq.Address.fromUserFriendlyAddress($txDataVestingOwnerInputNimiq.value);
-                    const vestingStepBlocks = Number.parseInt($txDataVestingStepBlocksInputNimiq.value, 10);
-                    extraData = new Uint8Array([
+                    const vestingStepTime = Number.parseInt($txDataVestingStepTimeInputNimiq.value, 10);
+                    recipientData = new Uint8Array([
                         ...vestingOwner.serialize(),
                         // Vesting start
                         ...($txDataVestingStartInputNimiq.value
-                            ? bufferFromUint32(Number.parseInt($txDataVestingStartInputNimiq.value, 10))
+                            ? bufferFromBlockOrTime(Number.parseInt($txDataVestingStartInputNimiq.value, 10))
                             : []
                         ),
-                        ...bufferFromUint32(vestingStepBlocks),
+                        ...bufferFromBlockOrTime(vestingStepTime),
                         // Vesting step amount
                         ...($txDataVestingStepAmountInputNimiq.value
-                            ? bufferFromUint64(BigInt(Math.round(Number.parseFloat(
-                                $txDataVestingStepAmountInputNimiq.value) * 1e5)))
+                            ? bufferFromUint64(Math.round(Number.parseFloat(
+                                $txDataVestingStepAmountInputNimiq.value) * 1e5))
                             : []
                         ),
                         // Vesting total amount
                         ...($txDataVestingTotalAmountInputNimiq.value
-                            ? bufferFromUint64(BigInt(Math.round(Number.parseFloat(
-                                $txDataVestingTotalAmountInputNimiq.value) * 1e5)))
+                            ? bufferFromUint64(Math.round(Number.parseFloat(
+                                $txDataVestingTotalAmountInputNimiq.value) * 1e5))
                             : []
                         ),
                     ]);
                     break;
                 }
             }
-            $txDataHexInputNimiq.value = bufferToHex(extraData);
+            $txDataHexInputNimiq.value = bufferToHex(recipientData);
 
             displayStatus('Signing transaction...');
             let signature: Uint8Array;
@@ -1067,12 +1068,12 @@ window.addEventListener('load', () => {
                     // Don't have to distinguish BasicTransaction/ExtendedTransaction as serialized content is the same
                     // @ts-expect-error types for sender, senderType, recipient, recipientType not narrowed to Legacy
                     tx = new Nimiq.ExtendedTransaction(sender, senderType, recipient, recipientType, amount, fee,
-                        validityStartHeight, flags, extraData, /* proof */ undefined, networkId);
+                        validityStartHeight, flags, recipientData, /* proof */ undefined, networkId);
                 } else {
                     const networkId = NetworkIdNimiq[network];
                     tx = new Nimiq.Transaction(
                         sender as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, senderType, undefined,
-                        recipient as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, recipientType, extraData,
+                        recipient as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, recipientType, recipientData,
                         BigInt(amount), BigInt(fee), flags, validityStartHeight, networkId);
                 }
                 ({ signature } = await api.signTransaction(bip32Path, tx.serializeContent(), nimiqVersion));
@@ -1089,10 +1090,10 @@ window.addEventListener('load', () => {
                         flags,
                         network,
                         ...(nimiqVersion === NimiqVersion.LEGACY ? {
-                            extraData,
+                            extraData: recipientData,
                         } : {
                             senderData: undefined,
-                            recipientData: extraData,
+                            recipientData,
                         }),
                     },
                     bip32Path,

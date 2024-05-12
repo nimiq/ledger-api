@@ -49,8 +49,8 @@ export function bufferFromUint32(uint32: number): Uint8Array {
     return uint8Array;
 }
 
-export function bufferFromUint64(uint64: bigint): Uint8Array {
+export function bufferFromUint64(uint64: bigint | number): Uint8Array {
     const uint8Array = new Uint8Array(8);
-    new DataView(uint8Array.buffer).setBigUint64(0, uint64);
+    new DataView(uint8Array.buffer).setBigUint64(0, BigInt(uint64));
     return uint8Array;
 }
