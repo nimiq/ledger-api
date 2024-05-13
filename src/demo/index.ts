@@ -19,9 +19,12 @@ import {
     bufferFromHex,
     bufferFromAscii,
     bufferFromUtf8,
-    bufferFromUint32,
-    bufferFromUint64,
 } from './demo-utils';
+import {
+    UI_TRANSACTION_DATA,
+    DataUiType,
+    getTransactionData,
+} from './transaction-data-utils-nimiq';
 
 // Our built library.
 // Typescript needs the import as specified to find the .d.ts file, see rollup.config.js
@@ -48,13 +51,6 @@ window.Buffer = Buffer;
 enum ApiType {
     LOW_LEVEL = 'low-level',
     HIGH_LEVEL = 'high-level',
-}
-
-enum DataUiType {
-    HEX = 'hex',
-    TEXT = 'text',
-    HTLC_CREATION = 'htlc-creation',
-    VESTING_CREATION = 'vesting-creation',
 }
 
 declare global {
@@ -272,110 +268,7 @@ window.addEventListener('load', () => {
                             Contract Creation
                         </label>
                     </div>
-                    <div id="tx-data-ui-selector-nimiq" class="selector ${DataUiType.HEX}">
-                        <span>Data Input</span>
-                        <label>
-                            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.HEX}" checked>
-                            Hex
-                        </label>
-                        <label>
-                            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.TEXT}">
-                            Text
-                        </label>
-                        <label>
-                            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.HTLC_CREATION}">
-                            Create HTLC
-                        </label>
-                        <label>
-                            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.VESTING_CREATION}">
-                            Create Vesting
-                        </label>
-                    </div>
-                    <label class="show-${DataUiType.HEX}">
-                        <span>Data (Hex)</span>
-                        <input class="nq-input" id="tx-data-hex-input-nimiq" placeholder="Optional">
-                    </label>
-                    <label class="show-${DataUiType.TEXT}">
-                        <span>Data (Text)</span>
-                        <input class="nq-input" id="tx-data-text-input-nimiq" value="Hello world."
-                            placeholder="Optional">
-                    </label>
-                    <div class="show-${DataUiType.HTLC_CREATION}">
-                        <label>
-                            <span>HTLC Recipient</span>
-                            <input required class="nq-input" id="tx-data-htlc-recipient-input-nimiq"
-                                value="NQ15 GQKC ADU7 6KG5 SUEB 80SE P5TL 344P CKKE">
-                        </label>
-                        <label>
-                            <span>HTLC Refund</span>
-                            <input required class="nq-input" id="tx-data-htlc-sender-input-nimiq"
-                                value="NQ06 QFK9 HU4T 5LJ8 CGYG 53S4 G5LD HDGP 2G8F">
-                        </label>
-                        <div id="tx-data-htlc-algorithm-selector-nimiq" class="selector">
-                            <span>HTLC Hash Algorithm</span>
-                            <label>
-                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="1">
-                                blake2b
-                            </label>
-                            <label>
-                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="2">
-                                argon2d
-                            </label>
-                            <label>
-                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="3" checked>
-                                sha256
-                            </label>
-                            <label>
-                                <input type="radio" name="tx-data-htlc-algorithm-selector-nimiq" value="4">
-                                sha512
-                            </label>
-                        </div>
-                        <label>
-                            <span>HTLC Hash Root</span>
-                            <!-- Demo is sha256 of 0000000000000000000000000000000000000000000000000000000000000000 -->
-                            <input required class="nq-input" id="tx-data-htlc-hash-root-input-nimiq"
-                                value="66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925">
-                        </label>
-                        <label>
-                            <span>HTLC Hash Count</span>
-                            <input type="number" min="1" max="${2 ** 8 - 1}" required class="nq-input"
-                                id="tx-data-htlc-hash-count-input-nimiq" value="1">
-                        </label>
-                        <label>
-                            <span>HTLC Timeout</span>
-                            <input type="number" min="0" max="${2 ** 64 - 1}" required class="nq-input"
-                                id="tx-data-htlc-timeout-input-nimiq" value="12345">
-                        </label>
-                    </div>
-                    <div class="show-${DataUiType.VESTING_CREATION}">
-                        <label>
-                            <span>Vesting Owner</span>
-                            <input required class="nq-input" id="tx-data-vesting-owner-input-nimiq"
-                                value="NQ06 QFK9 HU4T 5LJ8 CGYG 53S4 G5LD HDGP 2G8F">
-                        </label>
-                        <label>
-                            <span>Vesting Start</span>
-                            <input type="number" min="0" max="${2 ** 64 - 1}" class="nq-input"
-                                id="tx-data-vesting-start-input-nimiq" placeholder="Optional, default: 0">
-                        </label>
-                        <label>
-                            <span>Vesting Step Time</span>
-                            <input type="number" min="0" max="${2 ** 64 - 1}" required class="nq-input"
-                                id="tx-data-vesting-step-time-input-nimiq" value="10000">
-                        </label>
-                        <label>
-                            <span>Vesting Step Amount</span>
-                            <input type="number" min="0" max="${Number.MAX_SAFE_INTEGER / 1e5}" step="0.00001"
-                                class="nq-input" id="tx-data-vesting-step-amount-input-nimiq"
-                                placeholder="Optional, default: Transaction Value">
-                        </label>
-                        <label>
-                            <span>Vesting Total Amount</span>
-                            <input type="number" min="0" max="${Number.MAX_SAFE_INTEGER / 1e5}" step="0.00001"
-                                class="nq-input" id="tx-data-vesting-total-amount-input-nimiq"
-                                placeholder="Optional, default: Transaction Value">
-                        </label>
-                    </div>
+                    ${UI_TRANSACTION_DATA}
                     <button class="nq-button-s" id="sign-tx-button-nimiq">Sign</button>
                     <div class="nq-text">Signature: <span id="tx-signature-nimiq" class="mono"></span></div>
                 </div>
@@ -615,26 +508,6 @@ window.addEventListener('load', () => {
                 word-break: break-word;
             }
 
-            #tx-ui-nimiq > label,
-            #tx-ui-nimiq > :not(.selector) > label,
-            #tx-ui-nimiq .selector {
-                display: flex;
-                min-height: 5rem;
-                margin-bottom: 1.5rem;
-                align-items: center;
-            }
-
-            #tx-ui-nimiq label span:first-child,
-            #tx-ui-nimiq .selector span:first-child {
-                min-width: 20rem;
-                margin-right: .5rem;
-            }
-
-            #tx-ui-nimiq .nq-input {
-                margin-right: 0;
-                flex-grow: 1;
-            }
-
             #message-textarea-nimiq,
             #tx-info-textarea-bitcoin,
             #message-textarea-bitcoin {
@@ -650,11 +523,7 @@ window.addEventListener('load', () => {
             body:not(.${ApiType.HIGH_LEVEL}) .show-${ApiType.HIGH_LEVEL},
             body:not(.${Coin.NIMIQ}) .show-${Coin.NIMIQ},
             body:not(.${Coin.BITCOIN}) .show-${Coin.BITCOIN},
-            body:not(.${TransportType.NETWORK}) .show-${TransportType.NETWORK},
-            #tx-data-ui-selector-nimiq:not(.${DataUiType.HEX}) ~ .show-${DataUiType.HEX},
-            #tx-data-ui-selector-nimiq:not(.${DataUiType.TEXT}) ~ .show-${DataUiType.TEXT},
-            #tx-data-ui-selector-nimiq:not(.${DataUiType.HTLC_CREATION}) ~ .show-${DataUiType.HTLC_CREATION},
-            #tx-data-ui-selector-nimiq:not(.${DataUiType.VESTING_CREATION}) ~ .show-${DataUiType.VESTING_CREATION} {
+            body:not(.${TransportType.NETWORK}) .show-${TransportType.NETWORK} {
                 display: none;
             }
         </style>
@@ -693,20 +562,6 @@ window.addEventListener('load', () => {
     const $txValidityStartHeightInputNimiq = getInputElement('#tx-validity-start-height-input-nimiq');
     const $txNetworkSelectorNimiq = document.getElementById('tx-network-selector-nimiq')!;
     const $txFlagContractCreationCheckboxNimiq = getInputElement('#tx-flag-contract-checkbox-nimiq');
-    const $txDataUiSelectorNimiq = document.getElementById('tx-data-ui-selector-nimiq')!;
-    const $txDataHexInputNimiq = getInputElement('#tx-data-hex-input-nimiq');
-    const $txDataTextInputNimiq = getInputElement('#tx-data-text-input-nimiq');
-    const $txDataHtlcSenderInputNimiq = getInputElement('#tx-data-htlc-sender-input-nimiq');
-    const $txDataHtlcRecipientInputNimiq = getInputElement('#tx-data-htlc-recipient-input-nimiq');
-    const $txDataHtlcAlgorithmSelectorNimiq = document.getElementById('tx-data-htlc-algorithm-selector-nimiq')!;
-    const $txDataHtlcHashRootInputNimiq = getInputElement('#tx-data-htlc-hash-root-input-nimiq');
-    const $txDataHtlcHashCountInputNimiq = getInputElement('#tx-data-htlc-hash-count-input-nimiq');
-    const $txDataHtlcTimeoutInputNimiq = getInputElement('#tx-data-htlc-timeout-input-nimiq');
-    const $txDataVestingOwnerInputNimiq = getInputElement('#tx-data-vesting-owner-input-nimiq');
-    const $txDataVestingStartInputNimiq = getInputElement('#tx-data-vesting-start-input-nimiq');
-    const $txDataVestingStepTimeInputNimiq = getInputElement('#tx-data-vesting-step-time-input-nimiq');
-    const $txDataVestingStepAmountInputNimiq = getInputElement('#tx-data-vesting-step-amount-input-nimiq');
-    const $txDataVestingTotalAmountInputNimiq = getInputElement('#tx-data-vesting-total-amount-input-nimiq');
     const $signTxButtonNimiq = document.getElementById('sign-tx-button-nimiq')!;
     const $txSignatureNimiq = document.getElementById('tx-signature-nimiq')!;
     const $messageTypeSelectorNimiq = document.getElementById('message-type-selector-nimiq')!;
@@ -990,74 +845,7 @@ window.addEventListener('load', () => {
             const network = getSelectorValue($txNetworkSelectorNimiq, Network);
             const flags = TransactionFlagsNimiq.NONE // eslint-disable-line no-bitwise
                 | ($txFlagContractCreationCheckboxNimiq.checked ? TransactionFlagsNimiq.CONTRACT_CREATION : 0);
-
-            let recipientData: Uint8Array;
-            const bufferFromBlockOrTime = nimiqVersion === NimiqVersion.LEGACY ? bufferFromUint32 : bufferFromUint64;
-            switch (getSelectorValue($txDataUiSelectorNimiq, DataUiType)) {
-                default:
-                case DataUiType.HEX:
-                    recipientData = bufferFromHex($txDataHexInputNimiq.value);
-                    break;
-                case DataUiType.TEXT:
-                    recipientData = bufferFromUtf8($txDataTextInputNimiq.value);
-                    break;
-                case DataUiType.HTLC_CREATION: {
-                    const htlcSender = Nimiq.Address.fromUserFriendlyAddress($txDataHtlcSenderInputNimiq.value);
-                    const htlcRecipient = Nimiq.Address.fromUserFriendlyAddress($txDataHtlcRecipientInputNimiq.value);
-                    // Note that serialized, numeric values for hashAlgorithms (blake2b: 1, argon2d: 2, sha256: 3,
-                    // sha512: 4) are consistent between Nimiq Legacy and Nimiq Albatross, see:
-                    // - Hash.Algorithm in core-js/src/main/generic/consensus/base/primitive/Hash.js
-                    // - Serialize for AnyHash in core-rs-albatross/primitives/transaction/src/account/htlc_contract.rs
-                    const hashAlgorithm = getSelectorValue($txDataHtlcAlgorithmSelectorNimiq, [1, 2, 3, 4]);
-                    const hashRoot = bufferFromHex($txDataHtlcHashRootInputNimiq.value);
-                    const hashCount = Number.parseInt($txDataHtlcHashCountInputNimiq.value, 10);
-                    const timeout = Number.parseInt($txDataHtlcTimeoutInputNimiq.value, 10);
-                    recipientData = new Uint8Array([
-                        ...htlcSender.serialize(),
-                        ...htlcRecipient.serialize(),
-                        hashAlgorithm,
-                        ...hashRoot,
-                        hashCount,
-                        ...bufferFromBlockOrTime(timeout),
-                    ]);
-                    break;
-                }
-                case DataUiType.VESTING_CREATION: {
-                    if (!!$txDataVestingStartInputNimiq.value !== !!$txDataVestingStepAmountInputNimiq.value) {
-                        throw new Error('Optional vesting start and step amount must be either both set or both unset');
-                    }
-                    if ($txDataVestingTotalAmountInputNimiq.value
-                        && (!$txDataVestingStartInputNimiq.value || !$txDataVestingStepAmountInputNimiq.value)) {
-                        throw new Error('When specifying optional vesting total amount, vesting start and step amount'
-                            + ' must be specified too.');
-                    }
-                    const vestingOwner = Nimiq.Address.fromUserFriendlyAddress($txDataVestingOwnerInputNimiq.value);
-                    const vestingStepTime = Number.parseInt($txDataVestingStepTimeInputNimiq.value, 10);
-                    recipientData = new Uint8Array([
-                        ...vestingOwner.serialize(),
-                        // Vesting start
-                        ...($txDataVestingStartInputNimiq.value
-                            ? bufferFromBlockOrTime(Number.parseInt($txDataVestingStartInputNimiq.value, 10))
-                            : []
-                        ),
-                        ...bufferFromBlockOrTime(vestingStepTime),
-                        // Vesting step amount
-                        ...($txDataVestingStepAmountInputNimiq.value
-                            ? bufferFromUint64(Math.round(Number.parseFloat(
-                                $txDataVestingStepAmountInputNimiq.value) * 1e5))
-                            : []
-                        ),
-                        // Vesting total amount
-                        ...($txDataVestingTotalAmountInputNimiq.value
-                            ? bufferFromUint64(Math.round(Number.parseFloat(
-                                $txDataVestingTotalAmountInputNimiq.value) * 1e5))
-                            : []
-                        ),
-                    ]);
-                    break;
-                }
-            }
-            $txDataHexInputNimiq.value = bufferToHex(recipientData);
+            const { senderData, recipientData } = getTransactionData(Nimiq);
 
             displayStatus('Signing transaction...');
             let signature: Uint8Array;
@@ -1068,11 +856,12 @@ window.addEventListener('load', () => {
                     // Don't have to distinguish BasicTransaction/ExtendedTransaction as serialized content is the same
                     // @ts-expect-error types for sender, senderType, recipient, recipientType not narrowed to Legacy
                     tx = new Nimiq.ExtendedTransaction(sender, senderType, recipient, recipientType, amount, fee,
-                        validityStartHeight, flags, recipientData, /* proof */ undefined, networkId);
+                        validityStartHeight, flags, recipientData || new Uint8Array(), /* proof */ undefined,
+                        networkId);
                 } else {
                     const networkId = NetworkIdNimiq[network];
                     tx = new Nimiq.Transaction(
-                        sender as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, senderType, undefined,
+                        sender as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, senderType, senderData,
                         recipient as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, recipientType, recipientData,
                         BigInt(amount), BigInt(fee), flags, validityStartHeight, networkId);
                 }
@@ -1092,7 +881,7 @@ window.addEventListener('load', () => {
                         ...(nimiqVersion === NimiqVersion.LEGACY ? {
                             extraData: recipientData,
                         } : {
-                            senderData: undefined,
+                            senderData,
                             recipientData,
                         }),
                     },
@@ -1322,8 +1111,6 @@ window.addEventListener('load', () => {
         $confirmPublicKeyButtonNimiq.addEventListener('click', () => getPublicKeyNimiq(true));
         $getAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(false));
         $confirmAddressButtonNimiq.addEventListener('click', () => getAddressNimiq(true));
-        $txDataUiSelectorNimiq.addEventListener('change', () =>
-            $txDataUiSelectorNimiq.className = `selector ${getSelectorValue($txDataUiSelectorNimiq, DataUiType)}`);
         $signTxButtonNimiq.addEventListener('click', signTransactionNimiq);
         $signMessageButtonNimiq.addEventListener('click', signMessageNimiq);
         $getAppNameAndVersionButtonNimiq.addEventListener('click', getAppNameAndVersionNimiq);
