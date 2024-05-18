@@ -208,6 +208,11 @@ window.addEventListener('load', () => {
                                 value="${AccountTypeNimiq.VESTING}">
                             Vesting
                         </label>
+                        <label>
+                            <input type="radio" name="tx-sender-type-selector-nimiq"
+                                value="${AccountTypeNimiq.STAKING}">
+                            Staking
+                        </label>
                     </div>
                     <label>
                         <span>Recipient</span>
@@ -230,6 +235,11 @@ window.addEventListener('load', () => {
                             <input type="radio" name="tx-recipient-type-selector-nimiq"
                                 value="${AccountTypeNimiq.VESTING}">
                             Vesting
+                        </label>
+                        <label>
+                            <input type="radio" name="tx-recipient-type-selector-nimiq"
+                                value="${AccountTypeNimiq.STAKING}">
+                            Staking
                         </label>
                     </div>
                     <label>
@@ -267,6 +277,10 @@ window.addEventListener('load', () => {
                         <label>
                             <input type="checkbox" id="tx-flag-contract-checkbox-nimiq">
                             Contract Creation
+                        </label>
+                        <label>
+                            <input type="checkbox" id="tx-flag-signaling-checkbox-nimiq">
+                            Signaling
                         </label>
                     </div>
                     ${UI_TRANSACTION_DATA}
@@ -564,6 +578,7 @@ window.addEventListener('load', () => {
     const $txValidityStartHeightInputNimiq = getInputElement('#tx-validity-start-height-input-nimiq');
     const $txNetworkSelectorNimiq = document.getElementById('tx-network-selector-nimiq')!;
     const $txFlagContractCreationCheckboxNimiq = getInputElement('#tx-flag-contract-checkbox-nimiq');
+    const $txFlagSignalingCheckboxNimiq = getInputElement('#tx-flag-signaling-checkbox-nimiq');
     const $signTxButtonNimiq = document.getElementById('sign-tx-button-nimiq')!;
     const $txSignatureNimiq = document.getElementById('tx-signature-nimiq')!;
     const $messageTypeSelectorNimiq = document.getElementById('message-type-selector-nimiq')!;
@@ -854,7 +869,8 @@ window.addEventListener('load', () => {
             const validityStartHeight = Number.parseInt($txValidityStartHeightInputNimiq.value, 10);
             const network = getSelectorValue($txNetworkSelectorNimiq, Network);
             const flags = TransactionFlagsNimiq.NONE // eslint-disable-line no-bitwise
-                | ($txFlagContractCreationCheckboxNimiq.checked ? TransactionFlagsNimiq.CONTRACT_CREATION : 0);
+                | ($txFlagContractCreationCheckboxNimiq.checked ? TransactionFlagsNimiq.CONTRACT_CREATION : 0)
+                | ($txFlagSignalingCheckboxNimiq.checked ? TransactionFlagsNimiq.SIGNALING : 0);
             const { senderData, recipientData } = getTransactionData(Nimiq);
 
             displayStatus('Signing transaction...');
