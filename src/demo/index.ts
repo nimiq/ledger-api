@@ -24,6 +24,7 @@ import {
     UI_TRANSACTION_DATA,
     DataUiType,
     getTransactionData,
+    resetTransactionDataUiTypeSelector,
 } from './transaction-data-utils-nimiq';
 
 // Our built library.
@@ -523,7 +524,8 @@ window.addEventListener('load', () => {
             body:not(.${ApiType.HIGH_LEVEL}) .show-${ApiType.HIGH_LEVEL},
             body:not(.${Coin.NIMIQ}) .show-${Coin.NIMIQ},
             body:not(.${Coin.BITCOIN}) .show-${Coin.BITCOIN},
-            body:not(.${TransportType.NETWORK}) .show-${TransportType.NETWORK} {
+            body:not(.${TransportType.NETWORK}) .show-${TransportType.NETWORK},
+            body:not(.${NimiqVersion.ALBATROSS}) .show-${NimiqVersion.ALBATROSS} {
                 display: none;
             }
         </style>
@@ -619,6 +621,14 @@ window.addEventListener('load', () => {
         document.body.classList.toggle(Coin.BITCOIN, coin === Coin.BITCOIN);
         enableSelector($apiSelector, coin === Coin.NIMIQ && !window._api); // only for Nimiq and only until initialized
         getInputElement(`[value=${ApiType.HIGH_LEVEL}]`, $apiSelector).checked = true;
+    }
+
+    function switchNimiqVersion() {
+        const nimiqVersion = getSelectorValue($versionSelectorNimiq, NimiqVersion);
+        document.body.classList.toggle(NimiqVersion.LEGACY, nimiqVersion === NimiqVersion.LEGACY);
+        document.body.classList.toggle(NimiqVersion.ALBATROSS, nimiqVersion === NimiqVersion.ALBATROSS);
+        // Reset data ui type selector because legacy doesn't support all data types.
+        resetTransactionDataUiTypeSelector();
     }
 
     function switchTransport() {
@@ -1099,6 +1109,7 @@ window.addEventListener('load', () => {
             + ' previously granted permissions.');
         $apiSelector.addEventListener('change', switchApi);
         $coinSelector.addEventListener('change', switchCoin);
+        $versionSelectorNimiq.addEventListener('change', switchNimiqVersion);
         $transportSelector.addEventListener('change', switchTransport);
         $networkEndpointInput.addEventListener('input', () => changeNetworkEndpoint());
         $networkEnpointLedgerLiveButton.addEventListener('click', () => changeNetworkEndpoint('ws://127.0.0.1:8435'));
@@ -1125,6 +1136,7 @@ window.addEventListener('load', () => {
 
         switchApi();
         switchCoin();
+        switchNimiqVersion();
         switchTransport();
     }
 

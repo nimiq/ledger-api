@@ -7,40 +7,73 @@ import {
     bufferFromUint32,
     bufferFromUint64,
     bufferToHex,
+    areBuffersEqual,
 } from './demo-utils';
 
 // Our built library.
 // Typescript needs the import as specified to find the .d.ts file, see rollup.config.js
 import { NimiqVersion } from '../../dist/high-level-api/ledger-api';
 
-type TransactionData = { senderData?: Uint8Array | undefined, recipientData: Uint8Array | undefined };
+type TransactionData = { senderData?: Uint8Array, recipientData?: Uint8Array };
 
 export enum DataUiType {
     HEX = 'hex',
     TEXT = 'text',
     CREATE_HTLC = 'create-htlc',
     CREATE_VESTING = 'create-vesting',
+    CREATE_STAKER = 'create-staker',
+    ADD_STAKE = 'add-stake',
+    UPDATE_STAKER = 'update-staker',
+    SET_ACTIVE_STAKE = 'set-active-stake',
+    RETIRE_STAKE = 'retire-stake',
+    REMOVE_STAKE = 'remove-stake',
 }
 
 const UI_TRANSACTION_DATA_TYPE_SELECTOR = `
 <div id="tx-data-ui-selector-nimiq" class="selector ${DataUiType.HEX}">
     <span>Data Input</span>
-    <label>
-        <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.HEX}" checked>
-        Hex
-    </label>
-    <label>
-        <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.TEXT}">
-        Text
-    </label>
-    <label>
-        <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.CREATE_HTLC}">
-        Create HTLC
-    </label>
-    <label>
-        <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.CREATE_VESTING}">
-        Create Vesting
-    </label>
+    <div style="display: flex; flex-wrap: wrap">
+        <label>
+            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.HEX}" checked>
+            Hex
+        </label>
+        <label>
+            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.TEXT}">
+            Text
+        </label>
+        <label>
+            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.CREATE_HTLC}">
+            Create HTLC
+        </label>
+        <label>
+            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.CREATE_VESTING}">
+            Create Vesting
+        </label>
+        <label class="show-${NimiqVersion.ALBATROSS}">
+            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.CREATE_STAKER}">
+            Create Staker
+        </label>
+        <label class="show-${NimiqVersion.ALBATROSS}">
+            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.ADD_STAKE}">
+            Add Stake
+        </label>
+        <label class="show-${NimiqVersion.ALBATROSS}">
+            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.UPDATE_STAKER}">
+            Update Staker
+        </label>
+        <label class="show-${NimiqVersion.ALBATROSS}">
+            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.SET_ACTIVE_STAKE}">
+            Set Active Stake
+        </label>
+        <label class="show-${NimiqVersion.ALBATROSS}">
+            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.RETIRE_STAKE}">
+            Retire Stake
+        </label>
+        <label class="show-${NimiqVersion.ALBATROSS}">
+            <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.REMOVE_STAKE}">
+            Remove Stake
+        </label>
+    </div>
 </div>`;
 
 const UI_TRANSACTION_DATA_HEX = `
@@ -133,21 +166,95 @@ const UI_TRANSACTION_DATA_CREATE_VESTING = `
     </label>
 </div>`;
 
+const UI_TRANSACTION_DATA_CREATE_STAKER = `
+<div class="show-${DataUiType.CREATE_STAKER}">
+    <label>
+        <span>Delegation Address</span>
+        <input class="nq-input" id="tx-data-create-staker-delegation-input-nimiq" placeholder="Optional">
+    </label>
+    <label>
+        <span>Staker Signature Proof</span>
+        <input class="nq-input" id="tx-data-create-staker-signature-proof-input-nimiq"
+            placeholder="By default signed by the Ledger app with sender address as staker address">
+    </label>
+</div>`;
+
+const UI_TRANSACTION_DATA_ADD_STAKE = `
+<div class="show-${DataUiType.ADD_STAKE}">
+    <label>
+        <span>Staker Address</span>
+        <input required class="nq-input" id="tx-data-add-stake-staker-input-nimiq"
+            value="NQ06 QFK9 HU4T 5LJ8 CGYG 53S4 G5LD HDGP 2G8F">
+    </label>
+</div>`;
+
+const UI_TRANSACTION_DATA_UPDATE_STAKER = `
+<div class="show-${DataUiType.UPDATE_STAKER}">
+    <label>
+        <span>New Delegation Address</span>
+        <input class="nq-input" id="tx-data-update-staker-new-delegation-input-nimiq" placeholder="Optional">
+    </label>
+    <div id="tx-data-update-staker-reactivate-all-stake-selector-nimiq" class="selector">
+        <span>Reactivate all stake</span>
+        <label>
+            <input type="radio" name="tx-data-update-staker-reactivate-all-stake-selector-nimiq" value="true"
+                checked>
+            Yes
+        </label>
+        <label>
+            <input type="radio" name="tx-data-update-staker-reactivate-all-stake-selector-nimiq" value="false">
+            No
+        </label>
+    </div>
+    <label>
+        <span>Staker Signature Proof</span>
+        <input class="nq-input" id="tx-data-update-staker-signature-proof-input-nimiq"
+            placeholder="By default signed by the Ledger app with sender address as staker address">
+    </label>
+</div>`;
+
+const UI_TRANSACTION_DATA_SET_ACTIVE_STAKE_OR_RETIRE_STAKE = `
+<div class="show-${DataUiType.SET_ACTIVE_STAKE} show-${DataUiType.RETIRE_STAKE}">
+    <label>
+        <span class="show-${DataUiType.SET_ACTIVE_STAKE}">New Active Balance</span>
+        <span class="show-${DataUiType.RETIRE_STAKE}">Retire Stake Amount</span>
+        <input type="number" min="0" max="${Number.MAX_SAFE_INTEGER / 1e5}" step="0.00001" required class="nq-input"
+            id="tx-data-set-active-stake-or-retire-stake-amount-input-nimiq" value="100">
+    </label>
+    <label>
+        <span>Staker Signature Proof</span>
+        <input class="nq-input" id="tx-data-set-active-stake-or-retire-stake-signature-proof-input-nimiq"
+            placeholder="By default signed by the Ledger app with sender address as staker address">
+    </label>
+</div>`;
+
+const UI_TRANSACTION_DATA_REMOVE_STAKE = `
+<div class="info show-${DataUiType.REMOVE_STAKE}">
+    (No additional data parameters to set for Remove Stake.)
+</div>`;
+
+/* eslint-disable @typescript-eslint/indent */
 const UI_TRANSACTION_DATA_STYLE = `
 <style>
     #tx-ui-nimiq > label,
     #tx-ui-nimiq > :not(.selector) > label,
-    #tx-ui-nimiq .selector {
+    #tx-ui-nimiq .selector,
+    #tx-ui-nimiq > .info {
         display: flex;
         min-height: 5rem;
         margin-bottom: 1.5rem;
         align-items: center;
     }
 
-    #tx-ui-nimiq label span:first-child,
-    #tx-ui-nimiq .selector span:first-child {
+    #tx-ui-nimiq label > span,
+    #tx-ui-nimiq .selector > span:first-child {
         min-width: 20rem;
+        max-width: 20rem;
         margin-right: .5rem;
+    }
+    
+    #tx-ui-nimiq > .info {
+        margin-left: 20.5rem; /* width + margin-right of left column in rule above */
     }
 
     #tx-ui-nimiq .nq-input {
@@ -155,15 +262,22 @@ const UI_TRANSACTION_DATA_STYLE = `
         flex-grow: 1;
     }
 
-    #tx-data-ui-selector-nimiq:not(:has([value="${DataUiType.HEX}"]:checked)) ~ .show-${DataUiType.HEX},
-    #tx-data-ui-selector-nimiq:not(:has([value="${DataUiType.TEXT}"]:checked)) ~ .show-${DataUiType.TEXT},
-    #tx-data-ui-selector-nimiq:not(:has([value="${DataUiType.CREATE_HTLC}"]:checked))
-        ~ .show-${DataUiType.CREATE_HTLC},
-    #tx-data-ui-selector-nimiq:not(:has([value="${DataUiType.CREATE_VESTING}"]:checked))
-        ~ .show-${DataUiType.CREATE_VESTING} {
+    /* hide elements which have one or more .show-{uiType} classes, but none of the classes corresponds to the ui type
+    of the selector's checked radio button */
+    :is(${
+        Object.values(DataUiType).map((uiType) => `.show-${uiType}`).join(', ')
+    }):not(${
+        Object.values(DataUiType)
+            .flatMap((uiType) => {
+                const siblingPrefix = `#tx-data-ui-selector-nimiq:has([value="${uiType}"]:checked) ~`;
+                return [`${siblingPrefix} .show-${uiType}`, `${siblingPrefix} * .show-${uiType}`];
+            })
+            .join(', ')
+    }) {
         display: none;
     }
 </style>`;
+/* eslint-enable @typescript-eslint/indent */
 
 export const UI_TRANSACTION_DATA = [
     UI_TRANSACTION_DATA_TYPE_SELECTOR,
@@ -171,14 +285,25 @@ export const UI_TRANSACTION_DATA = [
     UI_TRANSACTION_DATA_TEXT,
     UI_TRANSACTION_DATA_CREATE_HTLC,
     UI_TRANSACTION_DATA_CREATE_VESTING,
+    UI_TRANSACTION_DATA_CREATE_STAKER,
+    UI_TRANSACTION_DATA_ADD_STAKE,
+    UI_TRANSACTION_DATA_UPDATE_STAKER,
+    UI_TRANSACTION_DATA_SET_ACTIVE_STAKE_OR_RETIRE_STAKE,
+    UI_TRANSACTION_DATA_REMOVE_STAKE,
     UI_TRANSACTION_DATA_STYLE,
 ].join('').trim();
+
+export function resetTransactionDataUiTypeSelector() {
+    const $uiTypeSelector = document.getElementById('tx-data-ui-selector-nimiq')!;
+    getInputElement(`[value=${DataUiType.HEX}]`, $uiTypeSelector).checked = true;
+}
 
 export function getTransactionData(Nimiq: Nimiq<NimiqVersion>): TransactionData {
     const $uiTypeSelector = document.getElementById('tx-data-ui-selector-nimiq')!;
     const $hexInput = getInputElement('#tx-data-hex-input-nimiq');
     let transactionData: TransactionData;
-    switch (getSelectorValue($uiTypeSelector, DataUiType)) {
+    const uiType = getSelectorValue($uiTypeSelector, DataUiType);
+    switch (uiType) {
         default:
         case DataUiType.HEX:
             transactionData = getTransactionDataForHex();
@@ -191,6 +316,22 @@ export function getTransactionData(Nimiq: Nimiq<NimiqVersion>): TransactionData 
             break;
         case DataUiType.CREATE_VESTING:
             transactionData = getTransactionDataForCreateVesting(Nimiq);
+            break;
+        case DataUiType.CREATE_STAKER:
+            transactionData = getTransactionDataForCreateStaker(Nimiq);
+            break;
+        case DataUiType.ADD_STAKE:
+            transactionData = getTransactionDataForAddStake(Nimiq);
+            break;
+        case DataUiType.UPDATE_STAKER:
+            transactionData = getTransactionDataForUpdateStaker(Nimiq);
+            break;
+        case DataUiType.SET_ACTIVE_STAKE:
+        case DataUiType.RETIRE_STAKE:
+            transactionData = getTransactionDataForSetActiveStakeOrRetireStake(Nimiq, uiType);
+            break;
+        case DataUiType.REMOVE_STAKE:
+            transactionData = getTransactionDataForRemoveStake(Nimiq);
             break;
     }
     $hexInput.value = bufferToHex(transactionData.recipientData || new Uint8Array());
@@ -279,6 +420,169 @@ function getTransactionDataForCreateVesting(Nimiq: Nimiq<NimiqVersion>): Transac
         ),
     ]);
     return { recipientData };
+}
+
+// Staking transactions
+// They have been introduced / are only supported for Albatross, i.e. core-rs-albatross. For serialization format see:
+// - IncomingStakingTransactionData in primitives/transaction/src/account/staking_contract/structs.rs for recipient
+// - OutgoingStakingTransactionData in primitives/transaction/src/account/staking_contract/structs.rs for sender
+// - rust types supported by serde: https://serde.rs/data-model.html#types
+// - which are serialized to bytes in postcard format: https://postcard.jamesmunns.com/wire-format.html, see data() in
+//   transaction-builder/src/recipient/mod.rs and used serialize_to_vec
+
+// Recipient data type for incoming transactions to the staking contract.
+enum IncomingStakingTransactionDataType {
+    CREATE_VALIDATOR,
+    UPDATE_VALIDATOR,
+    DEACTIVATE_VALIDATOR,
+    REACTIVATE_VALIDATOR,
+    RETIRE_VALIDATOR,
+    CREATE_STAKER,
+    ADD_STAKE,
+    UPDATE_STAKER,
+    SET_ACTIVE_STAKE,
+    RETIRE_STAKE,
+}
+// Sender data type for outgoing transactions from the staking contract.
+enum OutgoingStakingTransactionDataType {
+    DELETE_VALIDATOR,
+    REMOVE_STAKE,
+}
+
+// See Default for SignatureProof and Serialize for SignatureProof in primitives/transaction/src/signature_proof.rs
+// The staking transactions that include a signature proof in the transaction data are double signed, once by the staker
+// or validator, and once by the account sending the funds or paying the fee, which can be the same. The staker or
+// validator signature proof is based on the transaction with the dummy, default signature in the transaction data,
+// whereas the sending account signs the final transaction with the staker's / validator's signature proof in the data.
+const STAKING_DEFAULT_SIGNATURE_PROOF = new Uint8Array([
+    0, // type field (algorithm and flags), by default Ed25519 (PublicKey enum value 0) and no flags set
+    ...new Uint8Array(32), // Ed25519PublicKey filled with 0s, see Default and Serialize in keys/src/public_key.rs
+    0, // Empty merkle path only encoding u8 length, see Default and Serialize for MerklePath in utils/src/merkle/mod.rs
+    ...new Uint8Array(64), // Ed25519Signature filled with 0s, see Default and Serialize in keys/src/signature.rs
+    // No serialized webauthn fields as the algorithm defaults to ed25519.
+]);
+
+export function getTransactionDataForCreateStaker(Nimiq: Nimiq<NimiqVersion>): TransactionData {
+    if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
+
+    const $delegationInput = getInputElement('#tx-data-create-staker-delegation-input-nimiq');
+    const $signatureProofInput = getInputElement('#tx-data-create-staker-signature-proof-input-nimiq');
+
+    const delegation = $delegationInput.value ? Nimiq.Address.fromUserFriendlyAddress($delegationInput.value) : null;
+    const customStakerSignatureProof = bufferFromHex($signatureProofInput.value);
+    const recipientData = new Uint8Array([
+        IncomingStakingTransactionDataType.CREATE_STAKER,
+        ...(delegation ? [1, ...delegation.serialize()] : [0]),
+        ...(customStakerSignatureProof.length ? customStakerSignatureProof : STAKING_DEFAULT_SIGNATURE_PROOF),
+    ]);
+
+    // If possible, compare our serialized data to reference data created by TransactionBuilder to check for correctness
+    // of our serialization implementation.
+    if (delegation && !customStakerSignatureProof.length) {
+        const referenceTransaction = Nimiq.TransactionBuilder.newCreateStaker(new Nimiq.Address(new Uint8Array(20)),
+            delegation, 1n, undefined, 0, 24);
+        if (referenceTransaction.senderData.length !== 0
+            || !areBuffersEqual(referenceTransaction.data, recipientData)) throw new Error('Incorrect serialization');
+    }
+
+    return { recipientData };
+}
+
+export function getTransactionDataForAddStake(Nimiq: Nimiq<NimiqVersion>): TransactionData {
+    if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
+
+    const $stakerInput = getInputElement('#tx-data-add-stake-staker-input-nimiq');
+
+    const staker = Nimiq.Address.fromUserFriendlyAddress($stakerInput.value);
+    const recipientData = new Uint8Array([
+        IncomingStakingTransactionDataType.ADD_STAKE,
+        ...staker.serialize(),
+    ]);
+
+    // Compare our serialized data to reference data created by TransactionBuilder to check for correctness of our
+    // serialization implementation.
+    const referenceTransaction = Nimiq.TransactionBuilder.newAddStake(new Nimiq.Address(new Uint8Array(20)), staker, 1n,
+        undefined, 0, 24);
+    if (referenceTransaction.senderData.length !== 0
+        || !areBuffersEqual(referenceTransaction.data, recipientData)) throw new Error('Incorrect serialization');
+
+    return { recipientData };
+}
+
+export function getTransactionDataForUpdateStaker(Nimiq: Nimiq<NimiqVersion>): TransactionData {
+    if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
+
+    const $newDelegationInput = getInputElement('#tx-data-update-staker-new-delegation-input-nimiq');
+    const $reactivateAllStakeSelector = document.getElementById(
+        'tx-data-update-staker-reactivate-all-stake-selector-nimiq')!;
+    const $signatureProofInput = getInputElement('#tx-data-update-staker-signature-proof-input-nimiq');
+
+    const newDelegation = $newDelegationInput.value
+        ? Nimiq.Address.fromUserFriendlyAddress($newDelegationInput.value)
+        : null;
+    const reactivateAllStake = getSelectorValue($reactivateAllStakeSelector, ['true', 'false']) === 'true';
+    const customStakerSignatureProof = bufferFromHex($signatureProofInput.value);
+    const recipientData = new Uint8Array([
+        IncomingStakingTransactionDataType.UPDATE_STAKER,
+        ...(newDelegation ? [1, ...newDelegation.serialize()] : [0]),
+        reactivateAllStake ? 1 : 0,
+        ...(customStakerSignatureProof.length ? customStakerSignatureProof : STAKING_DEFAULT_SIGNATURE_PROOF),
+    ]);
+
+    // If possible, compare our serialized data to reference data created by TransactionBuilder to check for correctness
+    // of our serialization implementation.
+    if (newDelegation && !customStakerSignatureProof.length) {
+        const referenceTransaction = Nimiq.TransactionBuilder.newUpdateStaker(new Nimiq.Address(new Uint8Array(20)),
+            newDelegation, reactivateAllStake, undefined, 0, 24);
+        if (referenceTransaction.senderData.length !== 0
+            || !areBuffersEqual(referenceTransaction.data, recipientData)) throw new Error('Incorrect serialization');
+    }
+
+    return { recipientData };
+}
+
+export function getTransactionDataForSetActiveStakeOrRetireStake(Nimiq: Nimiq<NimiqVersion>, uiType: DataUiType)
+    : TransactionData {
+    if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
+
+    const $amountInput = getInputElement('#tx-data-set-active-stake-or-retire-stake-amount-input-nimiq');
+    const $signatureProofInput = getInputElement(
+        '#tx-data-set-active-stake-or-retire-stake-signature-proof-input-nimiq');
+
+    const amount = BigInt(Math.round(Number.parseFloat($amountInput.value) * 1e5));
+    const customStakerSignatureProof = bufferFromHex($signatureProofInput.value);
+    const recipientData = new Uint8Array([
+        uiType === DataUiType.SET_ACTIVE_STAKE
+            ? IncomingStakingTransactionDataType.SET_ACTIVE_STAKE
+            : IncomingStakingTransactionDataType.RETIRE_STAKE,
+        ...bufferFromUint64(amount),
+        ...(customStakerSignatureProof.length ? customStakerSignatureProof : STAKING_DEFAULT_SIGNATURE_PROOF),
+    ]);
+
+    // Compare our serialized data to reference data created by TransactionBuilder to check for correctness of our
+    // serialization implementation.
+    const referenceTransaction = uiType === DataUiType.SET_ACTIVE_STAKE
+        ? Nimiq.TransactionBuilder.newSetActiveStake(new Nimiq.Address(new Uint8Array(20)), amount, undefined, 0, 24)
+        : Nimiq.TransactionBuilder.newRetireStake(new Nimiq.Address(new Uint8Array(20)), amount, undefined, 0, 24);
+    if (referenceTransaction.senderData.length !== 0
+        || !areBuffersEqual(referenceTransaction.data, recipientData)) throw new Error('Incorrect serialization');
+
+    return { recipientData };
+}
+
+export function getTransactionDataForRemoveStake(Nimiq: Nimiq<NimiqVersion>): TransactionData {
+    if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
+
+    const senderData = new Uint8Array([OutgoingStakingTransactionDataType.REMOVE_STAKE]);
+
+    // Compare our serialized data to reference data created by TransactionBuilder to check for correctness of our
+    // serialization implementation.
+    const referenceTransaction = Nimiq.TransactionBuilder.newRemoveStake(new Nimiq.Address(new Uint8Array(20)), 1n,
+        undefined, 0, 24);
+    if (!areBuffersEqual(referenceTransaction.senderData, senderData)
+        || referenceTransaction.data.length !== 0) throw new Error('Incorrect serialization');
+
+    return { senderData };
 }
 
 function bufferFromBlockOrTime(nimiqVersion: NimiqVersion, blockOrTime: number): Uint8Array {
