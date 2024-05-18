@@ -77,16 +77,28 @@ const UI_TRANSACTION_DATA_TYPE_SELECTOR = `
 </div>`;
 
 const UI_TRANSACTION_DATA_HEX = `
-<label class="show-${DataUiType.HEX}">
-    <span>Data (Hex)</span>
-    <input class="nq-input" id="tx-data-hex-input-nimiq" placeholder="Optional">
-</label>`;
+<div class="show-${DataUiType.HEX}">
+    <label>
+        <span>Sender Data (Hex)</span>
+        <input class="nq-input" id="tx-data-sender-hex-input-nimiq" placeholder="Optional">
+    </label>
+    <label>
+        <span>Recipient Data (Hex)</span>
+        <input class="nq-input" id="tx-data-recipient-hex-input-nimiq" placeholder="Optional">
+    </label>
+</div>`;
 
 const UI_TRANSACTION_DATA_TEXT = `
-<label class="show-${DataUiType.TEXT}">
-    <span>Data (Text)</span>
-    <input class="nq-input" id="tx-data-text-input-nimiq" value="Hello world." placeholder="Optional">
-</label>`;
+<div class="show-${DataUiType.TEXT}">
+    <label>
+        <span>Sender Data (Text)</span>
+        <input class="nq-input" id="tx-data-sender-text-input-nimiq" placeholder="Optional">
+    </label>
+    <label>
+        <span>Recipient Data (Text)</span>
+        <input class="nq-input" id="tx-data-recipient-text-input-nimiq" value="Hello world." placeholder="Optional">
+    </label>
+</div>`;
 
 const UI_TRANSACTION_DATA_CREATE_HTLC = `
 <div class="show-${DataUiType.CREATE_HTLC}">
@@ -236,9 +248,9 @@ const UI_TRANSACTION_DATA_REMOVE_STAKE = `
 /* eslint-disable @typescript-eslint/indent */
 const UI_TRANSACTION_DATA_STYLE = `
 <style>
+    #tx-ui-nimiq .selector,
     #tx-ui-nimiq > label,
     #tx-ui-nimiq > :not(.selector) > label,
-    #tx-ui-nimiq .selector,
     #tx-ui-nimiq > .info {
         display: flex;
         min-height: 5rem;
@@ -300,7 +312,8 @@ export function resetTransactionDataUiTypeSelector() {
 
 export function getTransactionData(Nimiq: Nimiq<NimiqVersion>): TransactionData {
     const $uiTypeSelector = document.getElementById('tx-data-ui-selector-nimiq')!;
-    const $hexInput = getInputElement('#tx-data-hex-input-nimiq');
+    const $senderDataHexInput = getInputElement('#tx-data-sender-hex-input-nimiq');
+    const $recipientDataHexInput = getInputElement('#tx-data-recipient-hex-input-nimiq');
     let transactionData: TransactionData;
     const uiType = getSelectorValue($uiTypeSelector, DataUiType);
     switch (uiType) {
@@ -334,20 +347,25 @@ export function getTransactionData(Nimiq: Nimiq<NimiqVersion>): TransactionData 
             transactionData = getTransactionDataForRemoveStake(Nimiq);
             break;
     }
-    $hexInput.value = bufferToHex(transactionData.recipientData || new Uint8Array());
+    $senderDataHexInput.value = bufferToHex(transactionData.senderData || new Uint8Array());
+    $recipientDataHexInput.value = bufferToHex(transactionData.recipientData || new Uint8Array());
     return transactionData;
 }
 
 function getTransactionDataForHex(): TransactionData {
-    const $hexInput = getInputElement('#tx-data-hex-input-nimiq');
-    const recipientData = bufferFromHex($hexInput.value);
-    return { recipientData };
+    const $senderDataHexInput = getInputElement('#tx-data-sender-hex-input-nimiq');
+    const $recipientDataHexInput = getInputElement('#tx-data-recipient-hex-input-nimiq');
+    const senderData = bufferFromHex($senderDataHexInput.value);
+    const recipientData = bufferFromHex($recipientDataHexInput.value);
+    return { senderData, recipientData };
 }
 
 function getTransactionDataForText(): TransactionData {
-    const $textInput = getInputElement('#tx-data-text-input-nimiq');
-    const recipientData = bufferFromUtf8($textInput.value);
-    return { recipientData };
+    const $senderDataTextInput = getInputElement('#tx-data-sender-text-input-nimiq');
+    const $recipientDataTextInput = getInputElement('#tx-data-recipient-text-input-nimiq');
+    const senderData = bufferFromUtf8($senderDataTextInput.value);
+    const recipientData = bufferFromUtf8($recipientDataTextInput.value);
+    return { senderData, recipientData };
 }
 
 function getTransactionDataForCreateHtlc(Nimiq: Nimiq<NimiqVersion>): TransactionData {
