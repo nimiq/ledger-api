@@ -1,4 +1,4 @@
-import { isNimiqLegacy, type Nimiq } from '../lib/load-nimiq';
+import { isNimiqLegacy, type Nimiq, type NimiqPrimitive } from '../lib/load-nimiq';
 import {
     getInputElement,
     getSelectorValue,
@@ -510,20 +510,15 @@ export function getTransactionDataForCreateStaker(Nimiq: Nimiq<NimiqVersion>): T
     const $signatureProofInput = getInputElement('#tx-data-create-staker-signature-proof-input-nimiq');
 
     const delegation = $delegationInput.value ? Nimiq.Address.fromUserFriendlyAddress($delegationInput.value) : null;
-    const customStakerSignatureProof = bufferFromHex($signatureProofInput.value);
+    const customSignatureProof = bufferFromHex($signatureProofInput.value); // staker signature proof
     const recipientData = new Uint8Array([
         IncomingStakingTransactionDataType.CREATE_STAKER,
         ...(delegation ? [1, ...delegation.serialize()] : [0]),
-        ...(customStakerSignatureProof.length ? customStakerSignatureProof : STAKING_DEFAULT_SIGNATURE_PROOF),
+        ...(customSignatureProof.length ? customSignatureProof : STAKING_DEFAULT_SIGNATURE_PROOF),
     ]);
 
-    // If possible, compare our serialized data to reference data created by TransactionBuilder to check for correctness
-    // of our serialization implementation.
-    if (delegation && !customStakerSignatureProof.length) {
-        const referenceTransaction = Nimiq.TransactionBuilder.newCreateStaker(new Nimiq.Address(new Uint8Array(20)),
-            delegation, 1n, undefined, 0, 24);
-        if (referenceTransaction.senderData.length !== 0
-            || !areBuffersEqual(referenceTransaction.data, recipientData)) throw new Error('Incorrect serialization');
+    if (delegation) {
+        checkSerialization(Nimiq, { recipientData, customSignatureProof }, 'CreateStaker', delegation);
     }
 
     return { recipientData };
@@ -539,13 +534,7 @@ export function getTransactionDataForAddStake(Nimiq: Nimiq<NimiqVersion>): Trans
         IncomingStakingTransactionDataType.ADD_STAKE,
         ...staker.serialize(),
     ]);
-
-    // Compare our serialized data to reference data created by TransactionBuilder to check for correctness of our
-    // serialization implementation.
-    const referenceTransaction = Nimiq.TransactionBuilder.newAddStake(new Nimiq.Address(new Uint8Array(20)), staker, 1n,
-        undefined, 0, 24);
-    if (referenceTransaction.senderData.length !== 0
-        || !areBuffersEqual(referenceTransaction.data, recipientData)) throw new Error('Incorrect serialization');
+    checkSerialization(Nimiq, { recipientData }, 'AddStake', staker);
 
     return { recipientData };
 }
@@ -562,21 +551,17 @@ export function getTransactionDataForUpdateStaker(Nimiq: Nimiq<NimiqVersion>): T
         ? Nimiq.Address.fromUserFriendlyAddress($newDelegationInput.value)
         : null;
     const reactivateAllStake = getSelectorValue($reactivateAllStakeSelector, ['true', 'false']) === 'true';
-    const customStakerSignatureProof = bufferFromHex($signatureProofInput.value);
+    const customSignatureProof = bufferFromHex($signatureProofInput.value); // staker signature proof
     const recipientData = new Uint8Array([
         IncomingStakingTransactionDataType.UPDATE_STAKER,
         ...(newDelegation ? [1, ...newDelegation.serialize()] : [0]),
         reactivateAllStake ? 1 : 0,
-        ...(customStakerSignatureProof.length ? customStakerSignatureProof : STAKING_DEFAULT_SIGNATURE_PROOF),
+        ...(customSignatureProof.length ? customSignatureProof : STAKING_DEFAULT_SIGNATURE_PROOF),
     ]);
 
-    // If possible, compare our serialized data to reference data created by TransactionBuilder to check for correctness
-    // of our serialization implementation.
-    if (newDelegation && !customStakerSignatureProof.length) {
-        const referenceTransaction = Nimiq.TransactionBuilder.newUpdateStaker(new Nimiq.Address(new Uint8Array(20)),
-            newDelegation, reactivateAllStake, undefined, 0, 24);
-        if (referenceTransaction.senderData.length !== 0
-            || !areBuffersEqual(referenceTransaction.data, recipientData)) throw new Error('Incorrect serialization');
+    if (newDelegation) {
+        checkSerialization(Nimiq, { recipientData, customSignatureProof }, 'UpdateStaker', newDelegation,
+            reactivateAllStake);
     }
 
     return { recipientData };
@@ -591,22 +576,16 @@ export function getTransactionDataForSetActiveStakeOrRetireStake(Nimiq: Nimiq<Ni
         '#tx-data-set-active-stake-or-retire-stake-signature-proof-input-nimiq');
 
     const amount = BigInt(Math.round(Number.parseFloat($amountInput.value) * 1e5));
-    const customStakerSignatureProof = bufferFromHex($signatureProofInput.value);
+    const customSignatureProof = bufferFromHex($signatureProofInput.value); // staker signature proof
     const recipientData = new Uint8Array([
         uiType === DataUiType.SET_ACTIVE_STAKE
             ? IncomingStakingTransactionDataType.SET_ACTIVE_STAKE
             : IncomingStakingTransactionDataType.RETIRE_STAKE,
         ...bufferFromUint64(amount),
-        ...(customStakerSignatureProof.length ? customStakerSignatureProof : STAKING_DEFAULT_SIGNATURE_PROOF),
+        ...(customSignatureProof.length ? customSignatureProof : STAKING_DEFAULT_SIGNATURE_PROOF),
     ]);
-
-    // Compare our serialized data to reference data created by TransactionBuilder to check for correctness of our
-    // serialization implementation.
-    const referenceTransaction = uiType === DataUiType.SET_ACTIVE_STAKE
-        ? Nimiq.TransactionBuilder.newSetActiveStake(new Nimiq.Address(new Uint8Array(20)), amount, undefined, 0, 24)
-        : Nimiq.TransactionBuilder.newRetireStake(new Nimiq.Address(new Uint8Array(20)), amount, undefined, 0, 24);
-    if (referenceTransaction.senderData.length !== 0
-        || !areBuffersEqual(referenceTransaction.data, recipientData)) throw new Error('Incorrect serialization');
+    const transactionBuilderType = uiType === DataUiType.SET_ACTIVE_STAKE ? 'SetActiveStake' : 'RetireStake';
+    checkSerialization(Nimiq, { recipientData, customSignatureProof }, transactionBuilderType, amount);
 
     return { recipientData };
 }
@@ -615,15 +594,52 @@ export function getTransactionDataForRemoveStake(Nimiq: Nimiq<NimiqVersion>): Tr
     if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
 
     const senderData = new Uint8Array([OutgoingStakingTransactionDataType.REMOVE_STAKE]);
-
-    // Compare our serialized data to reference data created by TransactionBuilder to check for correctness of our
-    // serialization implementation.
-    const referenceTransaction = Nimiq.TransactionBuilder.newRemoveStake(new Nimiq.Address(new Uint8Array(20)), 1n,
-        undefined, 0, 24);
-    if (!areBuffersEqual(referenceTransaction.senderData, senderData)
-        || referenceTransaction.data.length !== 0) throw new Error('Incorrect serialization');
+    checkSerialization(Nimiq, { senderData }, 'RemoveStake');
 
     return { senderData };
+}
+
+type TrimTransactionBuilderMethod<M extends string> = M extends `new${infer B}` ? B : never; // trim new in method name
+type TransactionBuilderType = TrimTransactionBuilderMethod<keyof Nimiq<NimiqVersion.ALBATROSS>['TransactionBuilder']>;
+const TRANSACTION_BUILDERS_EXPECTING_AMOUNT = ['Basic', 'BasicWithData', 'CreateStaker', 'AddStake', 'RemoveStake'] as
+    const satisfies readonly TransactionBuilderType[];
+type TransactionBuilderExpectingAmount = (typeof TRANSACTION_BUILDERS_EXPECTING_AMOUNT)[number];
+type TransactionBuilderDataParameters<B extends TransactionBuilderType> =
+    // Exclude common transaction builder parameters that don't affect sender or recipient data.
+    Parameters<Nimiq<NimiqVersion.ALBATROSS>['TransactionBuilder'][`new${B}`]> extends [
+        NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, // sender or recipient
+        ...infer P,
+        ...(B extends TransactionBuilderExpectingAmount ? [bigint] : []), // amount
+        bigint | undefined, // fee
+        number, // validity start height
+        number, // network id
+    ] ? P : never;
+function checkSerialization<B extends TransactionBuilderType>(
+    Nimiq: Nimiq<NimiqVersion.ALBATROSS>,
+    { senderData, recipientData, customSignatureProof }: {
+        senderData?: Uint8Array,
+        recipientData?: Uint8Array,
+        customSignatureProof?: Uint8Array,
+    },
+    builderType: B,
+    ...builderParams: TransactionBuilderDataParameters<B>
+): void {
+    // If possible, compare our serialized data to reference data created by TransactionBuilder to check for correctness
+    // of our serialization implementation.
+    if (customSignatureProof?.length) return; // The reference data is created with the default signature proof
+    // @ts-expect-error: ts doesn't know which specific builder we're calling
+    const referenceTransaction = Nimiq.TransactionBuilder[`new${builderType}`].apply(undefined, [
+        new Nimiq.Address(new Uint8Array(20)), // sender or recipient
+        ...builderParams,
+        ...(TRANSACTION_BUILDERS_EXPECTING_AMOUNT.some((b) => builderType === b) ? [1n] : []), // amount
+        undefined, // fee
+        0, // validity start height
+        24, // network id
+    ]);
+    if (!areBuffersEqual(referenceTransaction.senderData, senderData || new Uint8Array())
+        || !areBuffersEqual(referenceTransaction.data, recipientData || new Uint8Array())) {
+        throw new Error('Incorrect serialization');
+    }
 }
 
 function bufferFromBlockOrTime(nimiqVersion: NimiqVersion, blockOrTime: number): Uint8Array {
