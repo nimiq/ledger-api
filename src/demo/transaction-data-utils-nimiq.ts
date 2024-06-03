@@ -76,6 +76,28 @@ const UI_TRANSACTION_DATA_TYPE_SELECTOR = `
     </div>
 </div>`;
 
+const UI_TRANSACTION_DATA_VALIDITY_HINT = `
+<div class="info show-${DataUiType.CREATE_HTLC} show-${DataUiType.CREATE_VESTING}">
+    <!-- Contract creation transaction -->
+    A valid transaction must have the contract creation address as recipient, recipient type
+    <span class="show-${DataUiType.CREATE_HTLC}">HTLC</span>
+    <span class="show-${DataUiType.CREATE_VESTING}">Vesting</span>
+    and the contract creation flag.
+</div>
+<div class="info show-${DataUiType.CREATE_STAKER} show-${DataUiType.ADD_STAKE}">
+    <!-- Non-signaling transaction to staking contract -->
+    A valid transaction must have the staking contract address as recipient and recipient type Staking.
+</div>
+<div class="info show-${DataUiType.UPDATE_STAKER} show-${DataUiType.SET_ACTIVE_STAKE} show-${DataUiType.RETIRE_STAKE}">
+    <!-- Signaling transaction to staking contract -->
+    A valid transaction must have the staking contract address as recipient, recipient type Staking, the signaling flag,
+    and amount 0.
+</div>
+<div class="info show-${DataUiType.REMOVE_STAKE}">
+    <!-- Transaction from staking contract -->
+    A valid transaction must have the staking contract address as sender and sender type Staking.
+</div>`;
+
 const UI_TRANSACTION_DATA_HEX = `
 <div class="show-${DataUiType.HEX}">
     <label>
@@ -242,7 +264,7 @@ const UI_TRANSACTION_DATA_SET_ACTIVE_STAKE_OR_RETIRE_STAKE = `
 
 const UI_TRANSACTION_DATA_REMOVE_STAKE = `
 <div class="info show-${DataUiType.REMOVE_STAKE}">
-    (No additional data parameters to set for Remove Stake.)
+    (There are no additional data parameters to set for Remove Stake data.)
 </div>`;
 
 /* eslint-disable @typescript-eslint/indent */
@@ -250,8 +272,7 @@ const UI_TRANSACTION_DATA_STYLE = `
 <style>
     #tx-ui-nimiq .selector,
     #tx-ui-nimiq > label,
-    #tx-ui-nimiq > :not(.selector) > label,
-    #tx-ui-nimiq > .info {
+    #tx-ui-nimiq > :not(.selector) > label {
         display: flex;
         min-height: 5rem;
         margin-bottom: 1.5rem;
@@ -266,7 +287,8 @@ const UI_TRANSACTION_DATA_STYLE = `
     }
     
     #tx-ui-nimiq > .info {
-        margin-left: 20.5rem; /* width + margin-right of left column in rule above */
+        margin-left: 21rem; /* width + margin-right of left column in rule above + margin of radio buttons */
+        margin-bottom: 2rem;
     }
 
     #tx-ui-nimiq .nq-input {
@@ -293,6 +315,7 @@ const UI_TRANSACTION_DATA_STYLE = `
 
 export const UI_TRANSACTION_DATA = [
     UI_TRANSACTION_DATA_TYPE_SELECTOR,
+    UI_TRANSACTION_DATA_VALIDITY_HINT,
     UI_TRANSACTION_DATA_HEX,
     UI_TRANSACTION_DATA_TEXT,
     UI_TRANSACTION_DATA_CREATE_HTLC,
