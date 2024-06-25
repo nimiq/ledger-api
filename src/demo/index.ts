@@ -873,24 +873,37 @@ window.addEventListener('load', () => {
                 | ($txFlagSignalingCheckboxNimiq.checked ? TransactionFlagsNimiq.SIGNALING : 0);
             const { senderData, recipientData } = getTransactionData(Nimiq);
 
+            let tx;
+            if (isNimiqLegacy(Nimiq)) {
+                const networkId = Nimiq.GenesisConfig.CONFIGS[network].NETWORK_ID;
+                // Don't have to distinguish BasicTransaction/ExtendedTransaction as serialized content is the same
+                // @ts-expect-error types for sender, senderType, recipient, recipientType not narrowed to Legacy
+                tx = new Nimiq.ExtendedTransaction(sender, senderType, recipient, recipientType, amount, fee,
+                    validityStartHeight, flags, recipientData || new Uint8Array(), /* proof */ undefined, networkId,
+                );
+            } else {
+                const networkId = NetworkIdNimiq[network];
+                tx = new Nimiq.Transaction(
+                    sender as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, senderType, senderData,
+                    recipient as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, recipientType, recipientData,
+                    BigInt(amount), BigInt(fee), flags, validityStartHeight, networkId,
+                );
+            }
+
+            if (!!(flags & TransactionFlagsNimiq.CONTRACT_CREATION)) {
+                await loadNimiqWithoutPreloading(nimiqVersion, /* include cryptography */ true);
+                if (recipient.toUserFriendlyAddress() !== tx.getContractCreationAddress().toUserFriendlyAddress()
+                    && confirm('Recipient address does not match expected contract creation address. Overwrite?')) {
+                    // Automatically set correct contract creation address.
+                    $txRecipientInputNimiq.value = tx.getContractCreationAddress().toUserFriendlyAddress();
+                    await signTransactionNimiq();
+                    return;
+                }
+            }
+
             displayStatus('Signing transaction...');
             let signature: Uint8Array;
             if (api instanceof LowLevelApi) {
-                let tx;
-                if (isNimiqLegacy(Nimiq)) {
-                    const networkId = Nimiq.GenesisConfig.CONFIGS[network].NETWORK_ID;
-                    // Don't have to distinguish BasicTransaction/ExtendedTransaction as serialized content is the same
-                    // @ts-expect-error types for sender, senderType, recipient, recipientType not narrowed to Legacy
-                    tx = new Nimiq.ExtendedTransaction(sender, senderType, recipient, recipientType, amount, fee,
-                        validityStartHeight, flags, recipientData || new Uint8Array(), /* proof */ undefined,
-                        networkId);
-                } else {
-                    const networkId = NetworkIdNimiq[network];
-                    tx = new Nimiq.Transaction(
-                        sender as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, senderType, senderData,
-                        recipient as NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, recipientType, recipientData,
-                        BigInt(amount), BigInt(fee), flags, validityStartHeight, networkId);
-                }
                 ({ signature } = await api.signTransaction(bip32Path, tx.serializeContent(), nimiqVersion));
             } else {
                 const signedTx = await api.Nimiq.signTransaction(
