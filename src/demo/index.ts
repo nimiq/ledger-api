@@ -15,6 +15,7 @@ import {
     getInputElement,
     getSelectorValue,
     enableSelector,
+    logInputs,
     bufferToHex,
     bufferFromHex,
     bufferFromAscii,
@@ -871,6 +872,9 @@ window.addEventListener('load', () => {
             const flags = TransactionFlagsNimiq.NONE // eslint-disable-line no-bitwise
                 | ($txFlagContractCreationCheckboxNimiq.checked ? TransactionFlagsNimiq.CONTRACT_CREATION : 0)
                 | ($txFlagSignalingCheckboxNimiq.checked ? TransactionFlagsNimiq.SIGNALING : 0);
+            logInputs('Transaction', { $versionSelectorNimiq, $txSenderInputNimiq, $txSenderTypeSelectorNimiq,
+                $txRecipientInputNimiq, $txRecipientTypeSelectorNimiq, $txAmountInputNimiq, $txFeeInputNimiq,
+                $txValidityStartHeightInputNimiq, $txNetworkSelectorNimiq, flags });
             const { senderData, recipientData } = getTransactionData(Nimiq);
 
             let tx;
@@ -945,6 +949,7 @@ window.addEventListener('load', () => {
             $txSignatureNimiq.textContent = bufferToHex(signature);
         } catch (error) {
             displayStatus(error instanceof Error ? error.message : String(error));
+            throw error;
         }
     }
 

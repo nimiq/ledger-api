@@ -27,6 +27,28 @@ export function enableSelector($selector: HTMLElement, enable: boolean) {
     }
 }
 
+export function logInputs(
+    description: string,
+    inputs: Record<string, HTMLInputElement | /* a selector */ HTMLElement | string | number>,
+) {
+    console.log(
+        `${description}: `,
+        Object.entries(inputs).map(([name, inputOrSelectorOrValue]) => {
+            name = name
+                // Remove verbose leading and trailing parts from the name.
+                .replace(/^\$(?:tx)?|(?:Input|Selector).*$/g, '')
+                // Split camel case name into multiple upper case words.
+                .replace(/^[a-z]|[A-Z]/g, (char, index) => `${index !== 0 ? ' ' : ''}${char.toUpperCase()}`);
+            const value = typeof inputOrSelectorOrValue === 'string' || typeof inputOrSelectorOrValue === 'number'
+                ? inputOrSelectorOrValue
+                : inputOrSelectorOrValue instanceof HTMLInputElement
+                    ? inputOrSelectorOrValue.value
+                    : getInputElement(':checked', inputOrSelectorOrValue).value;
+            return `${name}: '${value}'`;
+        }).join(', ') || 'No inputs',
+    );
+}
+
 export function bufferToHex(buffer: Uint8Array): string {
     return Buffer.from(buffer).toString('hex');
 }

@@ -2,6 +2,7 @@ import { isNimiqLegacy, type Nimiq, type NimiqPrimitive } from '../lib/load-nimi
 import {
     getInputElement,
     getSelectorValue,
+    logInputs,
     bufferFromHex,
     bufferFromUtf8,
     bufferFromUint32,
@@ -378,6 +379,7 @@ export function getTransactionData(Nimiq: Nimiq<NimiqVersion>): TransactionData 
 function getTransactionDataForHex(): TransactionData {
     const $senderDataHexInput = getInputElement('#tx-data-sender-hex-input-nimiq');
     const $recipientDataHexInput = getInputElement('#tx-data-recipient-hex-input-nimiq');
+    logInputs('Transaction Data (Hex)', { $senderDataHexInput, $recipientDataHexInput });
     const senderData = bufferFromHex($senderDataHexInput.value);
     const recipientData = bufferFromHex($recipientDataHexInput.value);
     return { senderData, recipientData };
@@ -386,6 +388,7 @@ function getTransactionDataForHex(): TransactionData {
 function getTransactionDataForText(): TransactionData {
     const $senderDataTextInput = getInputElement('#tx-data-sender-text-input-nimiq');
     const $recipientDataTextInput = getInputElement('#tx-data-recipient-text-input-nimiq');
+    logInputs('Transaction Data (Text)', { $senderDataTextInput, $recipientDataTextInput });
     const senderData = bufferFromUtf8($senderDataTextInput.value);
     const recipientData = bufferFromUtf8($recipientDataTextInput.value);
     return { senderData, recipientData };
@@ -402,6 +405,8 @@ function getTransactionDataForCreateHtlc(Nimiq: Nimiq<NimiqVersion>): Transactio
     const $hashRootInput = getInputElement('#tx-data-htlc-hash-root-input-nimiq');
     const $hashCountInput = getInputElement('#tx-data-htlc-hash-count-input-nimiq');
     const $timeoutInput = getInputElement('#tx-data-htlc-timeout-input-nimiq');
+    logInputs('Transaction Data (Create HTLC)', { $senderInput, $recipientInput, $hashAlgorithmSelector,
+        $hashRootInput, $hashCountInput, $timeoutInput });
 
     const nimiqVersion = isNimiqLegacy(Nimiq) ? NimiqVersion.LEGACY : NimiqVersion.ALBATROSS;
     const htlcSender = Nimiq.Address.fromUserFriendlyAddress($senderInput.value);
@@ -435,6 +440,8 @@ function getTransactionDataForCreateVesting(Nimiq: Nimiq<NimiqVersion>): Transac
     const $stepTimeInput = getInputElement('#tx-data-vesting-step-time-input-nimiq');
     const $stepAmountInput = getInputElement('#tx-data-vesting-step-amount-input-nimiq');
     const $totalAmountInput = getInputElement('#tx-data-vesting-total-amount-input-nimiq');
+    logInputs('Transaction Data (Create Vesting)', { $ownerInput, $startInput, $stepTimeInput, $stepAmountInput,
+        $totalAmountInput });
 
     if (!!$startInput.value !== !!$stepAmountInput.value) {
         throw new Error('Optional vesting start and step amount must be either both set or both unset');
@@ -503,11 +510,12 @@ const STAKING_DEFAULT_SIGNATURE_PROOF = new Uint8Array([
     // No serialized webauthn fields as the algorithm defaults to ed25519.
 ]);
 
-export function getTransactionDataForCreateStaker(Nimiq: Nimiq<NimiqVersion>): TransactionData {
+function getTransactionDataForCreateStaker(Nimiq: Nimiq<NimiqVersion>): TransactionData {
     if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
 
     const $delegationInput = getInputElement('#tx-data-create-staker-delegation-input-nimiq');
     const $signatureProofInput = getInputElement('#tx-data-create-staker-signature-proof-input-nimiq');
+    logInputs('Transaction Data (Create Staker)', { $delegationInput, $signatureProofInput });
 
     const delegation = $delegationInput.value ? Nimiq.Address.fromUserFriendlyAddress($delegationInput.value) : null;
     const customSignatureProof = bufferFromHex($signatureProofInput.value); // staker signature proof
@@ -524,10 +532,11 @@ export function getTransactionDataForCreateStaker(Nimiq: Nimiq<NimiqVersion>): T
     return { recipientData };
 }
 
-export function getTransactionDataForAddStake(Nimiq: Nimiq<NimiqVersion>): TransactionData {
+function getTransactionDataForAddStake(Nimiq: Nimiq<NimiqVersion>): TransactionData {
     if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
 
     const $stakerInput = getInputElement('#tx-data-add-stake-staker-input-nimiq');
+    logInputs('Transaction Data (Add Stake)', { $stakerInput });
 
     const staker = Nimiq.Address.fromUserFriendlyAddress($stakerInput.value);
     const recipientData = new Uint8Array([
@@ -539,13 +548,15 @@ export function getTransactionDataForAddStake(Nimiq: Nimiq<NimiqVersion>): Trans
     return { recipientData };
 }
 
-export function getTransactionDataForUpdateStaker(Nimiq: Nimiq<NimiqVersion>): TransactionData {
+function getTransactionDataForUpdateStaker(Nimiq: Nimiq<NimiqVersion>): TransactionData {
     if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
 
     const $newDelegationInput = getInputElement('#tx-data-update-staker-new-delegation-input-nimiq');
     const $reactivateAllStakeSelector = document.getElementById(
         'tx-data-update-staker-reactivate-all-stake-selector-nimiq')!;
     const $signatureProofInput = getInputElement('#tx-data-update-staker-signature-proof-input-nimiq');
+    logInputs('Transaction Data (Update Staker)', { $newDelegationInput, $reactivateAllStakeSelector,
+        $signatureProofInput });
 
     const newDelegation = $newDelegationInput.value
         ? Nimiq.Address.fromUserFriendlyAddress($newDelegationInput.value)
@@ -567,13 +578,15 @@ export function getTransactionDataForUpdateStaker(Nimiq: Nimiq<NimiqVersion>): T
     return { recipientData };
 }
 
-export function getTransactionDataForSetActiveStakeOrRetireStake(Nimiq: Nimiq<NimiqVersion>, uiType: DataUiType)
+function getTransactionDataForSetActiveStakeOrRetireStake(Nimiq: Nimiq<NimiqVersion>, uiType: DataUiType)
     : TransactionData {
     if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
 
     const $amountInput = getInputElement('#tx-data-set-active-stake-or-retire-stake-amount-input-nimiq');
     const $signatureProofInput = getInputElement(
         '#tx-data-set-active-stake-or-retire-stake-signature-proof-input-nimiq');
+    logInputs(`Transaction Data (${uiType === DataUiType.SET_ACTIVE_STAKE ? 'Set Active' : 'Retire'} Stake)`,
+        { $amountInput, $signatureProofInput });
 
     const amount = BigInt(Math.round(Number.parseFloat($amountInput.value) * 1e5));
     const customSignatureProof = bufferFromHex($signatureProofInput.value); // staker signature proof
@@ -590,8 +603,10 @@ export function getTransactionDataForSetActiveStakeOrRetireStake(Nimiq: Nimiq<Ni
     return { recipientData };
 }
 
-export function getTransactionDataForRemoveStake(Nimiq: Nimiq<NimiqVersion>): TransactionData {
+function getTransactionDataForRemoveStake(Nimiq: Nimiq<NimiqVersion>): TransactionData {
     if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
+
+    logInputs('Transaction Data (Remove Stake)', {});
 
     const senderData = new Uint8Array([OutgoingStakingTransactionDataType.REMOVE_STAKE]);
     checkSerialization(Nimiq, { senderData }, 'RemoveStake');
