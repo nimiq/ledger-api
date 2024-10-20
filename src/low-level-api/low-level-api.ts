@@ -224,7 +224,11 @@ export default class LowLevelApi {
         // first byte of the uint16 data length, resulting in a data length longer than the allowed max which will be
         // rejected.
         if (nimiqVersion === NimiqVersion.LEGACY && !appVersion) {
-            ({ version: appVersion } = await this.getAppNameAndVersion());
+            ({ version: appVersion } = await getAppNameAndVersion(
+                this._transport,
+                U2F_SCRAMBLE_KEY,
+                /* withApiLock */ false, // Don't lock the api, as we already locked it for signTransaction.
+            ));
         }
         const includeVersionByte = nimiqVersion === NimiqVersion.ALBATROSS || parseInt(appVersion || '') >= 2;
 
