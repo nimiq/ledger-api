@@ -212,10 +212,10 @@
   resolved "https://registry.yarnpkg.com/@ledgerhq/logs/-/logs-6.11.0.tgz#0d28e7edcf71548506f4304686cba480ba91bbcf"
   integrity sha512-HHK9y4GGe4X7CXbRUCh7z8Mp+WggpJn1dmUjmuk1rNugESF6o8nAOnXA+BxwtRRNV3CgNJR3Wxdos4J9qV0Zsg==
 
-"@nimiq/albatross-wasm@npm:@nimiq/core-web@next":
-  version "2.0.0-alpha.21.1"
-  resolved "https://registry.yarnpkg.com/@nimiq/core-web/-/core-web-2.0.0-alpha.21.1.tgz#d4d6043df8f47cff6a44cc0d77a4303daa2181e1"
-  integrity sha512-ZKIvqM7O9puW3kXhV3otMlTn8lbfMon+QwW0hsvrAX0Gslq6WoOCzBz1q0jFM6X1oMFv5iyphvPLp1wV+CZczw==
+"@nimiq/albatross-wasm@npm:@nimiq/core@next":
+  version "2.0.0-next.rc.0"
+  resolved "https://registry.yarnpkg.com/@nimiq/core/-/core-2.0.0-next.rc.0.tgz#402dbbf4bf40a815e4c2a323df7ebe253be18063"
+  integrity sha512-mExuJIO9VIuH/MO/Od0o357hcUQ5hxdRzReTieGP1XO7tD/X+saHDsCWfCM+SowWyrbqzOBtEDzWmRpAktQzzg==
   dependencies:
     comlink "^4.4.1"
     websocket "^1.0.34"
@@ -2260,9 +2260,9 @@ next-tick@^1.1.0:
   integrity sha512-CXdUiJembsNjuToQvxayPZF9Vqht7hewsvy2sOWafLvi2awflj9mOC6bHIg50orX8IJvWKY9wYQ/zB2kogPslQ==
 
 node-gyp-build@^4.3.0:
-  version "4.8.1"
-  resolved "https://registry.yarnpkg.com/node-gyp-build/-/node-gyp-build-4.8.1.tgz#976d3ad905e71b76086f4f0b0d3637fe79b6cda5"
-  integrity sha512-OSs33Z9yWr148JZcbZd5WiAXhh/n9z8TxQcdMhIOlpN9AhWpLfvVFO73+m77bBABQMaY9XSvIa+qk0jlI7Gcaw==
+  version "4.8.2"
+  resolved "https://registry.yarnpkg.com/node-gyp-build/-/node-gyp-build-4.8.2.tgz#4f802b71c1ab2ca16af830e6c1ea7dd1ad9496fa"
+  integrity sha512-IRUxE4BVsHWXkV/SFOut4qTlagw2aM8T5/vnTsmrHJvVoKueJHRc/JaFND7QDDc61kLYUJ6qlZM3sqTSyx2dTw==
 
 normalize-path@^3.0.0, normalize-path@~3.0.0:
   version "3.0.0"

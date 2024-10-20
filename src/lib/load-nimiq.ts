@@ -1,7 +1,7 @@
 import { NimiqVersion } from '../lib/constants';
 
-// Note: @nimiq/albatross-wasm is mapped to @nimiq/core-web@next in package.json. @nimiq/albatross-wasm is the name that
-// the Nimiq Hub uses, which is why we use it here, too.
+// Note: @nimiq/albatross-wasm is mapped to @nimiq/core@next in package.json. @nimiq/albatross-wasm is the name that the
+// Nimiq Hub uses, which is why we use it here, too.
 export type Nimiq<Version extends NimiqVersion> = Version extends NimiqVersion.ALBATROSS
     ? typeof import('@nimiq/albatross-wasm')
     : typeof import('@nimiq/core-web');
@@ -63,12 +63,12 @@ const isNimiqAlbatrossHub = typeof loadAlbatross !== 'undefined' && (
 );
 const nimiqCoreBasePath = isNimiqAlbatrossHub
     // On a Nimiq Hub with Albatross support, use the Hub's copy of the core (copied from @nimiq/albatross-wasm in the
-    // Hub's vue.config.js, which is an alias for @nimiq/core-web@next), same as the Hub itself is doing, to avoid using
-    // and loading an additional version.
+    // Hub's vue.config.js, which is an alias for @nimiq/core@next), same as the Hub itself is doing, to avoid using and
+    // loading an additional version.
     ? '/albatross-client/web/'
     // In other cases load @nimiq/core-web@next from jsdelivr. Load from cdn to avoid bundling a copy of core if it's
     // not needed. This way, we also don't need to handle the wasm file in the rollup config.
-    : 'https://cdn.jsdelivr.net/npm/@nimiq/core-web@next/web/';
+    : 'https://cdn.jsdelivr.net/npm/@nimiq/core@next/web/';
 let nimiqCorePromise: Promise<Nimiq<NimiqVersion.ALBATROSS>> | null = null;
 
 async function loadNimiqAlbatrossCore(preloadWasm = true): Promise<Nimiq<NimiqVersion.ALBATROSS>> {
