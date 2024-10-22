@@ -135,7 +135,10 @@ export default class RequestSignTransactionNimiq<Version extends NimiqVersion>
             throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
         }
 
-        const { signature: signatureBytes } = this.nimiqVersion === NimiqVersion.LEGACY
+        const {
+            signature: signatureBytes,
+            stakerSignature: stakerSignatureBytes,
+        } = this.nimiqVersion === NimiqVersion.LEGACY
             ? await api.signTransaction(
                 this.keyPath,
                 nimiqTx.serializeContent(),
@@ -151,6 +154,7 @@ export default class RequestSignTransactionNimiq<Version extends NimiqVersion>
         try {
             if (isNimiqLegacy(Nimiq)) {
                 const signature = new Nimiq.Signature(signatureBytes);
+                if (stakerSignatureBytes) throw new Error('Unexpected staker signature on legacy transaction');
                 if (nimiqTx instanceof Nimiq.BasicTransaction) {
                     nimiqTx.signature = signature;
                 } else {
@@ -158,9 +162,27 @@ export default class RequestSignTransactionNimiq<Version extends NimiqVersion>
                     nimiqTx.proof = Nimiq.SignatureProof.singleSig(signerPubKey, signature).serialize();
                 }
             } else {
-                const signature = Nimiq.Signature.fromBytes(signatureBytes);
                 const signerPubKey = new Nimiq.PublicKey(signerPubKeyBytes);
+                const signature = Nimiq.Signature.fromBytes(signatureBytes);
                 nimiqTx.proof = Nimiq.SignatureProof.singleSig(signerPubKey, signature).serialize();
+                if (stakerSignatureBytes) {
+                    // The Ledger app created a staker signature, which means it's a staking transaction with a staker
+                    // signature proof in its recipient data but for which the empty default signature proof was passed,
+                    // such that the Ledger created the staker signature with the same private key as staker private key
+                    // as the transaction sender key.
+                    const stakerSignature = Nimiq.Signature.fromBytes(stakerSignatureBytes);
+                    const stakerSignatureProof = Nimiq.SignatureProof.singleSig(signerPubKey, stakerSignature);
+                    // Overwrite the empty default signature proof in the staking transaction's recipient data. The
+                    // signature proof is always at the very end of the recipient data, for recipient data which include
+                    // a signature proof. Note that both, the empty default signature proof and the staker signature
+                    // proof created by the Ledger app are basic single signature proofs of the same size.
+                    const stakerSignatureProofBytes = stakerSignatureProof.serialize();
+                    if (nimiqTx.data.length < stakerSignatureProofBytes.length) {
+                        throw new Error('Failed to overwrite staker signature proof');
+                    }
+                    nimiqTx.data.set(stakerSignatureProofBytes, nimiqTx.data.length - stakerSignatureProofBytes.length);
+                    console.info('The staker signature proof was auto-generated and overwritten.');
+                }
             }
         } catch (e) {
             throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);

@@ -205,18 +205,18 @@ export default class LowLevelApi {
         txContent: Uint8Array,
         nimiqVersion: NimiqVersion.LEGACY,
         appVersion?: string,
-    ): Promise<{ signature: Uint8Array }>;
+    ): Promise<{ signature: Uint8Array, stakerSignature?: Uint8Array }>;
     public async signTransaction(
         path: string,
         txContent: Uint8Array,
         nimiqVersion?: NimiqVersion,
-    ): Promise<{ signature: Uint8Array }>;
+    ): Promise<{ signature: Uint8Array, stakerSignature?: Uint8Array }>;
     public async signTransaction(
         path: string,
         txContent: Uint8Array,
         nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
         appVersion?: string,
-    ): Promise<{ signature: Uint8Array }> {
+    ): Promise<{ signature: Uint8Array, stakerSignature?: Uint8Array }> {
         // The Nimiq version byte was added in app version 2. It supports both, legacy and Albatross transactions, and
         // is the first app version to support Albatross. Note that wrongly sending a legacy transaction without version
         // byte to the 2.0 app does no harm, as the app will reject it. Neither does sending an Albatross transaction,
@@ -283,8 +283,19 @@ export default class LowLevelApi {
         } while (isHeartbeat || chunkIndex < apdus.length);
 
         if (status !== SW_OK) throw new Error('Transaction approval request was rejected');
-        const signature = response.slice(0, response.length - 2);
-        return { signature };
+        const signatureCount = (response.length - /* sw */ 2) / 64;
+        if (signatureCount !== 1 && signatureCount !== 2) {
+            throw new Error('Unexpected response length');
+        }
+        const signature = response.slice(0, 64);
+        let stakerSignature: Uint8Array | undefined;
+        if (signatureCount === 2) {
+            if (nimiqVersion === NimiqVersion.LEGACY) {
+                throw new Error('Unexpected staker signature on legacy transaction');
+            }
+            stakerSignature = response.slice(64, 128);
+        }
+        return { signature, stakerSignature };
     }
     /* eslint-enable lines-between-class-members */
 
