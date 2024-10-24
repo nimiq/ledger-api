@@ -110,7 +110,7 @@ export default class LedgerApi {
         /**
          * Get the 32 byte wallet id of the currently connected Nimiq wallet as base64.
          */
-        async getWalletId(nimiqVersion: NimiqVersion = NimiqVersion.LEGACY): Promise<string> {
+        async getWalletId(nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS): Promise<string> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetWalletIdNimiqConstructor>(
                 import('./requests/nimiq/request-get-wallet-id-nimiq'),
                 nimiqVersion,
@@ -120,10 +120,10 @@ export default class LedgerApi {
         /**
          * Get the public key for a given bip32 key path. Optionally expect a specific wallet id.
          */
-        async getPublicKey<Version extends NimiqVersion = NimiqVersion.LEGACY>(
+        async getPublicKey<Version extends NimiqVersion = NimiqVersion.ALBATROSS>(
             keyPath: string,
             expectedWalletId?: string,
-            nimiqVersion: Version = NimiqVersion.LEGACY as Version,
+            nimiqVersion: Version = NimiqVersion.ALBATROSS as Version,
         ): Promise<NimiqPrimitive<'PublicKey', Version>> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetPublicKeyNimiqConstructor>(
                 import('./requests/nimiq/request-get-public-key-nimiq'),
@@ -140,7 +140,7 @@ export default class LedgerApi {
             display = false,
             expectedAddress?: string,
             expectedWalletId?: string,
-            nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
+            nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
         ): Promise<string> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetAddressNimiqConstructor>(
                 import('./requests/nimiq/request-get-address-nimiq'),
@@ -154,7 +154,7 @@ export default class LedgerApi {
         async getConfirmedAddress(
             keyPath: string,
             expectedWalletId?: string,
-            nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
+            nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
         ): Promise<string> {
             const address = await LedgerApi.Nimiq.getAddress(keyPath, false, undefined, expectedWalletId, nimiqVersion);
             return LedgerApi.Nimiq.getAddress(keyPath, true, address, expectedWalletId, nimiqVersion);
@@ -166,7 +166,7 @@ export default class LedgerApi {
         async deriveAddresses(
             pathsToDerive: Iterable<string>,
             expectedWalletId?: string,
-            nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
+            nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
         ): Promise<Array<{ address: string, keyPath: string }>> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestDeriveAddressesNimiqConstructor>(
                 import('./requests/nimiq/request-derive-addresses-nimiq'),
@@ -179,11 +179,11 @@ export default class LedgerApi {
          * corresponding address does not necessarily need to be the transaction's sender address for example for
          * transactions sent from vesting contracts. Optionally expect a specific wallet id.
          */
-        async signTransaction<Version extends NimiqVersion = NimiqVersion.LEGACY>(
+        async signTransaction<Version extends NimiqVersion = NimiqVersion.ALBATROSS>(
             transaction: TransactionInfoNimiq<Version>,
             keyPath: string,
             expectedWalletId?: string,
-            nimiqVersion: Version = NimiqVersion.LEGACY as Version,
+            nimiqVersion: Version = NimiqVersion.ALBATROSS as Version,
         ): Promise<NimiqPrimitive<'Transaction', Version>> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignTransactionNimiqConstructor>(
                 import('./requests/nimiq/request-sign-transaction-nimiq'),
@@ -197,12 +197,12 @@ export default class LedgerApi {
          * hex or hash instead of as ascii, or expect a specific wallet id. If no preference for the display type is
          * specified, the message is by default tried to be displayed as ascii, hex or hash, in that order.
          */
-        async signMessage<Version extends NimiqVersion = NimiqVersion.LEGACY>(
+        async signMessage<Version extends NimiqVersion = NimiqVersion.ALBATROSS>(
             message: string | Uint8Array,
             keyPath: string,
             flags?: { preferDisplayTypeHex: boolean, preferDisplayTypeHash: boolean } | number,
             expectedWalletId?: string,
-            nimiqVersion: Version = NimiqVersion.LEGACY as Version,
+            nimiqVersion: Version = NimiqVersion.ALBATROSS as Version,
         ): Promise<MessageSignatureInfoNimiq<Version>> {
             return await LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignMessageNimiqConstructor>(
                 import('./requests/nimiq/request-sign-message-nimiq'),

@@ -124,7 +124,7 @@ export default class LowLevelApi {
         path: string,
         boolValidate: boolean = true,
         boolDisplay: boolean = false,
-        nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
+        nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
     ): Promise<{ address: string }> {
         // Start loading Nimiq core later needed for hashing public key to address and optional validation.
         loadNimiq(nimiqVersion, /* include cryptography */ true).catch(() => {});
@@ -148,7 +148,7 @@ export default class LowLevelApi {
         path: string,
         boolValidate: boolean = true,
         boolDisplay: boolean = false,
-        nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
+        nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
     ): Promise<{ publicKey: Uint8Array }> {
         if (boolValidate) {
             // Start loading Nimiq core later needed for validation.
@@ -193,7 +193,7 @@ export default class LowLevelApi {
      * Sign a Nimiq transaction.
      * @param path - A path in BIP 32 format.
      * @param txContent - Transaction content in serialized form.
-     * @param [nimiqVersion] - Of which format / version the serialized transaction is. Defaults to legacy.
+     * @param [nimiqVersion] - Of which format / version the serialized transaction is. By default Albatross.
      * @param [appVersion] - For legacy transactions used to determine whether to transmit a version byte. If the
      *  connected app version is already known, you can pass it to avoid the overhead of querying it again.
      * @returns An object with the signature.
@@ -205,7 +205,7 @@ export default class LowLevelApi {
         txContent: Uint8Array,
         nimiqVersion: NimiqVersion.LEGACY,
         appVersion?: string,
-    ): Promise<{ signature: Uint8Array, stakerSignature?: Uint8Array }>;
+    ): Promise<{ signature: Uint8Array, stakerSignature?: undefined }>;
     public async signTransaction(
         path: string,
         txContent: Uint8Array,
@@ -214,7 +214,7 @@ export default class LowLevelApi {
     public async signTransaction(
         path: string,
         txContent: Uint8Array,
-        nimiqVersion: NimiqVersion = NimiqVersion.LEGACY,
+        nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
         appVersion?: string,
     ): Promise<{ signature: Uint8Array, stakerSignature?: Uint8Array }> {
         // The Nimiq version byte was added in app version 2. It supports both, legacy and Albatross transactions, and
