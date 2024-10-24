@@ -7,6 +7,7 @@
   "types": "dist/high-level-api/ledger-api.d.ts",
   "files": [
     "transport-comparison.md",
+    "src/lib/type-shims.d.ts",
     "dist",
     "!dist/demo"
   ],

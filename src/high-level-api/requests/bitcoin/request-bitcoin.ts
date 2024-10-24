@@ -1,3 +1,5 @@
+/// <reference path="../../../lib/type-shims.d.ts" />
+
 import Request, { CoinAppConnection } from '../request';
 import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../constants';
 import { isAppVersionSupported, isLegacyApp } from '../../app-utils';
