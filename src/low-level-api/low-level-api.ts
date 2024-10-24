@@ -89,18 +89,6 @@ export default class LowLevelApi {
     }
 
     /**
-     * @deprecated
-     * Get the version of the connected Ledger Nimiq App. Note that other apps also respond to this call (but for U2F
-     * and WebAuthn only if both apps use the same scramble key).
-     * @returns An object with the version.
-     */
-    public async getAppConfiguration(): Promise<{ version: string }> {
-        console.warn('getAppConfiguration is deprecated and will be removed in the future. '
-            + 'Use getAppNameAndVersion instead.');
-        return this.getAppNameAndVersion();
-    }
-
-    /**
      * Get the name of the connected app and the app version.
      * @returns An object with the name and version.
      * @example
