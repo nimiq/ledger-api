@@ -19,6 +19,10 @@ export default class RequestSignMessageNimiq<Version extends NimiqVersion>
         preferDisplayTypeHash: boolean, // second choice, if multiple flags are set
     };
 
+    public get minRequiredAppVersion(): string {
+        return '2.0'; // first version supporting message signing
+    }
+
     constructor(
         nimiqVersion: Version,
         keyPath: string,

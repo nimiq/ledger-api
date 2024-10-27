@@ -36,6 +36,12 @@ export default class RequestSignTransactionNimiq<Version extends NimiqVersion>
     public readonly type: RequestTypeNimiq.SIGN_TRANSACTION;
     public readonly transaction: TransactionInfoNimiq<Version>;
 
+    public get minRequiredAppVersion(): string {
+        return this.nimiqVersion === NimiqVersion.ALBATROSS
+            ? '2.0' // first version supporting Albatross transactions
+            : super.minRequiredAppVersion;
+    }
+
     constructor(
         nimiqVersion: Version,
         keyPath: string,

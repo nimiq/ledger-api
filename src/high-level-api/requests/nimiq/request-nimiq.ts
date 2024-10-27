@@ -18,8 +18,11 @@ export default abstract class RequestNimiq<Version extends NimiqVersion, T>
 
     public readonly coin: Coin.NIMIQ = Coin.NIMIQ;
     public readonly requiredApp: string = 'Nimiq';
-    public readonly minRequiredAppVersion: string = '1.4.2'; // first version supporting web usb
     public readonly nimiqVersion: Version;
+
+    public get minRequiredAppVersion(): string {
+        return '1.4.2'; // first version supporting web usb
+    }
 
     protected constructor(nimiqVersion: Version, expectedWalletId?: string) {
         super(expectedWalletId);
