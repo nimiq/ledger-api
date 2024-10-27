@@ -144,8 +144,10 @@ export default class LowLevelApi {
         }
 
         const pathBuffer = parsePath(path);
-        const verifyMsg = Buffer.from('p=np?', 'ascii');
-        const data = boolValidate ? Buffer.concat([pathBuffer, verifyMsg]) : pathBuffer;
+        // Validation message including prefix "dummy-data:" as required since app version 2.0 to avoid the risks of
+        // blind signing.
+        const validationMessage = Buffer.from('dummy-data:p=np?', 'ascii');
+        const data = boolValidate ? Buffer.concat([pathBuffer, validationMessage]) : pathBuffer;
 
         let response: Buffer;
         response = await this._transport.send(
@@ -167,7 +169,7 @@ export default class LowLevelApi {
         offset += 32;
         if (boolValidate) {
             const signature = response.slice(offset, offset + 64);
-            if (!await verifySignature(verifyMsg, signature, publicKey, nimiqVersion)) {
+            if (!await verifySignature(validationMessage, signature, publicKey, nimiqVersion)) {
                 throw new Error(
                     'Bad signature. Keypair is invalid. Please report this.',
                 );
@@ -291,7 +293,7 @@ export default class LowLevelApi {
      * Sign a message with a Nimiq key.
      * @param path - A path in BIP 32 format.
      * @param message - Message to sign as utf8 string or arbitrary bytes.
-     * @param flags - Flags to pass. Currently supported: `preferDisplayTypeHex` and `preferDisplayTypeHash`.
+     * @param [flags] - Flags to pass. Currently supported: `preferDisplayTypeHex` and `preferDisplayTypeHash`.
      * @returns An object with the signature.
      * @example
      * nim.signMessage("44'/242'/0'/0'", message).then(o => o.signature)
