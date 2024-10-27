@@ -1,6 +1,6 @@
 {
   "name": "@nimiq/ledger-api",
-  "version": "2.3.0",
+  "version": "3.0.0",
   "description": "Api for communicating with Ledger Hardware Wallets",
   "main": "dist/high-level-api/ledger-api.es.js",
   "type": "module",
