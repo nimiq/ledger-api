@@ -213,9 +213,9 @@
   integrity sha512-HHK9y4GGe4X7CXbRUCh7z8Mp+WggpJn1dmUjmuk1rNugESF6o8nAOnXA+BxwtRRNV3CgNJR3Wxdos4J9qV0Zsg==
 
 "@nimiq/albatross-wasm@npm:@nimiq/core@next":
-  version "2.0.0-next.rc.0"
-  resolved "https://registry.yarnpkg.com/@nimiq/core/-/core-2.0.0-next.rc.0.tgz#402dbbf4bf40a815e4c2a323df7ebe253be18063"
-  integrity sha512-mExuJIO9VIuH/MO/Od0o357hcUQ5hxdRzReTieGP1XO7tD/X+saHDsCWfCM+SowWyrbqzOBtEDzWmRpAktQzzg==
+  version "2.0.0-next.rc.4"
+  resolved "https://registry.yarnpkg.com/@nimiq/core/-/core-2.0.0-next.rc.4.tgz#a353f4507f2f10e3be741f920cff921c9474dea7"
+  integrity sha512-qSBy/Mg0rbqAstEnrgzGhqeQpmQdOjCZPWmBV5uFxAMAAYl9nrABaXWQXo3Jvemvx5VQE9pz5/ma3I8Z0ROy1g==
   dependencies:
     comlink "^4.4.1"
     websocket "^1.0.34"

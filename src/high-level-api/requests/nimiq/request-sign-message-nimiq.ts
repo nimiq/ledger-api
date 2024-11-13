@@ -73,7 +73,7 @@ export default class RequestSignMessageNimiq<Version extends NimiqVersion>
 
         return {
             signer: new Nimiq.PublicKey(publicKey),
-            signature: isNimiqLegacy(Nimiq) ? new Nimiq.Signature(signature) : Nimiq.Signature.fromBytes(signature),
+            signature: isNimiqLegacy(Nimiq) ? new Nimiq.Signature(signature) : Nimiq.Signature.deserialize(signature),
         } as MessageSignatureInfoNimiq<Version>;
     }
 }

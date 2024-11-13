@@ -53,7 +53,7 @@ export async function verifySignature(
         const nimiqPublicKey = new Nimiq.PublicKey(publicKey);
         return nimiqSignature.verify(nimiqPublicKey, data);
     } else {
-        const nimiqSignature = Nimiq.Signature.fromBytes(signature);
+        const nimiqSignature = Nimiq.Signature.deserialize(signature);
         const nimiqPublicKey = new Nimiq.PublicKey(publicKey);
         return nimiqPublicKey.verify(nimiqSignature, data);
     }

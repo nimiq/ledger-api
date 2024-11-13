@@ -9,17 +9,19 @@ type Transport = import('@ledgerhq/hw-transport').default;
 export type TransactionInfoNimiq<Version extends NimiqVersion> = {
     sender: NimiqPrimitive<'Address', Version>,
     recipient: NimiqPrimitive<'Address', Version>,
-    value: number, // In Luna
-    fee?: number,
     validityStartHeight: number,
     network?: Network,
     flags?: number,
 } & (Version extends NimiqVersion.ALBATROSS ? {
+    value: bigint, // In Luna
+    fee?: bigint,
     senderType?: AccountTypeNimiq,
     senderData?: Uint8Array,
     recipientType?: AccountTypeNimiq,
     recipientData?: Uint8Array,
 } : {
+    value: number, // In Luna
+    fee?: number,
     senderType?: Exclude<AccountTypeNimiq, AccountTypeNimiq.STAKING>,
     recipientType?: Exclude<AccountTypeNimiq, AccountTypeNimiq.STAKING>,
     extraData?: Uint8Array,
@@ -119,20 +121,23 @@ export default class RequestSignTransactionNimiq<Version extends NimiqVersion>
                     nimiqTx = new Nimiq.ExtendedTransaction(
                         tx.sender, senderType as NonNullable<typeof tx.senderType>,
                         tx.recipient, recipientType as NonNullable<typeof tx.recipientType>,
-                        tx.value, fee, tx.validityStartHeight, flags, extraData, /* proof */ undefined, networkId,
+                        tx.value, Number(fee), tx.validityStartHeight, flags, extraData,
+                        /* proof */ undefined, networkId,
                     );
                 } else {
                     const signerPubKey = new Nimiq.PublicKey(signerPubKeyBytes);
                     nimiqTx = new Nimiq.BasicTransaction(
                         signerPubKey, tx.recipient,
-                        tx.value, fee, tx.validityStartHeight, /* signature */ undefined, networkId,
+                        tx.value, Number(fee), tx.validityStartHeight,
+                        /* signature */ undefined, networkId,
                     );
                 }
             } else if (!isNimiqLegacy(Nimiq) && !isTransactionInfoNimiqLegacy(tx)) {
                 nimiqTx = new Nimiq.Transaction(
                     tx.sender, senderType, tx.senderData,
                     tx.recipient, recipientType, tx.recipientData,
-                    BigInt(tx.value), BigInt(fee), tx.flags, tx.validityStartHeight, networkId,
+                    tx.value, BigInt(fee), tx.flags,
+                    tx.validityStartHeight, networkId,
                 );
             } else {
                 throw new Error('Invalid transactionInfo');
@@ -169,14 +174,14 @@ export default class RequestSignTransactionNimiq<Version extends NimiqVersion>
                 }
             } else {
                 const signerPubKey = new Nimiq.PublicKey(signerPubKeyBytes);
-                const signature = Nimiq.Signature.fromBytes(signatureBytes);
+                const signature = Nimiq.Signature.deserialize(signatureBytes);
                 nimiqTx.proof = Nimiq.SignatureProof.singleSig(signerPubKey, signature).serialize();
                 if (stakerSignatureBytes) {
                     // The Ledger app created a staker signature, which means it's a staking transaction with a staker
                     // signature proof in its recipient data but for which the empty default signature proof was passed,
                     // such that the Ledger created the staker signature with the same private key as staker private key
                     // as the transaction sender key.
-                    const stakerSignature = Nimiq.Signature.fromBytes(stakerSignatureBytes);
+                    const stakerSignature = Nimiq.Signature.deserialize(stakerSignatureBytes);
                     const stakerSignatureProof = Nimiq.SignatureProof.singleSig(signerPubKey, stakerSignature);
                     // Overwrite the empty default signature proof in the staking transaction's recipient data. The
                     // signature proof is always at the very end of the recipient data, for recipient data which include
