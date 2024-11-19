@@ -68,7 +68,7 @@
     "@ledgerhq/hw-transport-webauthn": "^5.36.0-deprecated",
     "@ledgerhq/hw-transport-webhid": "^6.27.20",
     "@ledgerhq/hw-transport-webusb": "^6.27.20",
-    "@nimiq/albatross-wasm": "npm:@nimiq/core@next",
+    "@nimiq/albatross-wasm": "npm:@nimiq/core@^2.0.0",
     "@nimiq/core-web": "^1.6.2",
     "@types/ledgerhq__hw-transport-u2f": "^4.21.4",
     "@types/w3c-web-usb": "^1.0.6",
