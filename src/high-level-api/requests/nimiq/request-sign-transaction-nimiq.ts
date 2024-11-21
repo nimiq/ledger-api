@@ -187,11 +187,16 @@ export default class RequestSignTransactionNimiq<Version extends NimiqVersion>
                     // signature proof is always at the very end of the recipient data, for recipient data which include
                     // a signature proof. Note that both, the empty default signature proof and the staker signature
                     // proof created by the Ledger app are basic single signature proofs of the same size.
+                    const recipientData = nimiqTx.data; // creates a copy of the data
                     const stakerSignatureProofBytes = stakerSignatureProof.serialize();
-                    if (nimiqTx.data.length < stakerSignatureProofBytes.length) {
+                    if (recipientData.length < stakerSignatureProofBytes.length) {
                         throw new Error('Failed to overwrite staker signature proof');
                     }
-                    nimiqTx.data.set(stakerSignatureProofBytes, nimiqTx.data.length - stakerSignatureProofBytes.length);
+                    recipientData.set(
+                        stakerSignatureProofBytes,
+                        recipientData.length - stakerSignatureProofBytes.length,
+                    );
+                    nimiqTx.data = recipientData; // update the data on the transaction
                     console.info('The staker signature proof was auto-generated and overwritten.');
                 }
             }
