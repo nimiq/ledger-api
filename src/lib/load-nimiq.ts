@@ -58,8 +58,8 @@ declare module './load-nimiq' {
 const isNimiqAlbatrossHub = typeof loadAlbatross !== 'undefined' && (
     // Running on Hub domain.
     /^hub\.(?:pos\.)?nimiq(?:-testnet)?\.com$/.test(window.location.hostname)
-    // Or running on localhost:8081 or BrowserStack's bs-local.com:8081 which is where Hub dev versions are run.
-    || /^(?:localhost|bs-local\.com):8081$/.test(window.location.host)
+    // Or running on localhost:8080 or BrowserStack's bs-local.com:8080 which is where Hub dev versions are run.
+    || /^(?:localhost|bs-local\.com):8080$/.test(window.location.host)
 );
 const nimiqCoreBasePath = isNimiqAlbatrossHub
     // On a Nimiq Hub with Albatross support, use the Hub's copy of the core (copied from @nimiq/albatross-wasm in the
