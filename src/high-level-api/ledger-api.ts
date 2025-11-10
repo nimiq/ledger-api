@@ -736,7 +736,7 @@ export default class LedgerApi {
             } catch (e) {
                 if (transportType === LedgerApi._transportType) {
                     const message = (e instanceof Error ? e.message : String(e)).toLowerCase();
-                    if (/no device selected|access denied|cancelled the requestdevice/i.test(message)) {
+                    if (/no device selected|access denied|cancelled the request/i.test(message)) {
                         LedgerApi._connectionAborted = true;
                         throw new ErrorState(
                             ErrorType.CONNECTION_ABORTED,
