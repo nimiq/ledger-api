@@ -286,7 +286,21 @@ window.addEventListener('load', () => {
                     </div>
                     ${UI_TRANSACTION_DATA}
                     <button class="nq-button-s" id="sign-tx-button-nimiq">Sign</button>
-                    <div class="nq-text">Signature: <span id="tx-signature-nimiq" class="mono"></span></div>
+                    <div class="nq-text">
+                        Signature:
+                        <span id="tx-signature-nimiq" class="mono"></span>
+                    </div>
+                    <div class="nq-text show-${ApiType.HIGH_LEVEL}">
+                        Signed transaction:
+                        <span id="tx-hex-signed-nimiq" class="mono"></span>
+                    </div>
+                    <div class="nq-text show-${ApiType.HIGH_LEVEL}">
+                        Use for example
+                        <a href="https://www.nimiq.com/developers/rpc/methods/send-raw-transaction" target="_blank">
+                            Nimiq's RPC client
+                        </a>
+                        to broadcast the transaction.
+                    </div>
                 </div>
             </section>
 
@@ -413,7 +427,7 @@ window.addEventListener('load', () => {
                     </div>
                     <div class="nq-text">
                         Signed transaction:
-                        <span id="signed-tx-bitcoin" class="mono"></span>
+                        <span id="tx-hex-signed-bitcoin" class="mono"></span>
                     </div>
                     <div class="nq-text">
                         Use for example an
@@ -582,6 +596,7 @@ window.addEventListener('load', () => {
     const $txFlagSignalingCheckboxNimiq = getInputElement('#tx-flag-signaling-checkbox-nimiq');
     const $signTxButtonNimiq = document.getElementById('sign-tx-button-nimiq')!;
     const $txSignatureNimiq = document.getElementById('tx-signature-nimiq')!;
+    const $txHexSignedNimiq = document.getElementById('tx-hex-signed-nimiq')!;
     const $messageTypeSelectorNimiq = document.getElementById('message-type-selector-nimiq')!;
     const $messageTextareaNimiq = document.getElementById('message-textarea-nimiq') as HTMLTextAreaElement;
     const $messageFlagHexDisplayCheckboxNimiq = getInputElement('#message-flag-hex-display-checkbox-nimiq');
@@ -608,7 +623,7 @@ window.addEventListener('load', () => {
     const $extendedPublicKeyBitcoin = document.getElementById('extended-public-key-bitcoin')!;
     const $txInfoTextareaBitcoin = document.getElementById('tx-info-textarea-bitcoin') as HTMLTextAreaElement;
     const $signTxButtonBitcoin = document.getElementById('sign-tx-button-bitcoin')!;
-    const $signedTxBitcoin = document.getElementById('signed-tx-bitcoin')!;
+    const $txHexSignedBitcoin = document.getElementById('tx-hex-signed-bitcoin')!;
     const $messageTextareaBitcoin = document.getElementById('message-textarea-bitcoin') as HTMLTextAreaElement;
     const $bip32PathMessageInputBitcoin = getInputElement('#bip32-path-message-input-bitcoin');
     const $signMessageButtonBitcoin = document.getElementById('sign-message-button-bitcoin')!;
@@ -855,6 +870,7 @@ window.addEventListener('load', () => {
         if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         try {
             $txSignatureNimiq.textContent = '';
+            $txHexSignedNimiq.textContent = '';
             const nimiqVersion = getSelectorValue($versionSelectorNimiq, NimiqVersion);
             const [api, Nimiq] = await Promise.all([
                 createApi(),
@@ -945,6 +961,7 @@ window.addEventListener('load', () => {
                         + /* empty merkle_path only encoding the length, see Serialize for MerklePath */ 1;
                     signature = new Uint8Array(proofBytes.buffer, signatureOffset, 64);
                 }
+                $txHexSignedNimiq.textContent = bufferToHex(signedTx.serialize());
             }
             $txSignatureNimiq.textContent = bufferToHex(signature);
         } catch (error) {
@@ -1083,13 +1100,13 @@ window.addEventListener('load', () => {
     async function signTransactionBitcoin() {
         if ($noUserInteractionCheckbox.checked) await clearUserInteraction();
         try {
-            $signedTxBitcoin.textContent = '';
+            $txHexSignedBitcoin.textContent = '';
             const txInfo = JSON.parse($txInfoTextareaBitcoin.value);
             const api = await createApi();
             if (api instanceof LowLevelApi) throw new Error('Bitcoin not supported by LowLevelApi');
             displayStatus('Signing transaction...');
             const signedTransactionHex = await api.Bitcoin.signTransaction(txInfo);
-            $signedTxBitcoin.textContent = signedTransactionHex;
+            $txHexSignedBitcoin.textContent = signedTransactionHex;
             displayStatus('Signed transaction');
         } catch (error) {
             displayStatus(`Failed to sign transaction: ${error}`);
