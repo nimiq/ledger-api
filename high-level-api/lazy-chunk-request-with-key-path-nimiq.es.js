@@ -1,9 +1,10 @@
-import { parseBip32Path, Coin, ErrorState, ErrorType } from './ledger-api.es.js';
 import { R as RequestNimiq } from './lazy-chunk-request-nimiq.es.js';
+import { parseBip32Path, Coin, ErrorState, ErrorType } from './ledger-api.es.js';
 
 class RequestWithKeyPathNimiq extends RequestNimiq {
-    constructor(keyPath, expectedWalletId, childClassProperties = {}) {
-        super(expectedWalletId);
+    keyPath;
+    constructor(nimiqVersion, keyPath, expectedWalletId, childClassProperties = {}) {
+        super(nimiqVersion, expectedWalletId);
         this.keyPath = keyPath;
         try {
             if (parseBip32Path(keyPath).coin !== Coin.NIMIQ)
@@ -14,7 +15,7 @@ class RequestWithKeyPathNimiq extends RequestNimiq {
             for (const [key, value] of Object.entries(childClassProperties)) {
                 this[key] = value;
             }
-            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}: ${e.message || e}`, this);
+            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}: ${e instanceof Error ? e.message : e}`, this);
         }
     }
 }

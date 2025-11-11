@@ -1,5 +1,5 @@
 import { AddressTypeBitcoin, Coin, Network } from './constants';
-declare type Bip32PathParams = {
+type Bip32PathParams = {
     addressIndex: number;
     accountIndex?: number;
 } & ({
@@ -7,7 +7,7 @@ declare type Bip32PathParams = {
 } | {
     coin: Coin.BITCOIN;
     addressType?: AddressTypeBitcoin;
-    network?: Network;
+    network?: Exclude<Network, Network.DEVNET>;
     isInternal?: boolean;
 });
 /**
@@ -17,5 +17,7 @@ export declare function getBip32Path(params: Bip32PathParams): string;
 /**
  * Parse bip32 path according to path layout specified in bip44.
  */
-export declare function parseBip32Path(path: string): Required<Bip32PathParams>;
+export declare function parseBip32Path(path: string): Required<Bip32PathParams> & {
+    accountPath: string;
+};
 export {};

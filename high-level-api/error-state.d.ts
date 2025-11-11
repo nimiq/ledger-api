@@ -1,6 +1,6 @@
-declare type StateTypeError = import('./ledger-api').StateType.ERROR;
-declare type RequestBase = import('./requests/request').default<any>;
-declare type SpecificRequest = import('./ledger-api').Request;
+type StateTypeError = import('./ledger-api').StateType.ERROR;
+type RequestBase = import('./requests/request').default<any>;
+type SpecificRequest = import('./ledger-api').Request;
 export declare enum ErrorType {
     LEDGER_BUSY = "ledger-busy",
     LOADING_DEPENDENCIES_FAILED = "loading-dependencies-failed",

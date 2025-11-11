@@ -1,13 +1,13 @@
-import { Network, AddressTypeBitcoin, RequestTypeBitcoin, ErrorState, ErrorType } from './ledger-api.es.js';
-import { B as Buffer } from './lazy-chunk-buffer-es6.es.js';
-import './lazy-chunk-request.es.js';
+import { b as buffer } from './lazy-chunk-index.es.js';
 import { R as RequestBitcoin } from './lazy-chunk-request-bitcoin.es.js';
+import { Network, AddressTypeBitcoin, RequestTypeBitcoin, ErrorState, ErrorType, L as LedgerAddressFormatMapBitcoin } from './ledger-api.es.js';
+import './lazy-chunk-request.es.js';
 
 // TODO if in the future the interchangeability of bitcoin-lib with the Nimiq hub's BitcoinJS is not needed anymore,
 //  this can move directly into the lazy loaded bitcoin-lib and then also be lazy loaded.
 async function getNetworkInfo(network, addressType) {
     // async because bitcoin-lib is lazy loaded
-    const { networks } = await [import('./lazy-chunk-buffer-es6.es.js'), import('./lazy-chunk-events.es.js'), import('./lazy-chunk-_commonjsHelpers.es.js'), import('./lazy-chunk-sha256.es.js'), import('./lazy-chunk-index.es3.js'), import('./lazy-chunk-bitcoin-lib.es.js')][5];
+    const { networks } = await [import('./lazy-chunk-index.es.js'), import('./lazy-chunk-sha256.es.js'), import('./lazy-chunk-_virtual_process.es.js'), import('./lazy-chunk-_commonjsHelpers.es.js'), import('./lazy-chunk-events.es.js'), import('./lazy-chunk-bitcoin-lib.es.js')][5].then(function (n) { return n.d; });
     const result = {
         [Network.MAINNET]: networks.bitcoin,
         [Network.TESTNET]: networks.testnet,
@@ -24,21 +24,21 @@ async function getNetworkInfo(network, addressType) {
         [AddressTypeBitcoin.P2SH_SEGWIT]: {
             [Network.MAINNET]: {
                 public: 0x049d7cb2,
-                private: 0x049d7878,
+                private: 0x049d7878, // yprv
             },
             [Network.TESTNET]: {
                 public: 0x044a5262,
-                private: 0x044a4e28,
+                private: 0x044a4e28, // uprv
             },
         },
         [AddressTypeBitcoin.NATIVE_SEGWIT]: {
             [Network.MAINNET]: {
                 public: 0x04b24746,
-                private: 0x04b2430c,
+                private: 0x04b2430c, // zprv
             },
             [Network.TESTNET]: {
                 public: 0x045f1cf6,
-                private: 0x045f18bc,
+                private: 0x045f18bc, // vprv
             },
         },
     }[addressType][network]; // TODO should be using optional chaining here once we update rollup
@@ -50,8 +50,8 @@ async function getNetworkInfo(network, addressType) {
     };
 }
 // Taken from https://github.com/LedgerHQ/ledger-wallet-webtool/blob/master/src/PathFinderUtils.js#L31
-// Also see https://github.com/LedgerHQ/ledgerjs/blob/master/packages/hw-app-btc/src/compressPublicKey.js for a version
-// operating on buffers. However, usage requires then loading the Buffer polyfill.
+// Also see https://github.com/LedgerHQ/ledger-live/blob/main/libs/ledgerjs/packages/hw-app-btc/src/compressPublicKey.ts
+// for a version operating on buffers. However, usage requires then loading the Buffer polyfill.
 function compressPublicKey(publicKey) {
     let compressedKeyIndex;
     if (publicKey.substring(0, 2) !== '04') {
@@ -65,19 +65,24 @@ function compressPublicKey(publicKey) {
     }
     return compressedKeyIndex + publicKey.substring(2, 66);
 }
-//# sourceMappingURL=bitcoin-utils.js.map
 
 const KEY_PATH_REGEX = new RegExp('^'
+    + '(?:m/)?' // optional m/ prefix
     + '(44|49|84)\'' // purpose id; BIP44 (BTC legacy) / BIP49 (BTC nested SegWit) / BIP84 (BTC native SegWit)
     + '/(0|1)\'' // coin type; 0 for Bitcoin Mainnet, 1 for Bitcoin Testnet
     + '/\\d+\'' // account index; allow only xpubs for specific accounts
     + '(?:/\\d+\'?)*' // sub paths; No constraints as they can be circumvented anyway by deriving from higher level xpub
     + '$');
 class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin {
+    type = RequestTypeBitcoin.GET_EXTENDED_PUBLIC_KEY;
+    keyPath;
+    network;
+    _addressType;
     constructor(keyPath, expectedWalletId) {
         super(expectedWalletId);
-        this.type = RequestTypeBitcoin.GET_EXTENDED_PUBLIC_KEY;
         this.keyPath = keyPath;
+        // TODO check which paths are actually still allowed, ledgerjs' old implementation, new implementation and
+        //  https://github.com/LedgerHQ/app-bitcoin-new/blob/master/doc/bitcoin.md#description seem to differ.
         // Check for keyPath validity. Not using parseBip32Path from bip32-utils as we allow exporting xpubs at
         // arbitrary levels. Further restrictions could be circumvented anyways by deriving from higher level xpub.
         const keyPathMatch = keyPath.match(KEY_PATH_REGEX);
@@ -99,98 +104,69 @@ class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin {
         this._loadBitcoinLib().catch(() => { });
     }
     async call(transport) {
-        // Build xpub as specified in bip32
+        // Get xpub as specified in bip32.
         // (https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki#serialization-format)
         const verificationPath = '0/0';
+        // The new api implemented in the Bitcoin app starting with 2.0 only supports original xpub (for mainnet)
+        // and tpub (for testnet) versions, which were initially defined for the legacy address type, see
+        // https://github.com/satoshilabs/slips/blob/master/slip-0132.md#registered-hd-version-bytes
+        const ledgerXpubVersion = this.network === Network.MAINNET ? /* xpub */ 0x0488b21e : /* tpub */ 0x043587cf;
         // Note: We make api calls outside of the try...catch block to let the exceptions fall through such that
         // _callLedger can decide how to behave depending on the api error. Load errors are converted to
         // LOADING_DEPENDENCIES_FAILED error states by _getLowLevelApi and _LoadBitcoinLib. All other errors
         // are converted to REQUEST_ASSERTION_FAILED errors which stop the execution of the request.
-        const [{ bip32 }, [parentPubKey, parentChainCode, pubKey, chainCode, verificationPubKey, verificationChainCode],] = await Promise.all([
+        const [{ bip32 }, [ledgerXpub, verificationPubKey, verificationChainCode],] = await Promise.all([
             this._loadBitcoinLib(),
             (async () => {
-                // Fetch the data from Ledger required for xpub calculation
+                const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
+                // Don't use Promise.all here because ledger requests have to be sent sequentially as ledger can only
+                // perform one request at a time.
+                const xpub = await api.getWalletXpub({
+                    path: this.keyPath,
+                    xpubVersion: ledgerXpubVersion,
+                });
                 // TODO Requesting the public key causes a confirmation screen to be displayed on the Ledger for u2f and
                 //  WebAuthn for every request if the user has this privacy feature enabled in the Bitcoin app.
                 //  Subsequent requests can provide a permission token in _getLowLevelApi to avoid this screen (see
                 //  https://github.com/LedgerHQ/app-bitcoin/blob/master/doc/btc.asc#get-wallet-public-key). This token
                 //  is however not supported in @ledgerhq/hw-app-btc and therefore has to be implemented by ourselves.
-                const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED
-                const parentPath = this.keyPath.substring(0, this.keyPath.lastIndexOf('/'));
-                // ledger requests have to be sent sequentially as ledger can only perform one request at a time
-                const { publicKey: parentPubKeyHex, chainCode: parentChainCodeHex, } = await api.getWalletPublicKey(parentPath);
-                const { publicKey: pubKeyHex, chainCode: chainCodeHex, } = await api.getWalletPublicKey(this.keyPath);
-                const { publicKey: verificationPubKeyHex, chainCode: verificationChainCodeHex, } = await api.getWalletPublicKey(`${this.keyPath}/${verificationPath}`);
+                const { publicKey: verificationPubKeyHex, chainCode: verificationChainCodeHex, } = await api.getWalletPublicKey(`${this.keyPath}/${verificationPath}`, { format: LedgerAddressFormatMapBitcoin[this._addressType] });
                 return [
-                    Buffer.from(compressPublicKey(parentPubKeyHex), 'hex'),
-                    Buffer.from(parentChainCodeHex, 'hex'),
-                    Buffer.from(compressPublicKey(pubKeyHex), 'hex'),
-                    Buffer.from(chainCodeHex, 'hex'),
-                    Buffer.from(compressPublicKey(verificationPubKeyHex), 'hex'),
-                    Buffer.from(verificationChainCodeHex, 'hex'),
+                    xpub,
+                    buffer.Buffer.from(compressPublicKey(verificationPubKeyHex), 'hex'),
+                    buffer.Buffer.from(verificationChainCodeHex, 'hex'),
                 ];
             })(),
         ]);
         try {
             // Note getNetworkInfo is only async because it lazy loads the bitcoin lib, which is already loaded at this
-            // point. Therefore putting it into the Promise.all has no further upside and errors within the call should
-            // become REQUEST_ASSERTION_FAILED exceptions.
+            // point. Therefore, putting it into the Promise.all has no further upside and errors within the call should
+            // become REQUEST_ASSERTION_FAILED exceptions anyway.
             const networkInfo = await getNetworkInfo(this.network, this._addressType);
-            const parent = bip32.fromPublicKey(parentPubKey, parentChainCode, networkInfo);
-            const parentFingerprint = parent.fingerprint.readUInt32BE(0); // this is calculated from the pub key only
-            const keyPathParts = this.keyPath.split('/');
-            const depth = keyPathParts.length;
-            const index = Number.parseInt(keyPathParts[depth - 1], 10)
-                + (this.keyPath.endsWith('\'') ? 0x80000000 : 0); // set index for hardened paths according to bip32
-            // Create the xpub from the data we collected. Unfortunately, the bip32 lib does not expose the generic
-            // constructor, such that we have to set some private properties manually. But we try to do it in a future
-            // proof and minification safe manner.
-            // TODO make this less hacky
-            /* eslint-disable dot-notation */
-            const extendedPubKey = bip32.fromPublicKey(pubKey, chainCode, networkInfo);
-            if (extendedPubKey.__DEPTH === 0) {
-                extendedPubKey.__DEPTH = depth;
-            }
-            else if (extendedPubKey['__DEPTH'] === 0) {
-                extendedPubKey['__DEPTH'] = depth;
-            }
-            else {
-                throw new Error('Failed to construct xpub, couldn\'t set __DEPTH.');
-            }
-            if (extendedPubKey.__INDEX === 0) {
-                extendedPubKey.__INDEX = index;
-            }
-            else if (extendedPubKey['__INDEX'] === 0) {
-                extendedPubKey['__INDEX'] = index;
-            }
-            else {
-                throw new Error('Failed to construct xpub, couldn\'t set __INDEX.');
-            }
-            if (extendedPubKey.__PARENT_FINGERPRINT === 0) {
-                extendedPubKey.__PARENT_FINGERPRINT = parentFingerprint;
-            }
-            else if (extendedPubKey['__PARENT_FINGERPRINT'] === 0) {
-                extendedPubKey['__PARENT_FINGERPRINT'] = parentFingerprint;
-            }
-            else {
-                throw new Error('Failed to construct xpub, couldn\'t set __PARENT_FINGERPRINT.');
-            }
-            /* eslint-disable dot-notation */
+            const extendedPubKey = bip32.fromBase58(ledgerXpub, {
+                ...networkInfo,
+                bip32: { ...networkInfo.bip32, public: ledgerXpubVersion },
+            });
             // Verify that the generated xpub is correct by deriving an example child and comparing it to the result
-            // calculated by the Ledger device. Do not verify the Ledger generated address as it is derived from the
-            // pub key anyways.
+            // calculated by the Ledger device. No need to verify the Ledger generated address as it is derived from the
+            // pub key anyway.
             const verificationDerivation = extendedPubKey.derivePath(verificationPath);
             if (!verificationDerivation.publicKey.equals(verificationPubKey)
                 || !verificationDerivation.chainCode.equals(verificationChainCode)) {
                 throw new Error('Failed to verify the constructed xpub.');
             }
+            // Export extended public key versioned as xpub, ypub, zpub, tpub, upub or vpub, according to the network
+            // and address type. We do this for compatibility with previous versions of our api and the Nimiq Keyguard
+            // and because it's still common practice. However, encoding as versions other than xpub and tpub is
+            // a somewhat deprecated standard nowadays. They're for example not used in PSBTs or descriptor wallets.
+            extendedPubKey.network = networkInfo;
             return extendedPubKey.toBase58();
         }
         catch (e) {
-            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e, this);
+            throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
         }
     }
 }
 
-export default RequestGetExtendedPublicKeyBitcoin;
+export { RequestGetExtendedPublicKeyBitcoin as default };
 //# sourceMappingURL=lazy-chunk-request-get-extended-public-key-bitcoin.es.js.map

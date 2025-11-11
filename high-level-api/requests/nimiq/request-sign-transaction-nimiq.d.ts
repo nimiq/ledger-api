@@ -1,25 +1,33 @@
 import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
-import { RequestTypeNimiq } from '../../constants';
-declare type Transport = import('@ledgerhq/hw-transport').default;
-declare type Address = import('@nimiq/core-web').Address;
-declare type AccountType = import('@nimiq/core-web').Account.Type;
-declare type Transaction = import('@nimiq/core-web').Transaction;
-export interface TransactionInfoNimiq {
-    sender: Address;
-    senderType?: AccountType;
-    recipient: Address;
-    recipientType?: AccountType;
+import { RequestTypeNimiq, Network, AccountTypeNimiq } from '../../constants';
+import { NimiqVersion } from '../../../lib/constants';
+import { type NimiqPrimitive } from '../../../lib/load-nimiq';
+type Transport = import('@ledgerhq/hw-transport').default;
+export type TransactionInfoNimiq<Version extends NimiqVersion> = {
+    sender: NimiqPrimitive<'Address', Version>;
+    recipient: NimiqPrimitive<'Address', Version>;
+    validityStartHeight: number;
+    network?: Network;
+    flags?: number;
+} & (Version extends NimiqVersion.ALBATROSS ? {
+    value: bigint;
+    fee?: bigint;
+    senderType?: AccountTypeNimiq;
+    senderData?: Uint8Array;
+    recipientType?: AccountTypeNimiq;
+    recipientData?: Uint8Array;
+} : {
     value: number;
     fee?: number;
-    validityStartHeight: number;
-    network?: 'main' | 'test' | 'dev';
-    flags?: number;
+    senderType?: Exclude<AccountTypeNimiq, AccountTypeNimiq.STAKING>;
+    recipientType?: Exclude<AccountTypeNimiq, AccountTypeNimiq.STAKING>;
     extraData?: Uint8Array;
-}
-export default class RequestSignTransactionNimiq extends RequestWithKeyPathNimiq<Transaction> {
+});
+export default class RequestSignTransactionNimiq<Version extends NimiqVersion> extends RequestWithKeyPathNimiq<Version, NimiqPrimitive<'Transaction', Version>> {
     readonly type: RequestTypeNimiq.SIGN_TRANSACTION;
-    readonly transaction: TransactionInfoNimiq;
-    constructor(keyPath: string, transaction: TransactionInfoNimiq, expectedWalletId?: string);
-    call(transport: Transport): Promise<Transaction>;
+    readonly transaction: TransactionInfoNimiq<Version>;
+    get minRequiredAppVersion(): string;
+    constructor(nimiqVersion: Version, keyPath: string, transaction: TransactionInfoNimiq<Version>, expectedWalletId?: string);
+    call(transport: Transport): Promise<NimiqPrimitive<'Transaction', Version>>;
 }
 export {};

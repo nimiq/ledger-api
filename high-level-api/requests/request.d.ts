@@ -1,7 +1,7 @@
 import { Coin, RequestTypeNimiq, RequestTypeBitcoin } from '../constants';
 import Observable, { EventListener } from '../../lib/observable';
-declare type Transport = import('@ledgerhq/hw-transport').default;
-declare type RequestType = RequestTypeNimiq | RequestTypeBitcoin;
+type Transport = import('@ledgerhq/hw-transport').default;
+type RequestType = RequestTypeNimiq | RequestTypeBitcoin;
 export interface CoinAppConnection {
     coin: Coin;
     app: string;
@@ -15,10 +15,11 @@ export default abstract class Request<T> extends Observable {
     abstract readonly requiredApp: string;
     abstract readonly minRequiredAppVersion: string;
     readonly expectedWalletId?: string;
+    protected _coinAppConnection: CoinAppConnection | null;
     private _cancelled;
-    protected static _isAppVersionSupported(versionString: string, minRequiredVersion: string): boolean;
     protected constructor(expectedWalletId?: string);
     get cancelled(): boolean;
+    get allowLegacyApp(): boolean;
     abstract call(transport: Transport): Promise<T>;
     canReuseCoinAppConnection(coinAppConnection: CoinAppConnection): boolean;
     cancel(): void;

@@ -1,10 +1,11 @@
-import { b as bufferEs6 } from './lazy-chunk-buffer-es6.es.js';
-import { c as createCommonjsModule } from './lazy-chunk-_commonjsHelpers.es.js';
+import { g as getDefaultExportFromCjs } from './lazy-chunk-_commonjsHelpers.es.js';
+import { b as buffer } from './lazy-chunk-index.es.js';
 
-var inherits_browser = createCommonjsModule(function (module) {
+var inherits_browser = {exports: {}};
+
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
-  module.exports = function inherits(ctor, superCtor) {
+  inherits_browser.exports = function inherits(ctor, superCtor) {
     if (superCtor) {
       ctor.super_ = superCtor;
       ctor.prototype = Object.create(superCtor.prototype, {
@@ -19,7 +20,7 @@ if (typeof Object.create === 'function') {
   };
 } else {
   // old school shim for old browsers
-  module.exports = function inherits(ctor, superCtor) {
+  inherits_browser.exports = function inherits(ctor, superCtor) {
     if (superCtor) {
       ctor.super_ = superCtor;
       var TempCtor = function () {};
@@ -29,91 +30,96 @@ if (typeof Object.create === 'function') {
     }
   };
 }
-});
 
-var safeBuffer = createCommonjsModule(function (module, exports) {
+var inherits_browserExports = inherits_browser.exports;
+
+var safeBuffer = {exports: {}};
+
 /*! safe-buffer. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> */
-/* eslint-disable node/no-deprecated-api */
 
-var Buffer = bufferEs6.Buffer;
+(function (module, exports) {
+	/* eslint-disable node/no-deprecated-api */
+	var buffer$1 = buffer;
+	var Buffer = buffer$1.Buffer;
 
-// alternative to using Object.keys for old browsers
-function copyProps (src, dst) {
-  for (var key in src) {
-    dst[key] = src[key];
-  }
-}
-if (Buffer.from && Buffer.alloc && Buffer.allocUnsafe && Buffer.allocUnsafeSlow) {
-  module.exports = bufferEs6;
-} else {
-  // Copy properties from require('buffer')
-  copyProps(bufferEs6, exports);
-  exports.Buffer = SafeBuffer;
-}
+	// alternative to using Object.keys for old browsers
+	function copyProps (src, dst) {
+	  for (var key in src) {
+	    dst[key] = src[key];
+	  }
+	}
+	if (Buffer.from && Buffer.alloc && Buffer.allocUnsafe && Buffer.allocUnsafeSlow) {
+	  module.exports = buffer$1;
+	} else {
+	  // Copy properties from require('buffer')
+	  copyProps(buffer$1, exports);
+	  exports.Buffer = SafeBuffer;
+	}
 
-function SafeBuffer (arg, encodingOrOffset, length) {
-  return Buffer(arg, encodingOrOffset, length)
-}
+	function SafeBuffer (arg, encodingOrOffset, length) {
+	  return Buffer(arg, encodingOrOffset, length)
+	}
 
-SafeBuffer.prototype = Object.create(Buffer.prototype);
+	SafeBuffer.prototype = Object.create(Buffer.prototype);
 
-// Copy static methods from Buffer
-copyProps(Buffer, SafeBuffer);
+	// Copy static methods from Buffer
+	copyProps(Buffer, SafeBuffer);
 
-SafeBuffer.from = function (arg, encodingOrOffset, length) {
-  if (typeof arg === 'number') {
-    throw new TypeError('Argument must not be a number')
-  }
-  return Buffer(arg, encodingOrOffset, length)
-};
+	SafeBuffer.from = function (arg, encodingOrOffset, length) {
+	  if (typeof arg === 'number') {
+	    throw new TypeError('Argument must not be a number')
+	  }
+	  return Buffer(arg, encodingOrOffset, length)
+	};
 
-SafeBuffer.alloc = function (size, fill, encoding) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  var buf = Buffer(size);
-  if (fill !== undefined) {
-    if (typeof encoding === 'string') {
-      buf.fill(fill, encoding);
-    } else {
-      buf.fill(fill);
-    }
-  } else {
-    buf.fill(0);
-  }
-  return buf
-};
+	SafeBuffer.alloc = function (size, fill, encoding) {
+	  if (typeof size !== 'number') {
+	    throw new TypeError('Argument must be a number')
+	  }
+	  var buf = Buffer(size);
+	  if (fill !== undefined) {
+	    if (typeof encoding === 'string') {
+	      buf.fill(fill, encoding);
+	    } else {
+	      buf.fill(fill);
+	    }
+	  } else {
+	    buf.fill(0);
+	  }
+	  return buf
+	};
 
-SafeBuffer.allocUnsafe = function (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  return Buffer(size)
-};
+	SafeBuffer.allocUnsafe = function (size) {
+	  if (typeof size !== 'number') {
+	    throw new TypeError('Argument must be a number')
+	  }
+	  return Buffer(size)
+	};
 
-SafeBuffer.allocUnsafeSlow = function (size) {
-  if (typeof size !== 'number') {
-    throw new TypeError('Argument must be a number')
-  }
-  return bufferEs6.SlowBuffer(size)
-};
-});
-var safeBuffer_1 = safeBuffer.Buffer;
+	SafeBuffer.allocUnsafeSlow = function (size) {
+	  if (typeof size !== 'number') {
+	    throw new TypeError('Argument must be a number')
+	  }
+	  return buffer$1.SlowBuffer(size)
+	}; 
+} (safeBuffer, safeBuffer.exports));
 
-var Buffer = safeBuffer.Buffer;
+var safeBufferExports = safeBuffer.exports;
+
+var Buffer$1 = safeBufferExports.Buffer;
 
 // prototype class for hash functions
-function Hash (blockSize, finalSize) {
-  this._block = Buffer.alloc(blockSize);
+function Hash$1 (blockSize, finalSize) {
+  this._block = Buffer$1.alloc(blockSize);
   this._finalSize = finalSize;
   this._blockSize = blockSize;
   this._len = 0;
 }
 
-Hash.prototype.update = function (data, enc) {
+Hash$1.prototype.update = function (data, enc) {
   if (typeof data === 'string') {
     enc = enc || 'utf8';
-    data = Buffer.from(data, enc);
+    data = Buffer$1.from(data, enc);
   }
 
   var block = this._block;
@@ -141,7 +147,7 @@ Hash.prototype.update = function (data, enc) {
   return this
 };
 
-Hash.prototype.digest = function (enc) {
+Hash$1.prototype.digest = function (enc) {
   var rem = this._len % this._blockSize;
 
   this._block[rem] = 0x80;
@@ -176,11 +182,11 @@ Hash.prototype.digest = function (enc) {
   return enc ? hash.toString(enc) : hash
 };
 
-Hash.prototype._update = function () {
+Hash$1.prototype._update = function () {
   throw new Error('_update must be implemented by subclass')
 };
 
-var hash = Hash;
+var hash = Hash$1;
 
 /**
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-256, as defined
@@ -190,9 +196,9 @@ var hash = Hash;
  *
  */
 
-
-
-var Buffer$1 = safeBuffer.Buffer;
+var inherits = inherits_browserExports;
+var Hash = hash;
+var Buffer = safeBufferExports.Buffer;
 
 var K = [
   0x428A2F98, 0x71374491, 0xB5C0FBCF, 0xE9B5DBA5,
@@ -220,10 +226,10 @@ function Sha256 () {
 
   this._w = W; // new Array(64)
 
-  hash.call(this, 64, 56);
+  Hash.call(this, 64, 56);
 }
 
-inherits_browser(Sha256, hash);
+inherits(Sha256, Hash);
 
 Sha256.prototype.init = function () {
   this._a = 0x6a09e667;
@@ -302,7 +308,7 @@ Sha256.prototype._update = function (M) {
 };
 
 Sha256.prototype._hash = function () {
-  var H = Buffer$1.allocUnsafe(32);
+  var H = Buffer.allocUnsafe(32);
 
   H.writeInt32BE(this._a, 0);
   H.writeInt32BE(this._b, 4);
@@ -318,11 +324,12 @@ Sha256.prototype._hash = function () {
 
 var sha256 = Sha256;
 
-var sha256$1 = /*#__PURE__*/Object.freeze({
+var sha256$1 = /*@__PURE__*/getDefaultExportFromCjs(sha256);
+
+var sha256$2 = /*#__PURE__*/Object.freeze({
   __proto__: null,
-  'default': sha256,
-  __moduleExports: sha256
+  default: sha256$1
 });
 
-export { sha256 as a, sha256$1 as b, hash as h, inherits_browser as i, safeBuffer as s };
+export { safeBufferExports as a, sha256 as b, hash as h, inherits_browserExports as i, sha256$2 as s };
 //# sourceMappingURL=lazy-chunk-sha256.es.js.map

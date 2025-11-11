@@ -1,7 +1,7 @@
 import RequestBitcoin from './request-bitcoin';
 import { Network, RequestTypeBitcoin } from '../../constants';
-declare type Transport = import('@ledgerhq/hw-transport').default;
-declare type BitcoinJsTransaction = import('bitcoinjs-lib').Transaction;
+type Transport = import('@ledgerhq/hw-transport').default;
+type BitcoinJsTransaction = import('bitcoinjs-lib').Transaction;
 export interface TransactionInfoBitcoin {
     inputs: Array<{
         transaction: string | BitcoinJsTransaction;
@@ -18,15 +18,16 @@ export interface TransactionInfoBitcoin {
         address: string;
     })>;
     changePath?: string;
-    lockTime?: number;
+    locktime?: number;
     sigHashType?: number;
     useTrustedInputForSegwit?: false;
 }
 export default class RequestSignTransactionBitcoin extends RequestBitcoin<string> {
     readonly type: RequestTypeBitcoin.SIGN_TRANSACTION;
     readonly transaction: TransactionInfoBitcoin;
-    readonly network: Network;
+    readonly network: Exclude<Network, Network.DEVNET>;
     private _inputType;
+    get requiredApp(): string;
     constructor(transaction: TransactionInfoBitcoin, expectedWalletId?: string);
     call(transport: Transport): Promise<string>;
     private _loadBitcoinLibIfNeeded;

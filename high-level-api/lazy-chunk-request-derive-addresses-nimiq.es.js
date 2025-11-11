@@ -1,11 +1,12 @@
+import { R as RequestNimiq } from './lazy-chunk-request-nimiq.es.js';
 import { RequestTypeNimiq, parseBip32Path, Coin, ErrorState, ErrorType } from './ledger-api.es.js';
 import './lazy-chunk-request.es.js';
-import { R as RequestNimiq } from './lazy-chunk-request-nimiq.es.js';
 
 class RequestDeriveAddressesNimiq extends RequestNimiq {
-    constructor(pathsToDerive, expectedWalletId) {
-        super(expectedWalletId);
-        this.type = RequestTypeNimiq.DERIVE_ADDRESSES;
+    type = RequestTypeNimiq.DERIVE_ADDRESSES;
+    pathsToDerive;
+    constructor(nimiqVersion, pathsToDerive, expectedWalletId) {
+        super(nimiqVersion, expectedWalletId);
         this.pathsToDerive = pathsToDerive;
         for (const keyPath of pathsToDerive) {
             try {
@@ -13,7 +14,7 @@ class RequestDeriveAddressesNimiq extends RequestNimiq {
                     throw new Error('Not a Nimiq bip32 path');
             }
             catch (e) {
-                throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}: ${e.message || e}`, this);
+                throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, `Invalid keyPath ${keyPath}: ${e instanceof Error ? e.message : e}`, this);
             }
         }
     }
@@ -25,12 +26,13 @@ class RequestDeriveAddressesNimiq extends RequestNimiq {
                 return addressRecords;
             // eslint-disable-next-line no-await-in-loop
             const { address } = await api.getAddress(keyPath, true, // validate
-            false);
+            false, // display
+            this.nimiqVersion);
             addressRecords.push({ address, keyPath });
         }
         return addressRecords;
     }
 }
 
-export default RequestDeriveAddressesNimiq;
+export { RequestDeriveAddressesNimiq as default };
 //# sourceMappingURL=lazy-chunk-request-derive-addresses-nimiq.es.js.map
