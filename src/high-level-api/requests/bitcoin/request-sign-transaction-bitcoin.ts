@@ -6,7 +6,6 @@ import ErrorState, { ErrorType } from '../../error-state';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type BitcoinJsTransaction = import('bitcoinjs-lib').Transaction;
-type BitcoinLib = typeof import('./bitcoin-lib');
 type CreateTransactionArg = Parameters<import('@ledgerhq/hw-app-btc').default['createPaymentTransaction']>[0];
 // serializeTransactionOutputs is typed unnecessarily strict as it only uses the outputs of a transaction
 type FixedSerializeTransactionOutputs =
@@ -156,7 +155,7 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
         }
 
         // Preload Bitcoin lib if needed. Ledger Bitcoin api is already preloaded by parent class. Ignore errors.
-        this._loadBitcoinLibIfNeeded().catch(() => {});
+        this._loadBitcoinJsIfNeeded().catch(() => {});
     }
 
     public async call(transport: Transport): Promise<string> {
@@ -196,10 +195,10 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
         //   https://live.blockcypher.com/btc/decodetx/
         // - The demo page and code of this lib for demo usage
 
-        const [api, bitcoinLib] = await Promise.all([
+        const [api, bitcoinJs] = await Promise.all([
             // these throw LOADING_DEPENDENCIES_FAILED on failure
             this._getLowLevelApi(transport),
-            this._loadBitcoinLibIfNeeded(),
+            this._loadBitcoinJsIfNeeded(),
         ]);
         let parsedTransaction: CreateTransactionArg;
 
@@ -246,11 +245,11 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                             if ('outputScript' in output) {
                                 outputScript = Buffer.from(output.outputScript, 'hex');
                             } else {
-                                outputScript = bitcoinLib!.address.toOutputScript(
+                                outputScript = bitcoinJs!.addressToOutputScript(
                                     output.address,
                                     this.network === Network.MAINNET
-                                        ? bitcoinLib!.networks.bitcoin
-                                        : bitcoinLib!.networks.testnet,
+                                        ? bitcoinJs!.networks.bitcoin
+                                        : bitcoinJs!.networks.testnet,
                                 );
                             }
                             return { amount: amountBuffer, script: outputScript };
@@ -283,11 +282,19 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
         return api.createPaymentTransaction(parsedTransaction);
     }
 
-    private async _loadBitcoinLibIfNeeded(): Promise<null | BitcoinLib> {
+    private async _loadBitcoinJsIfNeeded(): Promise<null | {
+        addressToOutputScript: typeof import('bitcoinjs-lib').address.toOutputScript,
+        networks: typeof import('bitcoinjs-lib').networks,
+    }> {
         // If we need bitcoinjs for address to output script conversion, load it.
         if (Array.isArray(this.transaction.outputs)
             && this.transaction.outputs.some((output) => 'address' in output && !!output.address)) {
-            return this._loadBitcoinLib();
+            const [addressToOutputScript, networks] = await Promise.all([
+                // These throw LOADING_DEPENDENCIES_FAILED on failure.
+                this._loadDependency(import('bitcoinjs-lib/src/address').then(({ toOutputScript }) => toOutputScript)),
+                this._loadDependency(import('bitcoinjs-lib/src/networks')),
+            ]);
+            return { addressToOutputScript, networks };
         }
         return null;
     }

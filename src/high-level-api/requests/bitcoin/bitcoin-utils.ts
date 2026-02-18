@@ -1,19 +1,16 @@
 import { Network, AddressTypeBitcoin } from '../../constants';
 
-type NetworkInfo = import('./bitcoin-lib').networks.Network;
+type Networks = typeof import('bitcoinjs-lib').networks;
+type NetworkInfo = import('bitcoinjs-lib').networks.Network;
 
-// TODO if in the future the interchangeability of bitcoin-lib with the Nimiq hub's BitcoinJS is not needed anymore,
-//  this can move directly into the lazy loaded bitcoin-lib and then also be lazy loaded.
-export async function getNetworkInfo(
+export function getNetworkInfo(
     network: Exclude<Network, Network.DEVNET>,
     addressType: AddressTypeBitcoin,
-): Promise<NetworkInfo> {
-    // async because bitcoin-lib is lazy loaded
-    const { networks } = await import('./bitcoin-lib');
-
+    bitcoinJsNetworks: Networks,
+): NetworkInfo {
     const result: NetworkInfo = {
-        [Network.MAINNET]: networks.bitcoin,
-        [Network.TESTNET]: networks.testnet,
+        [Network.MAINNET]: bitcoinJsNetworks.bitcoin,
+        [Network.TESTNET]: bitcoinJsNetworks.testnet,
     }[network];
     if (!result) throw new Error(`Unsupported network ${network}`);
 
@@ -21,8 +18,8 @@ export async function getNetworkInfo(
     // see https://github.com/satoshilabs/slips/blob/master/slip-0132.md#registered-hd-version-bytes
     const versionBytes = {
         [AddressTypeBitcoin.LEGACY]: {
-            [Network.MAINNET]: networks.bitcoin.bip32,
-            [Network.TESTNET]: networks.testnet.bip32,
+            [Network.MAINNET]: bitcoinJsNetworks.bitcoin.bip32,
+            [Network.TESTNET]: bitcoinJsNetworks.testnet.bip32,
         },
         [AddressTypeBitcoin.P2SH_SEGWIT]: {
             [Network.MAINNET]: {

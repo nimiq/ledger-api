@@ -50,8 +50,11 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
             1: Network.TESTNET,
         } as const)[networkId];
 
-        // Preload bitcoin lib. Ledger Bitcoin api is already preloaded by parent class. Ignore errors.
-        this._loadBitcoinLib().catch(() => {});
+        // Preload bitcoinjs-lib. Ledger Bitcoin api is already preloaded by parent class. Ignore errors.
+        Promise.all([
+            import('bip32').then(({ fromBase58 }) => fromBase58),
+            import('bitcoinjs-lib/src/networks'),
+        ]).catch(() => {});
     }
 
     public async call(transport: Transport): Promise<string> {
@@ -65,13 +68,16 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
 
         // Note: We make api calls outside of the try...catch block to let the exceptions fall through such that
         // _callLedger can decide how to behave depending on the api error. Load errors are converted to
-        // LOADING_DEPENDENCIES_FAILED error states by _getLowLevelApi and _LoadBitcoinLib. All other errors
-        // are converted to REQUEST_ASSERTION_FAILED errors which stop the execution of the request.
+        // LOADING_DEPENDENCIES_FAILED error states. All other errors are converted to REQUEST_ASSERTION_FAILED
+        // errors which stop the execution of the request.
         const [
-            { bip32 },
+            bip32FromBase58,
+            bitcoinJsNetworks,
             [ledgerXpub, verificationPubKey, verificationChainCode],
         ] = await Promise.all([
-            this._loadBitcoinLib(), // throws LOADING_DEPENDENCIES_FAILED on failure
+            // These throw LOADING_DEPENDENCIES_FAILED on failure.
+            this._loadDependency(import('bip32').then(({ fromBase58 }) => fromBase58)),
+            this._loadDependency(import('bitcoinjs-lib/src/networks')),
             (async () => {
                 const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
                 // Don't use Promise.all here because ledger requests have to be sent sequentially as ledger can only
@@ -101,12 +107,9 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
         ]);
 
         try {
-            // Note getNetworkInfo is only async because it lazy loads the bitcoin lib, which is already loaded at this
-            // point. Therefore, putting it into the Promise.all has no further upside and errors within the call should
-            // become REQUEST_ASSERTION_FAILED exceptions anyway.
-            const networkInfo = await getNetworkInfo(this.network, this._addressType);
+            const networkInfo = getNetworkInfo(this.network, this._addressType, bitcoinJsNetworks);
 
-            const extendedPubKey = bip32.fromBase58(ledgerXpub, {
+            const extendedPubKey = bip32FromBase58(ledgerXpub, {
                 ...networkInfo,
                 bip32: { ...networkInfo.bip32, public: ledgerXpubVersion },
             });

@@ -101,7 +101,7 @@ function hoistDynamicImportDependencies() {
                         const dependencies = bundle[importBundleId].imports
                             .filter((dependencyBundleId) => dependencyBundleId !== chunkName)
                             .map((dependencyBundleId) => dependencyBundleId.replace('high-level-api', '.'));
-                        if (!dependencies) return;
+                        if (!dependencies.length) return;
 
                         magicString.prependLeft(node.start, `[${
                             dependencies.map((dependency) => `import('${dependency}')`).join(', ')

@@ -9,7 +9,6 @@ import ErrorState, { ErrorType } from '../../error-state';
 type Transport = import('@ledgerhq/hw-transport').default;
 type LowLevelApiConstructor = typeof import('@ledgerhq/hw-app-btc').default;
 type LowLevelApi = InstanceType<LowLevelApiConstructor>;
-type BitcoinLib = typeof import('./bitcoin-lib');
 type Sha256 = typeof import('sha.js/sha256').default;
 
 export { RequestTypeBitcoin };
@@ -45,7 +44,7 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
     protected constructor(expectedWalletId?: string) {
         super(expectedWalletId);
 
-        // Preload dependencies. Bitcoin lib is preloaded individually by request child classes that need it.
+        // Preload dependencies. bitcoinjs-lib is preloaded individually by request child classes that need it.
         // Ignore errors.
         Promise.all([
             this._loadLowLevelApi(), // needed by all requests
@@ -108,18 +107,6 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
     private async _loadLowLevelApi(): Promise<LowLevelApiConstructor> {
         try {
             return (await import('@ledgerhq/hw-app-btc')).default;
-        } catch (e) {
-            throw new ErrorState(
-                ErrorType.LOADING_DEPENDENCIES_FAILED,
-                `Failed loading dependencies: ${e instanceof Error ? e.message : e}`,
-                this,
-            );
-        }
-    }
-
-    protected async _loadBitcoinLib(): Promise<BitcoinLib> {
-        try {
-            return await import('./bitcoin-lib');
         } catch (e) {
             throw new ErrorState(
                 ErrorType.LOADING_DEPENDENCIES_FAILED,

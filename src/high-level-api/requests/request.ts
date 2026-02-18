@@ -99,4 +99,16 @@ export default abstract class Request<T> extends Observable {
         if (this.expectedWalletId === undefined || this.expectedWalletId === walletId) return;
         throw new ErrorState(ErrorType.WRONG_WALLET, 'Wrong wallet or Ledger connected', this);
     }
+
+    protected async _loadDependency<I>(importPromise: Promise<I>): Promise<I> {
+        try {
+            return await importPromise;
+        } catch (e) {
+            throw new ErrorState(
+                ErrorType.LOADING_DEPENDENCIES_FAILED,
+                `Failed loading dependencies: ${e instanceof Error ? e.message : e}`,
+                this,
+            );
+        }
+    }
 }
