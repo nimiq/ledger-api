@@ -82,8 +82,8 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
                 + 'Prefer using nested p2sh segwit or native bech32 segwit addresses.');
         }
 
-        // Note: We make api calls outside of the try...catch block to let the exceptions fall through such that
-        // _callLedger can decide how to behave depending on the api error.
+        // Note: We make api calls outside the try...catch block to let exceptions fall through such that _callLedger
+        // can decide how to behave depending on the api error.
         const { bitcoinAddress: signerAddress } = await api.getWalletPublicKey(
             this.keyPath,
             { format: LedgerAddressFormatMapBitcoin[this._addressType] },

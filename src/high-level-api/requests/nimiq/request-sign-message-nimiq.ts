@@ -2,7 +2,7 @@ import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
 import { RequestTypeNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
 import { NimiqVersion } from '../../../lib/constants';
-import { isNimiqLegacy, NimiqPrimitive } from '../../../lib/load-nimiq';
+import { loadNimiq, isNimiqLegacy, type Nimiq, type NimiqPrimitive } from '../../../lib/load-nimiq';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 export type MessageSignatureInfoNimiq<Version extends NimiqVersion> = {
@@ -35,13 +35,11 @@ export default class RequestSignMessageNimiq<Version extends NimiqVersion>
         this.type = type;
         this.message = message;
         this.flags = flags;
-
-        // Preload Nimiq lib. Ledger Nimiq api is already preloaded by parent class. Ignore errors.
-        this._loadNimiq().catch(() => {});
     }
 
     public async call(transport: Transport): Promise<MessageSignatureInfoNimiq<Version>> {
-        const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
+        // These throw LOADING_DEPENDENCIES_FAILED on failure.
+        const [api, { Nimiq }] = await Promise.all([this._getLowLevelApi(transport), this._loadDependencies()]);
 
         let messageBuffer: Buffer;
         try {
@@ -69,11 +67,19 @@ export default class RequestSignMessageNimiq<Version extends NimiqVersion>
             this.flags,
         );
 
-        const Nimiq = await this._loadNimiq(); // throws LOADING_DEPENDENCIES_FAILED on failure; preload in constructor
-
         return {
             signer: new Nimiq.PublicKey(publicKey),
             signature: isNimiqLegacy(Nimiq) ? new Nimiq.Signature(signature) : Nimiq.Signature.deserialize(signature),
         } as MessageSignatureInfoNimiq<Version>;
+    }
+
+    protected async _loadDependencies(): Promise<{
+        Nimiq: Nimiq<Version>,
+    } & Omit<Awaited<ReturnType<RequestWithKeyPathNimiq<any, any>['_loadDependencies']>>, 'Nimiq'>> {
+        const [parentDependencies, Nimiq] = await Promise.all([
+            super._loadDependencies(),
+            this._loadDependency(loadNimiq(this.nimiqVersion, /* include cryptography */ false)),
+        ]);
+        return { ...parentDependencies, Nimiq };
     }
 }

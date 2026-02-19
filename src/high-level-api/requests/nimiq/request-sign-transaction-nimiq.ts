@@ -2,7 +2,13 @@ import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
 import { RequestTypeNimiq, Network, NetworkIdNimiq, AccountTypeNimiq, TransactionFlagsNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
 import { NimiqVersion } from '../../../lib/constants';
-import { isNimiqLegacy, isNimiqLegacyPrimitive, type NimiqPrimitive } from '../../../lib/load-nimiq';
+import {
+    loadNimiq,
+    isNimiqLegacy,
+    isNimiqLegacyPrimitive,
+    type Nimiq,
+    type NimiqPrimitive,
+} from '../../../lib/load-nimiq';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
@@ -54,24 +60,21 @@ export default class RequestSignTransactionNimiq<Version extends NimiqVersion>
         super(nimiqVersion, keyPath, expectedWalletId, { type });
         this.type = type;
         this.transaction = transaction;
-
-        // Preload Nimiq lib. Ledger Nimiq api is already preloaded by parent class. Ignore errors.
-        this._loadNimiq().catch(() => {});
     }
 
     public async call(transport: Transport): Promise<NimiqPrimitive<'Transaction', Version>> {
-        const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
-        // Note: We make api calls outside of try...catch blocks to let the exceptions fall through such that
-        // _callLedger can decide how to behave depending on the api error. All other errors are converted to
-        // REQUEST_ASSERTION_FAILED errors which stop the execution of the request.
+        // These throw LOADING_DEPENDENCIES_FAILED on failure.
+        const [api, { Nimiq }] = await Promise.all([this._getLowLevelApi(transport), this._loadDependencies()]);
+
+        // Note: We make api calls outside try...catch blocks to let the exceptions fall through such that _callLedger
+        // can decide how to behave depending on the api error. Other errors are converted to REQUEST_ASSERTION_FAILED
+        // errors which stop the execution of the request.
         const { publicKey: signerPubKeyBytes } = await api.getPublicKey(
             this.keyPath,
             true, // validate
             false, // display
             this.nimiqVersion,
         );
-
-        const Nimiq = await this._loadNimiq(); // throws LOADING_DEPENDENCIES_FAILED on failure
 
         let nimiqTx: NimiqPrimitive<'Transaction', NimiqVersion>;
         try {
@@ -205,5 +208,16 @@ export default class RequestSignTransactionNimiq<Version extends NimiqVersion>
         }
 
         return nimiqTx as NimiqPrimitive<'Transaction', Version>;
+    }
+
+    protected async _loadDependencies(): Promise<{
+        Nimiq: Nimiq<Version>,
+    } & Omit<Awaited<ReturnType<RequestWithKeyPathNimiq<any, any>['_loadDependencies']>>, 'Nimiq'>> {
+        const [parentDependencies, Nimiq] = await Promise.all([
+            super._loadDependencies(),
+            // Note: pub key to address derivation in SignatureProof and BasicTransaction.
+            this._loadDependency(loadNimiq(this.nimiqVersion, /* include cryptography */ true)),
+        ]);
+        return { ...parentDependencies, Nimiq };
     }
 }

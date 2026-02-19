@@ -49,12 +49,6 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
             0: Network.MAINNET,
             1: Network.TESTNET,
         } as const)[networkId];
-
-        // Preload bitcoinjs-lib. Ledger Bitcoin api is already preloaded by parent class. Ignore errors.
-        Promise.all([
-            import('bip32').then(({ fromBase58 }) => fromBase58),
-            import('bitcoinjs-lib/src/networks'),
-        ]).catch(() => {});
     }
 
     public async call(transport: Transport): Promise<string> {
@@ -66,18 +60,15 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
         // https://github.com/satoshilabs/slips/blob/master/slip-0132.md#registered-hd-version-bytes
         const ledgerXpubVersion = this.network === Network.MAINNET ? /* xpub */ 0x0488b21e : /* tpub */ 0x043587cf;
 
-        // Note: We make api calls outside of the try...catch block to let the exceptions fall through such that
-        // _callLedger can decide how to behave depending on the api error. Load errors are converted to
-        // LOADING_DEPENDENCIES_FAILED error states. All other errors are converted to REQUEST_ASSERTION_FAILED
-        // errors which stop the execution of the request.
+        // Note: We make api calls outside the try...catch block to let exceptions fall through such that _callLedger
+        // can decide how to behave depending on the api error. Load errors are converted to LOADING_DEPENDENCIES_FAILED
+        // error states. Other errors are converted to REQUEST_ASSERTION_FAILED errors which stop the execution of the
+        // request.
         const [
-            bip32FromBase58,
-            bitcoinJsNetworks,
+            { bip32FromBase58, bitcoinJsNetworks },
             [ledgerXpub, verificationPubKey, verificationChainCode],
         ] = await Promise.all([
-            // These throw LOADING_DEPENDENCIES_FAILED on failure.
-            this._loadDependency(import('bip32').then(({ fromBase58 }) => fromBase58)),
-            this._loadDependency(import('bitcoinjs-lib/src/networks')),
+            this._loadDependencies(), // throws LOADING_DEPENDENCIES_FAILED on failure
             (async () => {
                 const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
                 // Don't use Promise.all here because ledger requests have to be sent sequentially as ledger can only
@@ -98,11 +89,15 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
                     `${this.keyPath}/${verificationPath}`,
                     { format: LedgerAddressFormatMapBitcoin[this._addressType] }, // must pass the appropriate format
                 );
-                return [
-                    xpub,
-                    Buffer.from(compressPublicKey(verificationPubKeyHex), 'hex'),
-                    Buffer.from(verificationChainCodeHex, 'hex'),
-                ] as [string, Buffer, Buffer];
+                try {
+                    return [
+                        xpub,
+                        Buffer.from(compressPublicKey(verificationPubKeyHex), 'hex'),
+                        Buffer.from(verificationChainCodeHex, 'hex'),
+                    ] as [string, Buffer, Buffer];
+                } catch (e) {
+                    throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
+                }
             })(),
         ]);
 
@@ -132,5 +127,18 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
         } catch (e) {
             throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
         }
+    }
+
+    protected async _loadDependencies(): Promise<{
+        bip32FromBase58: typeof import('bip32').fromBase58,
+        bitcoinJsNetworks: typeof import('bitcoinjs-lib').networks,
+    } & Awaited<ReturnType<RequestBitcoin<string>['_loadDependencies']>>> {
+        const [parentDependencies, bip32FromBase58, bitcoinJsNetworks] = await Promise.all([
+            super._loadDependencies(),
+            // These throw LOADING_DEPENDENCIES_FAILED on failure.
+            this._loadDependency(import('bip32').then(({ fromBase58 }) => fromBase58)),
+            this._loadDependency(import('bitcoinjs-lib/src/networks')),
+        ]);
+        return { ...parentDependencies, bip32FromBase58, bitcoinJsNetworks };
     }
 }

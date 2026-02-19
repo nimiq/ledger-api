@@ -33,6 +33,9 @@ export default abstract class Request<T> extends Observable {
     protected constructor(expectedWalletId?: string) {
         super();
         this.expectedWalletId = expectedWalletId;
+
+        // Preload dependencies of this class and child classes, once child class constructors have run. Ignore errors.
+        setTimeout(() => this._loadDependencies().catch(() => {}));
     }
 
     public get cancelled(): boolean {
@@ -98,6 +101,10 @@ export default abstract class Request<T> extends Observable {
     protected _checkExpectedWalletId(walletId: string): void {
         if (this.expectedWalletId === undefined || this.expectedWalletId === walletId) return;
         throw new ErrorState(ErrorType.WRONG_WALLET, 'Wrong wallet or Ledger connected', this);
+    }
+
+    protected async _loadDependencies(): Promise<Record<never, never>> {
+        return {};
     }
 
     protected async _loadDependency<I>(importPromise: Promise<I>): Promise<I> {
