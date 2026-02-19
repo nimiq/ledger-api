@@ -3,6 +3,7 @@ import { RequestTypeNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
 import { NimiqVersion } from '../../../lib/constants';
 import { loadNimiq, isNimiqLegacy, type Nimiq, type NimiqPrimitive } from '../../../lib/load-nimiq';
+import { bufferFromUtf8 } from '../../../lib/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 export type MessageSignatureInfoNimiq<Version extends NimiqVersion> = {
@@ -41,13 +42,11 @@ export default class RequestSignMessageNimiq<Version extends NimiqVersion>
         // These throw LOADING_DEPENDENCIES_FAILED on failure.
         const [api, { Nimiq }] = await Promise.all([this._getLowLevelApi(transport), this._loadDependencies()]);
 
-        let messageBuffer: Buffer;
+        let messageBytes: Uint8Array;
         try {
-            messageBuffer = typeof this.message === 'string'
-                ? Buffer.from(this.message, 'utf8') // throws if invalid utf8
-                : Buffer.from(this.message);
+            messageBytes = typeof this.message === 'string' ? bufferFromUtf8(this.message) : this.message;
 
-            if (messageBuffer.length >= 2 ** 32) {
+            if (messageBytes.length >= 2 ** 32) {
                 // the message length must fit an uint32
                 throw new Error('Message too long');
             }
@@ -63,7 +62,7 @@ export default class RequestSignMessageNimiq<Version extends NimiqVersion>
         );
         const { signature } = await api.signMessage(
             this.keyPath,
-            messageBuffer,
+            messageBytes,
             this.flags,
         );
 

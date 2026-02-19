@@ -2,6 +2,7 @@ import RequestBitcoin from './request-bitcoin';
 import { compressPublicKey, getNetworkInfo } from './bitcoin-utils';
 import { AddressTypeBitcoin, LedgerAddressFormatMapBitcoin, Network, RequestTypeBitcoin } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
+import { areBuffersEqual, bufferFromHex } from '../../../lib/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
@@ -92,9 +93,9 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
                 try {
                     return [
                         xpub,
-                        Buffer.from(compressPublicKey(verificationPubKeyHex), 'hex'),
-                        Buffer.from(verificationChainCodeHex, 'hex'),
-                    ] as [string, Buffer, Buffer];
+                        bufferFromHex(compressPublicKey(verificationPubKeyHex)),
+                        bufferFromHex(verificationChainCodeHex),
+                    ] as const;
                 } catch (e) {
                     throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
                 }
@@ -113,8 +114,8 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
             // calculated by the Ledger device. No need to verify the Ledger generated address as it is derived from the
             // pub key anyway.
             const verificationDerivation = extendedPubKey.derivePath(verificationPath);
-            if (!verificationDerivation.publicKey.equals(verificationPubKey)
-                || !verificationDerivation.chainCode.equals(verificationChainCode)) {
+            if (!areBuffersEqual(verificationDerivation.publicKey, verificationPubKey)
+                || !areBuffersEqual(verificationDerivation.chainCode, verificationChainCode)) {
                 throw new Error('Failed to verify the constructed xpub.');
             }
 

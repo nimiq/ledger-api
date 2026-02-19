@@ -2,6 +2,7 @@ import Request, { CoinAppConnection } from '../request';
 import { Coin, RequestTypeNimiq } from '../../constants';
 import { getBip32Path } from '../../bip32-utils';
 import { NimiqVersion } from '../../../lib/constants';
+import { bufferToBase64 } from '../../../lib/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type LowLevelApiConstructor = typeof import('../../../low-level-api/low-level-api').default;
@@ -45,7 +46,7 @@ export default abstract class RequestNimiq<Version extends NimiqVersion, T>
 
         // Compute base64 wallet id. Use sha256 as blake2b yields the nimiq address
         const walletIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', firstAddressPubKeyBytes));
-        const walletId = btoa(String.fromCodePoint(...walletIdHash));
+        const walletId = bufferToBase64(walletIdHash);
         coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection
         this._checkExpectedWalletId(walletId);
         return coinAppConnection;

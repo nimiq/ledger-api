@@ -4,6 +4,7 @@ import Request, { CoinAppConnection } from '../request';
 import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../constants';
 import { isAppVersionSupported, isLegacyApp } from '../../app-utils';
 import { getBip32Path } from '../../bip32-utils';
+import { bufferFromHex, bufferToBase64 } from '../../../lib/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type LowLevelApiConstructor = typeof import('@ledgerhq/hw-app-btc').default;
@@ -58,9 +59,9 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         }));
 
         // Compute base64 wallet id.
-        const publicKeyBytes = new Uint8Array((publicKey.match(/.{2}/g)!).map(byte => parseInt(byte, 16)));
+        const publicKeyBytes = bufferFromHex(publicKey);
         const walletIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', publicKeyBytes));
-        const walletId = btoa(String.fromCodePoint(...walletIdHash));
+        const walletId = bufferToBase64(walletIdHash);
         coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection
         this._checkExpectedWalletId(walletId);
         return coinAppConnection;

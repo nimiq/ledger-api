@@ -1,7 +1,7 @@
 import { NimiqVersion } from '../lib/constants';
 import { isNimiqLegacy, loadNimiq } from '../lib/load-nimiq';
 
-export function parsePath(path: string): Buffer {
+export function parsePath(path: string): Uint8Array {
     if (!path.startsWith('44\'/242\'')) {
         throw new Error(
             `Not a Nimiq BIP32 path. Path: ${path}. The Nimiq app is authorized only for paths starting with 44'/242'. `
@@ -26,24 +26,25 @@ export function parsePath(path: string): Buffer {
         return number;
     });
 
-    const pathBuffer = Buffer.alloc(1 + pathParts.length * 4);
-    pathBuffer[0] = pathParts.length;
+    const pathBytes = new Uint8Array(1 + pathParts.length * 4);
+    const pathBytesView = new DataView(pathBytes.buffer);
+    pathBytes[0] = pathParts.length;
     pathParts.forEach((element, index) => {
-        pathBuffer.writeUInt32BE(element, 1 + 4 * index);
+        pathBytesView.setUint32(1 + 4 * index, element);
     });
-    return pathBuffer;
+    return pathBytes;
 }
 
-export async function publicKeyToAddress(publicKey: Buffer, nimiqVersion: NimiqVersion): Promise<string> {
+export async function publicKeyToAddress(publicKey: Uint8Array, nimiqVersion: NimiqVersion): Promise<string> {
     // Cryptography is needed for hashing public key to an address.
     const Nimiq = await loadNimiq(nimiqVersion, /* include cryptography */ true);
     return new Nimiq.PublicKey(publicKey).toAddress().toUserFriendlyAddress();
 }
 
 export async function verifySignature(
-    data: Buffer | Uint8Array,
-    signature: Buffer | Uint8Array,
-    publicKey: Buffer | Uint8Array,
+    data: Uint8Array,
+    signature: Uint8Array,
+    publicKey: Uint8Array,
     nimiqVersion: NimiqVersion,
 ): Promise<boolean> {
     // Cryptography is needed for verifying signatures.

@@ -11,16 +11,8 @@ import { listen as onLog } from '@ledgerhq/logs';
 import { verify as verifySignedMessageBitcoin } from 'bitcoinjs-message';
 /* eslint-enable import/no-extraneous-dependencies */
 import { isNimiqLegacy, isNimiqLegacyPrimitive, loadNimiq, type NimiqPrimitive } from '../lib/load-nimiq';
-import {
-    getInputElement,
-    getSelectorValue,
-    enableSelector,
-    logInputs,
-    bufferToHex,
-    bufferFromHex,
-    bufferFromAscii,
-    bufferFromUtf8,
-} from './demo-utils';
+import { bufferFromAscii, bufferFromUtf8, bufferFromHex, bufferToHex } from '../lib/buffer-utils';
+import { getInputElement, getSelectorValue, enableSelector, logInputs } from './demo-utils';
 import {
     UI_TRANSACTION_DATA,
     DataUiType,

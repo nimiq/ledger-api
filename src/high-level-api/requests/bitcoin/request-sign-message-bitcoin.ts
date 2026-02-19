@@ -2,6 +2,7 @@ import RequestBitcoin from './request-bitcoin';
 import { AddressTypeBitcoin, Coin, LedgerAddressFormatMapBitcoin, Network, RequestTypeBitcoin } from '../../constants';
 import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
+import { bufferFromUtf8, bufferFromHex, bufferToHex, bufferToBase64 } from '../../../lib/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type MessageSignatureInfo = {
@@ -63,13 +64,11 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
 
         const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
 
-        let messageBuffer: Buffer;
+        let messageBytes: Uint8Array;
         try {
-            messageBuffer = typeof this.message === 'string'
-                ? Buffer.from(this.message, 'utf8') // throws if invalid utf8
-                : Buffer.from(this.message);
+            messageBytes = typeof this.message === 'string' ? bufferFromUtf8(this.message) : this.message;
 
-            if (messageBuffer.length >= 2 ** 16) {
+            if (messageBytes.length >= 2 ** 16) {
                 // the message length is encoded in an uint16.
                 throw new Error('Message too long');
             }
@@ -93,7 +92,7 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
             v, // recId (not including the address type constant)
             r, // r of ECDSA signature
             s, // s of ECDSA signature
-        } = await api.signMessage(this.keyPath, messageBuffer.toString('hex'));
+        } = await api.signMessage(this.keyPath, bufferToHex(messageBytes));
 
         // Create the signature header, see
         // https://github.com/bitcoin/bips/blob/master/bip-0137.mediawiki#procedure-for-signingverifying-a-signature
@@ -104,7 +103,8 @@ export default class RequestSignMessageBitcoin extends RequestBitcoin<MessageSig
         }[this._addressType];
         const header = (v + headerAddressTypeConstant).toString(16);
 
-        const signature = Buffer.from(`${header}${r}${s}`, 'hex').toString('base64');
+        const signatureBytes = bufferFromHex(`${header}${r}${s}`);
+        const signature = bufferToBase64(signatureBytes);
 
         return {
             signerAddress,

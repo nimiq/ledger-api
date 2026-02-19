@@ -3,13 +3,15 @@ import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../con
 import { getLegacyApp } from '../../app-utils';
 import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
+import { bufferFromHex, bufferToHex, bufferFromUint64 } from '../../../lib/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type BitcoinJsTransaction = import('bitcoinjs-lib').Transaction;
 type CreateTransactionArg = Parameters<import('@ledgerhq/hw-app-btc').default['createPaymentTransaction']>[0];
-// serializeTransactionOutputs is typed unnecessarily strict as it only uses the outputs of a transaction
+// serializeTransactionOutputs is typed unnecessarily strict as it only uses the outputs of a transaction, not the whole
+// transaction, and only uses the output's properties as Uint8Array, not as Buffers.
 type FixedSerializeTransactionOutputs =
-    (tx: Pick<Parameters<import('@ledgerhq/hw-app-btc').default['serializeTransactionOutputs']>[0], 'outputs'>)
+    (tx: { outputs: Array<{ amount: Uint8Array, script: Uint8Array }> })
     => ReturnType<import('@ledgerhq/hw-app-btc').default['serializeTransactionOutputs']>;
 
 export interface TransactionInfoBitcoin {
@@ -227,20 +229,18 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                 associatedKeysets: inputs.map(({ keyPath }) => keyPath),
                 outputScriptHex: typeof outputs === 'string'
                     ? outputs
-                    : (api.serializeTransactionOutputs as FixedSerializeTransactionOutputs)({
+                    : bufferToHex((api.serializeTransactionOutputs as FixedSerializeTransactionOutputs)({
                         outputs: outputs.map((output) => {
                             // inspired by how outputs are encoded in __toBuffer in bitcoinjs-lib/transaction.ts
                             const { amount } = output;
                             if (Math.floor(amount) !== amount || amount < 0 || amount > 21e9) {
                                 throw new Error(`Invalid Satoshi amount: ${amount}`);
                             }
-                            const amountBuffer = Buffer.alloc(8);
-                            amountBuffer.writeInt32LE(amount & -1, 0); // eslint-disable-line no-bitwise
-                            amountBuffer.writeUInt32LE(Math.floor(amount / 0x100000000), 4);
+                            const amountBytes = bufferFromUint64(amount, 'little-endian');
 
-                            let outputScript: Buffer;
+                            let outputScript: Uint8Array;
                             if ('outputScript' in output) {
-                                outputScript = Buffer.from(output.outputScript, 'hex');
+                                outputScript = bufferFromHex(output.outputScript);
                             } else {
                                 if (!addressToOutputScript || !bitcoinJsNetworks) {
                                     throw new Error('Unexpected: optional dependencies have not been loaded');
@@ -252,9 +252,9 @@ export default class RequestSignTransactionBitcoin extends RequestBitcoin<string
                                         : bitcoinJsNetworks.testnet,
                                 );
                             }
-                            return { amount: amountBuffer, script: outputScript };
+                            return { amount: amountBytes, script: outputScript };
                         }),
-                    }).toString('hex'),
+                    })),
                 segwit: this._inputType !== AddressTypeBitcoin.LEGACY,
                 additionals: this._inputType === AddressTypeBitcoin.NATIVE_SEGWIT ? ['bech32'] : [],
             };

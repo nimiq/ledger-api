@@ -2,6 +2,13 @@ import { parsePath, publicKeyToAddress, verifySignature } from './low-level-api-
 import getAppNameAndVersion from './get-app-name-and-version';
 import { NimiqVersion } from '../lib/constants';
 import { loadNimiq } from '../lib/load-nimiq';
+import {
+    bufferFromAscii,
+    bufferFromUtf8,
+    bufferFromUint32,
+    bufferToUint16,
+    concatenateBuffers,
+} from '../lib/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
@@ -118,7 +125,7 @@ export default class LowLevelApi {
         loadNimiq(nimiqVersion, /* include cryptography */ true).catch(() => {});
 
         const { publicKey } = await this.getPublicKey(path, boolValidate, boolDisplay, nimiqVersion);
-        const address = await publicKeyToAddress(Buffer.from(publicKey), nimiqVersion);
+        const address = await publicKeyToAddress(publicKey, nimiqVersion);
         return { address };
     }
 
@@ -143,23 +150,23 @@ export default class LowLevelApi {
             loadNimiq(nimiqVersion, /* include cryptography */ true).catch(() => {});
         }
 
-        const pathBuffer = parsePath(path);
+        const pathBytes = parsePath(path);
         // Validation message including prefix "dummy-data:" as required since app version 2.0 to avoid the risks of
         // blind signing.
-        const validationMessage = Buffer.from('dummy-data:p=np?', 'ascii');
-        const data = boolValidate ? Buffer.concat([pathBuffer, validationMessage]) : pathBuffer;
+        const validationMessage = bufferFromAscii('dummy-data:p=np?');
+        const data = boolValidate ? concatenateBuffers(pathBytes, validationMessage) : pathBytes;
 
-        let response: Buffer;
+        let response: Uint8Array;
         response = await this._transport.send(
             CLA,
             INS_GET_PK,
             boolValidate ? P1_VALIDATE : P1_NO_VALIDATE,
             boolDisplay ? P2_CONFIRM : P2_NO_CONFIRM,
-            data,
+            data as Buffer, // send currently expects a Buffer, while a Uint8Array suffices
             [SW_OK, SW_KEEP_ALIVE],
         );
         // handle heartbeat
-        while (response.slice(response.length - 2).readUInt16BE(0) === SW_KEEP_ALIVE) {
+        while (bufferToUint16(response.slice(response.length - 2)) === SW_KEEP_ALIVE) {
             // eslint-disable-next-line no-await-in-loop
             response = await this._transport.send(CLA, INS_KEEP_ALIVE, 0, 0, undefined, [SW_OK, SW_KEEP_ALIVE]);
         }
@@ -182,28 +189,28 @@ export default class LowLevelApi {
     /**
      * Sign a Nimiq transaction.
      * @param path - A path in BIP 32 format.
-     * @param txContent - Transaction content in serialized form.
+     * @param transaction - Transaction content in serialized form.
      * @param [nimiqVersion] - Of which format / version the serialized transaction is. By default Albatross.
      * @param [appVersion] - For legacy transactions used to determine whether to transmit a version byte. If the
      *  connected app version is already known, you can pass it to avoid the overhead of querying it again.
      * @returns An object with the signature.
      * @example
-     * nim.signTransaction("44'/242'/0'/0'", txContent).then(o => o.signature)
+     * nim.signTransaction("44'/242'/0'/0'", transaction).then(o => o.signature)
      */
     public async signTransaction(
         path: string,
-        txContent: Uint8Array,
+        transaction: Uint8Array,
         nimiqVersion: NimiqVersion.LEGACY,
         appVersion?: string,
     ): Promise<{ signature: Uint8Array, stakerSignature?: undefined }>;
     public async signTransaction(
         path: string,
-        txContent: Uint8Array,
+        transaction: Uint8Array,
         nimiqVersion?: NimiqVersion,
     ): Promise<{ signature: Uint8Array, stakerSignature?: Uint8Array }>;
     public async signTransaction(
         path: string,
-        txContent: Uint8Array,
+        transaction: Uint8Array,
         nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
         appVersion?: string,
     ): Promise<{ signature: Uint8Array, stakerSignature?: Uint8Array }> {
@@ -222,37 +229,28 @@ export default class LowLevelApi {
         }
         const includeVersionByte = nimiqVersion === NimiqVersion.ALBATROSS || parseInt(appVersion || '') >= 2;
 
-        const pathBuffer = parsePath(path);
-        const versionByteBuffer = includeVersionByte
+        const pathBytes = parsePath(path);
+        const versionByte = includeVersionByte
             ? new Uint8Array([nimiqVersion === NimiqVersion.ALBATROSS ? 1 : 0])
             : new Uint8Array();
-        const transactionBuffer = Buffer.from(txContent);
-        const apdus = [];
-        let transactionChunkSize = APDU_MAX_SIZE - pathBuffer.length - versionByteBuffer.length;
-        if (transactionBuffer.length <= transactionChunkSize) {
-            // it fits in a single apdu
-            apdus.push(Buffer.concat([pathBuffer, versionByteBuffer, transactionBuffer]));
-        } else {
-            // we need to send multiple apdus to transmit the entire transaction
-            let transactionChunk = Buffer.alloc(transactionChunkSize);
-            let offset = 0;
-            transactionBuffer.copy(transactionChunk, 0, offset, transactionChunkSize);
-            apdus.push(Buffer.concat([pathBuffer, versionByteBuffer, transactionChunk]));
-            offset += transactionChunkSize;
-            while (offset < transactionBuffer.length) {
-                const remaining = transactionBuffer.length - offset;
-                transactionChunkSize = remaining < APDU_MAX_SIZE ? remaining : APDU_MAX_SIZE;
-                transactionChunk = Buffer.alloc(transactionChunkSize);
-                transactionBuffer.copy(transactionChunk, 0, offset, offset + transactionChunkSize);
-                offset += transactionChunkSize;
-                apdus.push(transactionChunk);
-            }
+
+        const apdus: Array<Uint8Array> = [];
+        let transactionChunkSize = Math.min(transaction.length, APDU_MAX_SIZE - pathBytes.length - versionByte.length);
+        let transactionOffset = 0;
+        let transactionChunk = transaction.subarray(transactionOffset, transactionOffset + transactionChunkSize);
+        apdus.push(concatenateBuffers(pathBytes, versionByte, transactionChunk));
+        transactionOffset += transactionChunkSize;
+        while (transactionOffset < transaction.length) {
+            transactionChunkSize = Math.min(transaction.length - transactionOffset, APDU_MAX_SIZE);
+            transactionChunk = transaction.subarray(transactionOffset, transactionOffset + transactionChunkSize);
+            transactionOffset += transactionChunkSize;
+            apdus.push(transactionChunk);
         }
 
         let isHeartbeat = false;
         let chunkIndex = 0;
         let status: number;
-        let response: Buffer;
+        let response: Uint8Array;
         do {
             const data = apdus[chunkIndex];
             // eslint-disable-next-line no-await-in-loop
@@ -261,10 +259,10 @@ export default class LowLevelApi {
                 isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_TX,
                 chunkIndex === 0 ? P1_FIRST_APDU : P1_MORE_APDU, // note that for heartbeat p1, p2 and data are ignored
                 chunkIndex === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                data,
+                data as Buffer, // send currently expects a Buffer, while a Uint8Array suffices
                 [SW_OK, SW_CANCEL, SW_KEEP_ALIVE],
             );
-            status = response.slice(response.length - 2).readUInt16BE(0);
+            status = bufferToUint16(response.slice(response.length - 2));
             isHeartbeat = status === SW_KEEP_ALIVE;
             if (!isHeartbeat) {
                 // we can continue sending data or end the loop when all data was sent
@@ -306,37 +304,32 @@ export default class LowLevelApi {
             preferDisplayTypeHash: boolean, // second choice, if multiple flags are set
         },
     ): Promise<{ signature: Uint8Array }> {
-        const pathBuffer = parsePath(path);
-        const messageBuffer = typeof message === 'string'
-            ? Buffer.from(message, 'utf8') // throws if invalid utf8
-            : Buffer.from(message);
+        const pathBytes = parsePath(path);
+        const messageBytes = typeof message === 'string' ? bufferFromUtf8(message) : message;
         flags = typeof flags === 'object'
             // eslint-disable-next-line no-bitwise
             ? (flags.preferDisplayTypeHex ? MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HEX : 0)
                 | (flags.preferDisplayTypeHash ? MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH : 0)
             : flags || 0;
-        const flagsBuffer = Buffer.from([flags]);
-        if (messageBuffer.length >= 2 ** 32) {
+        const flagsByte = new Uint8Array([flags]);
+        if (messageBytes.length >= 2 ** 32) {
             // the message length must fit an uint32
             throw new Error('Message too long');
         }
-        const messageLengthBuffer = Buffer.alloc(4);
-        messageLengthBuffer.writeUInt32BE(messageBuffer.length);
-        const apdus = [];
+        const messageLengthBytes = bufferFromUint32(messageBytes.length);
 
+        const apdus: Array<Uint8Array> = [];
         let messageChunkSize = Math.min(
-            messageBuffer.length,
-            APDU_MAX_SIZE - pathBuffer.length - flagsBuffer.length - messageLengthBuffer.length,
+            messageBytes.length,
+            APDU_MAX_SIZE - pathBytes.length - flagsByte.length - messageLengthBytes.length,
         );
-        let messageChunk = Buffer.alloc(messageChunkSize);
         let messageOffset = 0;
-        messageBuffer.copy(messageChunk, 0, messageOffset, messageChunkSize);
-        apdus.push(Buffer.concat([pathBuffer, flagsBuffer, messageLengthBuffer, messageChunk]));
+        let messageChunk = messageBytes.subarray(messageOffset, messageOffset + messageChunkSize);
+        apdus.push(concatenateBuffers(pathBytes, flagsByte, messageLengthBytes, messageChunk));
         messageOffset += messageChunkSize;
-        while (messageOffset < messageBuffer.length) {
-            messageChunkSize = Math.min(messageBuffer.length - messageOffset, APDU_MAX_SIZE);
-            messageChunk = Buffer.alloc(messageChunkSize);
-            messageBuffer.copy(messageChunk, 0, messageOffset, messageOffset + messageChunkSize);
+        while (messageOffset < messageBytes.length) {
+            messageChunkSize = Math.min(messageBytes.length - messageOffset, APDU_MAX_SIZE);
+            messageChunk = messageBytes.subarray(messageOffset, messageOffset + messageChunkSize);
             messageOffset += messageChunkSize;
             apdus.push(messageChunk);
         }
@@ -344,7 +337,7 @@ export default class LowLevelApi {
         let isHeartbeat = false;
         let chunkIndex = 0;
         let status: number;
-        let response: Buffer;
+        let response: Uint8Array;
         do {
             const data = apdus[chunkIndex];
             // eslint-disable-next-line no-await-in-loop
@@ -353,10 +346,10 @@ export default class LowLevelApi {
                 isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_MESSAGE,
                 chunkIndex === 0 ? P1_FIRST_APDU : P1_MORE_APDU, // note that for heartbeat p1, p2 and data are ignored
                 chunkIndex === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                data,
+                data as Buffer, // send currently expects a Buffer, while a Uint8Array suffices
                 [SW_OK, SW_CANCEL, SW_KEEP_ALIVE],
             );
-            status = response.slice(response.length - 2).readUInt16BE(0);
+            status = bufferToUint16(response.slice(response.length - 2));
             isHeartbeat = status === SW_KEEP_ALIVE;
             if (!isHeartbeat) {
                 // we can continue sending data or end the loop when all data was sent

@@ -1,15 +1,13 @@
 import { isNimiqLegacy, type Nimiq, type NimiqPrimitive } from '../lib/load-nimiq';
 import {
-    getInputElement,
-    getSelectorValue,
-    logInputs,
     bufferFromHex,
     bufferFromUtf8,
     bufferFromUint32,
     bufferFromUint64,
     bufferToHex,
     areBuffersEqual,
-} from './demo-utils';
+} from '../lib/buffer-utils';
+import { getInputElement, getSelectorValue, logInputs } from './demo-utils';
 
 // Our built library.
 // Typescript needs the import as specified to find the .d.ts file, see rollup.config.js
