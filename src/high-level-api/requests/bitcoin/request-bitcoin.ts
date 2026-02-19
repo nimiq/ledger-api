@@ -8,7 +8,6 @@ import { getBip32Path } from '../../bip32-utils';
 type Transport = import('@ledgerhq/hw-transport').default;
 type LowLevelApiConstructor = typeof import('@ledgerhq/hw-app-btc').default;
 type LowLevelApi = InstanceType<LowLevelApiConstructor>;
-type Sha256 = typeof import('sha.js/sha256').default;
 
 export { RequestTypeBitcoin };
 
@@ -44,10 +43,7 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         const coinAppConnection = await super.checkCoinAppConnection(transport, 'BTC');
         if (!this._isWalletIdDerivationRequired) return coinAppConnection; // skip wallet id derivation
 
-        // These throw LOADING_DEPENDENCIES_FAILED on failure.
-        // Note that loading sha.js here only for wallet id calculation is not really wasteful as it's also imported by
-        // @ledgerhq/hw-app-bitcoin and bitcoinjs-lib via create-hash anyway.
-        const [api, { Sha256 }] = await Promise.all([this._getLowLevelApi(transport), this._loadDependencies()]);
+        const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
 
         // TODO For u2f and WebAuthn, the Ledger displays a confirmation screen to get the public key if the user has
         //  this privacy setting enabled. The get public key functionality also supports setting a permission token
@@ -61,7 +57,10 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
             isInternal: false,
         }));
 
-        const walletId = new Sha256!().update(publicKey, 'hex').digest('base64');
+        // Compute base64 wallet id.
+        const publicKeyBytes = new Uint8Array((publicKey.match(/.{2}/g)!).map(byte => parseInt(byte, 16)));
+        const walletIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', publicKeyBytes));
+        const walletId = btoa(String.fromCodePoint(...walletIdHash));
         coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection
         this._checkExpectedWalletId(walletId);
         return coinAppConnection;
@@ -90,18 +89,11 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
 
     protected async _loadDependencies(): Promise<{
         LowLevelApi: LowLevelApiConstructor,
-        Sha256?: Sha256,
     } & Awaited<ReturnType<Request<T>['_loadDependencies']>>> {
-        const [parentDependencies, LowLevelApi, Sha256] = await Promise.all([
+        const [parentDependencies, LowLevelApi] = await Promise.all([
             super._loadDependencies(),
             this._loadDependency(import('@ledgerhq/hw-app-btc').then((module) => module.default)),
-            this._isWalletIdDerivationRequired
-                // Note: we've not installed sha.js as dependency, to make sure we're using the version that comes with
-                // @ledgerhq/hw-app-btc and bitcoinjs-lib#create-hash without the risk of bundling an additional version
-                // eslint-disable-next-line import/no-extraneous-dependencies
-                ? this._loadDependency(import('sha.js/sha256').then((module) => module.default))
-                : undefined,
         ]);
-        return { ...parentDependencies, LowLevelApi, Sha256 };
+        return { ...parentDependencies, LowLevelApi };
     }
 }

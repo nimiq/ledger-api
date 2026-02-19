@@ -2,7 +2,6 @@ import Request, { CoinAppConnection } from '../request';
 import { Coin, RequestTypeNimiq } from '../../constants';
 import { getBip32Path } from '../../bip32-utils';
 import { NimiqVersion } from '../../../lib/constants';
-import { loadNimiq, type Nimiq } from '../../../lib/load-nimiq';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type LowLevelApiConstructor = typeof import('../../../low-level-api/low-level-api').default;
@@ -32,8 +31,7 @@ export default abstract class RequestNimiq<Version extends NimiqVersion, T>
         const coinAppConnection = await super.checkCoinAppConnection(transport, 'w0w');
         if (!this._isWalletIdDerivationRequired) return coinAppConnection; // skip wallet id derivation
 
-        // These throw LOADING_DEPENDENCIES_FAILED on failure.
-        const [api, { Nimiq }] = await Promise.all([this._getLowLevelApi(transport), this._loadDependencies()]);
+        const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
 
         // Set validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger app,
         // see transport-comparison.md. However, not sure whether this is still true today and as it's less relevant now
@@ -46,7 +44,7 @@ export default abstract class RequestNimiq<Version extends NimiqVersion, T>
         );
 
         // Compute base64 wallet id. Use sha256 as blake2b yields the nimiq address
-        const walletIdHash = Nimiq!.Hash.computeSha256(firstAddressPubKeyBytes);
+        const walletIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', firstAddressPubKeyBytes));
         const walletId = btoa(String.fromCodePoint(...walletIdHash));
         coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection
         this._checkExpectedWalletId(walletId);
@@ -68,18 +66,13 @@ export default abstract class RequestNimiq<Version extends NimiqVersion, T>
 
     protected async _loadDependencies(): Promise<{
         LowLevelApi: LowLevelApiConstructor,
-        Nimiq?: Nimiq<Version>,
     } & Awaited<ReturnType<Request<T>['_loadDependencies']>>> {
-        const [parentDependencies, LowLevelApi, Nimiq] = await Promise.all([
+        const [parentDependencies, LowLevelApi] = await Promise.all([
             super._loadDependencies(),
             // Build the low-level-api from source instead of taking it from dist to create optimized chunks and to
             // avoid potential double bundling of dependencies.
             this._loadDependency(import('../../../low-level-api/low-level-api').then((module) => module.default)),
-            // Note: cryptography is needed for wallet id hashing, if requested
-            this._isWalletIdDerivationRequired
-                ? this._loadDependency(loadNimiq(this.nimiqVersion, /* include cryptography */ true))
-                : undefined,
         ]);
-        return { ...parentDependencies, LowLevelApi, Nimiq };
+        return { ...parentDependencies, LowLevelApi };
     }
 }

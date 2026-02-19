@@ -75,7 +75,7 @@ export default class RequestSignMessageNimiq<Version extends NimiqVersion>
 
     protected async _loadDependencies(): Promise<{
         Nimiq: Nimiq<Version>,
-    } & Omit<Awaited<ReturnType<RequestWithKeyPathNimiq<any, any>['_loadDependencies']>>, 'Nimiq'>> {
+    } & Awaited<ReturnType<RequestWithKeyPathNimiq<any, any>['_loadDependencies']>>> {
         const [parentDependencies, Nimiq] = await Promise.all([
             super._loadDependencies(),
             this._loadDependency(loadNimiq(this.nimiqVersion, /* include cryptography */ false)),
