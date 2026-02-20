@@ -145,7 +145,7 @@ export default async (commandLineArgs) => {
                     // put into an npm package.
                     stream: 'readable-stream',
                     // Shim unnecessary axios for @ledgerhq/hw-transport-http.
-                    axios: '../../../../src/lib/axios-shim.ts',
+                    axios: '../../../../src/shared/axios-shim.ts',
                 },
             }),
             virtual({
@@ -165,7 +165,7 @@ export default async (commandLineArgs) => {
             }),
             // Check types and transpile ts to js. Note that ts does only transpile and not bundle imports.
             typescript({
-                include: ['src/high-level-api/**', 'src/low-level-api/**', 'src/lib/**'],
+                include: ['src/high-level-api/**', 'src/low-level-api/**', 'src/shared/**'],
                 declaration: true,
                 declarationDir: 'dist',
                 noEmitOnError: isProduction,
@@ -209,7 +209,7 @@ export default async (commandLineArgs) => {
                 throwOnError: isProduction,
             }),
             typescript({
-                include: ['src/low-level-api/**', 'src/lib/**'],
+                include: ['src/low-level-api/**', 'src/shared/**'],
                 declaration: true,
                 declarationDir: 'dist',
                 noEmitOnError: isProduction,
@@ -248,7 +248,7 @@ export default async (commandLineArgs) => {
                     '../../dist/low-level-api/low-level-api': '../low-level-api/low-level-api.es.js',
                     '../../dist/high-level-api/ledger-api': '../high-level-api/ledger-api.es.js',
                     // Shim unnecessary axios for @ledgerhq/hw-transport-http.
-                    axios: '../../../../src/lib/axios-shim.ts',
+                    axios: '../../../../src/shared/axios-shim.ts',
                     // Polyfill node's builtin stream module via readable-stream, which is essentially node's stream
                     // put into an npm package.
                     stream: 'readable-stream',
@@ -271,7 +271,7 @@ export default async (commandLineArgs) => {
             }),
             // Check types and transpile ts to js. Note that ts does only transpile and not bundle imports.
             typescript({
-                include: ['src/demo/**', 'src/lib/**'],
+                include: ['src/demo/**', 'src/shared/**'],
                 noEmitOnError: isProduction,
             }),
             // Read code including sourcemaps. Has to happen after typescript as ts files should be loaded by typescript

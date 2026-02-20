@@ -1,6 +1,6 @@
-import Observable, { EventListener } from '../lib/observable';
-import { NimiqVersion } from '../lib/constants';
-import type { NimiqPrimitive } from '../lib/load-nimiq';
+import Observable, { EventListener } from '../shared/observable';
+import { NimiqVersion } from '../shared/constants';
+import type { NimiqPrimitive } from '../shared/load-nimiq';
 import {
     autoDetectTransportTypeToUse,
     isSupported,

@@ -1,8 +1,8 @@
 import Request, { CoinAppConnection } from '../request';
 import { Coin, RequestTypeNimiq } from '../../constants';
 import { getBip32Path } from '../../bip32-utils';
-import { NimiqVersion } from '../../../lib/constants';
-import { bufferToBase64 } from '../../../lib/buffer-utils';
+import { NimiqVersion } from '../../../shared/constants';
+import { bufferToBase64 } from '../../../shared/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type LowLevelApiConstructor = typeof import('../../../low-level-api/low-level-api').default;

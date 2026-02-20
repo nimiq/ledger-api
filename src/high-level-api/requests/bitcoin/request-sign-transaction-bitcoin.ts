@@ -3,7 +3,7 @@ import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../con
 import { getLegacyApp } from '../../app-utils';
 import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
-import { bufferFromHex, bufferToHex, bufferFromUint64 } from '../../../lib/buffer-utils';
+import { bufferFromHex, bufferToHex, bufferFromUint64 } from '../../../shared/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type BitcoinJsTransaction = import('bitcoinjs-lib').Transaction;

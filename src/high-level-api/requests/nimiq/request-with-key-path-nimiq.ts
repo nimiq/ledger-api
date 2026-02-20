@@ -2,7 +2,7 @@ import RequestNimiq from './request-nimiq';
 import { Coin } from '../../constants';
 import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
-import { NimiqVersion } from '../../../lib/constants';
+import { NimiqVersion } from '../../../shared/constants';
 
 export default abstract class RequestWithKeyPathNimiq<Version extends NimiqVersion, T>
     extends RequestNimiq<Version, T> {

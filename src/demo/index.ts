@@ -10,8 +10,8 @@ import NetworkTransportForUrls from '@ledgerhq/hw-transport-http';
 import { listen as onLog } from '@ledgerhq/logs';
 import { verify as verifySignedMessageBitcoin } from 'bitcoinjs-message';
 /* eslint-enable import/no-extraneous-dependencies */
-import { isNimiqLegacy, isNimiqLegacyPrimitive, loadNimiq, type NimiqPrimitive } from '../lib/load-nimiq';
-import { bufferFromAscii, bufferFromUtf8, bufferFromHex, bufferToHex } from '../lib/buffer-utils';
+import { isNimiqLegacy, isNimiqLegacyPrimitive, loadNimiq, type NimiqPrimitive } from '../shared/load-nimiq';
+import { bufferFromAscii, bufferFromUtf8, bufferFromHex, bufferToHex } from '../shared/buffer-utils';
 import { getInputElement, getSelectorValue, enableSelector, logInputs } from './demo-utils';
 import {
     UI_TRANSACTION_DATA,

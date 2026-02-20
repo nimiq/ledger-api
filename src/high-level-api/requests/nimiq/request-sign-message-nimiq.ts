@@ -1,9 +1,9 @@
 import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
 import { RequestTypeNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
-import { NimiqVersion } from '../../../lib/constants';
-import { loadNimiq, isNimiqLegacy, type Nimiq, type NimiqPrimitive } from '../../../lib/load-nimiq';
-import { bufferFromUtf8 } from '../../../lib/buffer-utils';
+import { NimiqVersion } from '../../../shared/constants';
+import { loadNimiq, isNimiqLegacy, type Nimiq, type NimiqPrimitive } from '../../../shared/load-nimiq';
+import { bufferFromUtf8 } from '../../../shared/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 export type MessageSignatureInfoNimiq<Version extends NimiqVersion> = {

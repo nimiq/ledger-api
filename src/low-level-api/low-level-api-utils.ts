@@ -1,5 +1,5 @@
-import { NimiqVersion } from '../lib/constants';
-import { isNimiqLegacy, loadNimiq } from '../lib/load-nimiq';
+import { NimiqVersion } from '../shared/constants';
+import { isNimiqLegacy, loadNimiq } from '../shared/load-nimiq';
 
 export function parsePath(path: string): Uint8Array {
     if (!path.startsWith('44\'/242\'')) {

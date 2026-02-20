@@ -1,7 +1,7 @@
 import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
 import { RequestTypeNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
-import { NimiqVersion } from '../../../lib/constants';
+import { NimiqVersion } from '../../../shared/constants';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 

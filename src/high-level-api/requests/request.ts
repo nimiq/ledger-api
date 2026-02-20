@@ -2,7 +2,7 @@ import { Coin, RequestTypeNimiq, RequestTypeBitcoin, REQUEST_EVENT_CANCEL } from
 import { isAppSupported, isAppVersionSupported, isLegacyApp } from '../app-utils';
 import getAppNameAndVersion from '../../low-level-api/get-app-name-and-version';
 import ErrorState, { ErrorType } from '../error-state';
-import Observable, { EventListener } from '../../lib/observable';
+import Observable, { EventListener } from '../../shared/observable';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type RequestType = RequestTypeNimiq | RequestTypeBitcoin;

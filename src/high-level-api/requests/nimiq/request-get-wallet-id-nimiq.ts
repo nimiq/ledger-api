@@ -1,7 +1,7 @@
 import RequestNimiq from './request-nimiq';
 import { CoinAppConnection } from '../request';
 import { RequestTypeNimiq } from '../../constants';
-import { NimiqVersion } from '../../../lib/constants';
+import { NimiqVersion } from '../../../shared/constants';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 

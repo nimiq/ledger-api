@@ -2,7 +2,7 @@ import RequestBitcoin from './request-bitcoin';
 import { compressPublicKey, getNetworkInfo } from './bitcoin-utils';
 import { AddressTypeBitcoin, LedgerAddressFormatMapBitcoin, Network, RequestTypeBitcoin } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
-import { areBuffersEqual, bufferFromHex } from '../../../lib/buffer-utils';
+import { areBuffersEqual, bufferFromHex } from '../../../shared/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 

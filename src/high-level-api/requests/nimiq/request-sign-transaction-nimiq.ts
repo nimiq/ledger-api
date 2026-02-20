@@ -1,14 +1,14 @@
 import RequestWithKeyPathNimiq from './request-with-key-path-nimiq';
 import { RequestTypeNimiq, Network, NetworkIdNimiq, AccountTypeNimiq, TransactionFlagsNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
-import { NimiqVersion } from '../../../lib/constants';
+import { NimiqVersion } from '../../../shared/constants';
 import {
     loadNimiq,
     isNimiqLegacy,
     isNimiqLegacyPrimitive,
     type Nimiq,
     type NimiqPrimitive,
-} from '../../../lib/load-nimiq';
+} from '../../../shared/load-nimiq';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 

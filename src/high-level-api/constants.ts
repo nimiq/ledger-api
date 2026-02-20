@@ -2,7 +2,7 @@
 // As a separate file to be able to use these constants in the main chunk without the need to import the entire lazy
 // chunks and to avoid circular dependencies between main entry and other files.
 
-import { NimiqVersion } from '../lib/constants';
+import { NimiqVersion } from '../shared/constants';
 
 export enum Coin {
     NIMIQ = 'Nimiq',

@@ -1,4 +1,4 @@
-import { isNimiqLegacy, type Nimiq, type NimiqPrimitive } from '../lib/load-nimiq';
+import { isNimiqLegacy, type Nimiq, type NimiqPrimitive } from '../shared/load-nimiq';
 import {
     bufferFromHex,
     bufferFromUtf8,
@@ -6,7 +6,7 @@ import {
     bufferFromUint64,
     bufferToHex,
     areBuffersEqual,
-} from '../lib/buffer-utils';
+} from '../shared/buffer-utils';
 import { getInputElement, getSelectorValue, logInputs } from './demo-utils';
 
 // Our built library.

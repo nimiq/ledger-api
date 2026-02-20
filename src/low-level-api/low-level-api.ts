@@ -1,14 +1,14 @@
 import { parsePath, publicKeyToAddress, verifySignature } from './low-level-api-utils';
 import getAppNameAndVersion from './get-app-name-and-version';
-import { NimiqVersion } from '../lib/constants';
-import { loadNimiq } from '../lib/load-nimiq';
+import { NimiqVersion } from '../shared/constants';
+import { loadNimiq } from '../shared/load-nimiq';
 import {
     bufferFromAscii,
     bufferFromUtf8,
     bufferFromUint32,
     bufferToUint16,
     concatenateBuffers,
-} from '../lib/buffer-utils';
+} from '../shared/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 

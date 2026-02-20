@@ -1,4 +1,4 @@
-import { NimiqVersion } from '../lib/constants';
+import { NimiqVersion } from './constants';
 
 // Note: @nimiq/albatross-wasm is mapped to @nimiq/core@next in package.json. @nimiq/albatross-wasm is the name that the
 // Nimiq Hub uses, which is why we use it here, too.

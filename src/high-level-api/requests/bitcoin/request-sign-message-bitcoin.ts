@@ -2,7 +2,7 @@ import RequestBitcoin from './request-bitcoin';
 import { AddressTypeBitcoin, Coin, LedgerAddressFormatMapBitcoin, Network, RequestTypeBitcoin } from '../../constants';
 import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
-import { bufferFromUtf8, bufferFromHex, bufferToHex, bufferToBase64 } from '../../../lib/buffer-utils';
+import { bufferFromUtf8, bufferFromHex, bufferToHex, bufferToBase64 } from '../../../shared/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type MessageSignatureInfo = {

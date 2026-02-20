@@ -2,7 +2,7 @@ import RequestNimiq from './request-nimiq';
 import { Coin, RequestTypeNimiq } from '../../constants';
 import ErrorState, { ErrorType } from '../../error-state';
 import { parseBip32Path } from '../../bip32-utils';
-import { NimiqVersion } from '../../../lib/constants';
+import { NimiqVersion } from '../../../shared/constants';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 

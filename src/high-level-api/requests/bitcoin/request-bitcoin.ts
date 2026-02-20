@@ -1,10 +1,10 @@
-/// <reference path="../../../lib/type-shims.d.ts" />
+/// <reference path="../../../shared/type-shims.d.ts" />
 
 import Request, { CoinAppConnection } from '../request';
 import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../constants';
 import { isAppVersionSupported, isLegacyApp } from '../../app-utils';
 import { getBip32Path } from '../../bip32-utils';
-import { bufferFromHex, bufferToBase64 } from '../../../lib/buffer-utils';
+import { bufferFromHex, bufferToBase64 } from '../../../shared/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 type LowLevelApiConstructor = typeof import('@ledgerhq/hw-app-btc').default;

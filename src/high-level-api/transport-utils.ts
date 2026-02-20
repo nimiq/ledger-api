@@ -1,4 +1,4 @@
-/// <reference path="../lib/type-shims.d.ts" />
+/// <reference path="../shared/type-shims.d.ts" />
 
 type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
 type TransportWebUsbConstructor = typeof import('@ledgerhq/hw-transport-webusb').default;
