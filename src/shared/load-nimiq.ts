@@ -72,6 +72,9 @@ const nimiqCoreBasePath = isNimiqAlbatrossHub
 let nimiqCorePromise: Promise<Nimiq<NimiqVersion.ALBATROSS>> | null = null;
 
 async function loadNimiqAlbatrossCore(preloadWasm = true): Promise<Nimiq<NimiqVersion.ALBATROSS>> {
+    // Return global Nimiq if already loaded, for example in Nimiq Hub.
+    if (typeof Nimiq !== 'undefined' && !isNimiqLegacy(Nimiq)) return Nimiq;
+
     nimiqCorePromise = nimiqCorePromise || (async () => {
         try {
             if (preloadWasm) {
@@ -112,7 +115,7 @@ let nimiqLegacyCryptographyPromise: Promise<void> | null = null;
 async function loadNimiqLegacyCore(coreVariant: 'web' | 'web-offline' = 'web-offline')
     : Promise<Nimiq<NimiqVersion.LEGACY>> {
     // Return global Nimiq if already loaded from @nimiq/core-web, for example in Nimiq Hub.
-    if (typeof Nimiq !== 'undefined') return Nimiq;
+    if (typeof Nimiq !== 'undefined' && isNimiqLegacy(Nimiq)) return Nimiq;
 
     nimiqLegacyCorePromise = nimiqLegacyCorePromise || new Promise<void>((resolve, reject) => {
         console.warn('Support for Nimiq Legacy is deprecated and will be removed in the future.');
