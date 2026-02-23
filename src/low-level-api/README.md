@@ -2,6 +2,10 @@
 
 ## Ledger Nimiq app API
 
+## Prerequisites
+
+See [here](https://github.com/nimiq/ledger-api/blob/master/README.md#prerequisites).
+
 ## Usage
 
 ```js
