@@ -20,6 +20,14 @@ import copy from 'rollup-plugin-copy';
 import serve from 'rollup-plugin-serve';
 import livereload from 'rollup-plugin-livereload';
 
+const packageJson = await fs.promises.readFile('./package.json', 'utf8').then((file) => JSON.parse(file));
+const externalDependencies = Object.keys(packageJson.dependencies);
+function isExternalDependency(id) {
+    return externalDependencies.includes(id)
+        // handle importing of individual files from a dependency, e.g. bitcoinjs-lib/src/address
+        || externalDependencies.some((externalDependency) => id.startsWith(`${externalDependency}/`));
+}
+
 async function calculateIntegrityHash(filename, algorithm = 'sha256') {
     const fileContent = await fs.promises.readFile(filename);
     const hash = crypto.createHash(algorithm).update(fileContent).digest('base64');
@@ -92,8 +100,9 @@ function hoistDynamicImportDependencies() {
                         if (!importPath) return; // unknown import path; for example for dynamic template strings
 
                         // as specified by chunkFileNames
-                        const importBundleId = `high-level-api${importPath.substring(1)}`;
+                        const importBundleId = importPath.replace(/^\./, 'high-level-api');
                         if (!bundle[importBundleId]) {
+                            if (isExternalDependency(importBundleId)) return;
                             warn(`hoist-dynamic-import-dependencies: unknown bundle ${importBundleId}.\n`);
                             return;
                         }
@@ -133,31 +142,14 @@ export default async (commandLineArgs) => {
             sourcemap: true,
             sourcemapPathTransform,
         },
+        external: isExternalDependency,
         preserveEntrySignatures: 'allow-extension', // avoid rollup's additional facade chunk
         plugins: [
-            // First run plugins that map imports to the actual imported files, e.g. aliased and shimmed imports or
-            // browser versions of packages, such that subsequent plugins operate on the right files. Especially, we
-            // polyfill node builtins via aliased and virtual packages and later inject their node globals via the
-            // inject plugin.
-            alias({
-                entries: {
-                    // Polyfill node's builtin stream module via readable-stream, which is essentially node's stream
-                    // put into an npm package.
-                    stream: 'readable-stream',
-                    // Shim unnecessary axios for @ledgerhq/hw-transport-http.
-                    axios: '../../../../src/shared/axios-shim.ts',
-                },
-            }),
-            virtual({
-                // Don't bundle unnecessary WebSocket polyfill.
-                ws: 'export default {};',
-                // Polyfill node's global and process.env.NODE_ENV.
-                global: 'export default window;',
-                process: `export default { env: { NODE_ENV: ${isProduction ? '"production"' : '"development"'} } };`,
-            }),
+            // First run plugins that map imports to the actual imported files, e.g. browser versions of packages, such
+            // that subsequent plugins operate on the right files.
             resolve({
                 browser: true, // use browser versions of packages if defined in their package.json
-                preferBuiltins: false, // process node builtins to use polyfill packages buffer, readable-stream, etc.
+                preferBuiltins: true, // don't process node builtins to basically leave them as external dependency
             }),
             // Have eslint high up in the hierarchy to lint the original files.
             eslint({
@@ -175,20 +167,11 @@ export default async (commandLineArgs) => {
             sourcemaps(),
             // Plugins for processing dependencies.
             commonjs(),
-            json({ // required for import of bitcoin-ops/index.json imported by bitcoinjs-lib
-                compact: true,
-            }),
-            inject({
-                Buffer: ['buffer', 'Buffer'], // add "import { Buffer } from 'buffer'" when node's Buffer global is used
-                global: 'global', // add "import global from 'global'" when node's global variable 'global' is used
-                process: 'process', // add "import process from 'process'" when node's global variable 'process' is used
-            }),
             // Last steps in output generation.
             replace({
                 __nimiqLegacyCoreWasmIntegrityHash__: `'${nimiqLegacyCoreWasmIntegrityHash}'`,
             }),
             hoistDynamicImportDependencies(),
-            // debugModuleDependencies('stream'),
         ],
         watch: {
             clearScreen: false,
@@ -204,6 +187,7 @@ export default async (commandLineArgs) => {
             sourcemapPathTransform,
             exports: 'default',
         },
+        external: isExternalDependency,
         plugins: [
             eslint({
                 throwOnError: isProduction,
@@ -216,6 +200,7 @@ export default async (commandLineArgs) => {
             }),
             resolve({
                 browser: true, // use browser versions of packages if defined in their package.json
+                preferBuiltins: true, // don't process node builtins to basically leave them as external dependency
             }),
             sourcemaps(),
             commonjs(),
@@ -230,7 +215,6 @@ export default async (commandLineArgs) => {
 
     const demoConfig = {
         input: 'src/demo/index.ts',
-        external: ['../low-level-api/low-level-api.es.js', '../high-level-api/ledger-api.es.js'],
         output: {
             dir: 'dist/demo',
             sourcemap: true,
@@ -243,15 +227,15 @@ export default async (commandLineArgs) => {
             // inject plugin.
             alias({
                 entries: {
-                    // typescript needs the imports as specified to find the .d.ts files but for actual import we need
-                    // the .es.js files.
-                    '../../dist/low-level-api/low-level-api': '../low-level-api/low-level-api.es.js',
-                    '../../dist/high-level-api/ledger-api': '../high-level-api/ledger-api.es.js',
-                    // Shim unnecessary axios for @ledgerhq/hw-transport-http.
-                    axios: '../../../../src/shared/axios-shim.ts',
                     // Polyfill node's builtin stream module via readable-stream, which is essentially node's stream
                     // put into an npm package.
                     stream: 'readable-stream',
+                    // Shim unnecessary axios for @ledgerhq/hw-transport-http.
+                    axios: '../../../../src/shared/axios-shim.ts',
+                    // typescript needs the imports as specified to find the .d.ts files but for actual import we need
+                    // the .es.js files.
+                    '../../dist/low-level-api/low-level-api': '../../dist/low-level-api/low-level-api.es.js',
+                    '../../dist/high-level-api/ledger-api': '../../dist/high-level-api/ledger-api.es.js',
                 },
             }),
             virtual({
@@ -267,6 +251,7 @@ export default async (commandLineArgs) => {
             }),
             // Have eslint high up in the hierarchy to lint the original files.
             eslint({
+                exclude: ['dist/**', 'node_modules/**'],
                 throwOnError: isProduction,
             }),
             // Check types and transpile ts to js. Note that ts does only transpile and not bundle imports.
@@ -279,7 +264,9 @@ export default async (commandLineArgs) => {
             sourcemaps(),
             // Plugins for processing dependencies.
             commonjs(),
-            json(), // required for import of secp256k1/lib/messages.json in secp256k1 imported by bitcoinjs-message
+            // required for import of bitcoin-ops/index.json imported by bitcoinjs-lib and secp256k1/lib/messages.json
+            // in secp256k1 imported by bitcoinjs-message.
+            json(),
             inject({
                 Buffer: ['buffer', 'Buffer'], // add "import { Buffer } from 'buffer'" when node's Buffer global is used
                 global: 'global', // add "import global from 'global'" when node's global variable 'global' is used
@@ -295,6 +282,7 @@ export default async (commandLineArgs) => {
                     rename: 'index.html',
                 }],
             }),
+            // debugModuleDependencies('stream'),
         ],
         watch: {
             clearScreen: false,

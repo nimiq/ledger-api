@@ -48,9 +48,11 @@
     "@typescript-eslint/eslint-plugin": "^6.12.0",
     "@typescript-eslint/parser": "^6.12.0",
     "bitcoinjs-message": "^2.2.0",
+    "buffer": "^6.0.3",
     "eslint": "^8.54.0",
     "eslint-config-airbnb-typescript": "^17.1.0",
     "eslint-plugin-import": "^2.29.0",
+    "readable-stream": "^4.4.2",
     "rollup": "^4.5.1",
     "rollup-plugin-copy": "^3.5.0",
     "rollup-plugin-livereload": "^2.0.5",
@@ -73,9 +75,7 @@
     "@types/ledgerhq__hw-transport-u2f": "^4.21.4",
     "@types/w3c-web-usb": "^1.0.6",
     "bip32": "^2.0.6",
-    "bitcoinjs-lib": "^5.2.0",
-    "buffer": "^6.0.3",
-    "readable-stream": "^4.4.2"
+    "bitcoinjs-lib": "^5.2.0"
   },
   "resolutions": {
     "rollup-plugin-sourcemaps/@rollup/pluginutils": "^5.0.5"

@@ -39,9 +39,6 @@ import HighLevelApi, {
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
-// For low level api, see low-level-api.ts
-window.Buffer = Buffer;
-
 enum ApiType {
     LOW_LEVEL = 'low-level',
     HIGH_LEVEL = 'high-level',
