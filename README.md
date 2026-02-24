@@ -89,6 +89,11 @@ included in this repository](https://github.com/nimiq/ledger-api/blob/master/rol
 For an example setup with [webpack](https://webpack.js.org/) checkout out the
 [vue.config.js of the Nimiq Hub](https://github.com/nimiq/hub/blob/master/vue.config.js).
 
+## Bonus: reducing imports of bitcoinjs-lib in @ledgerhq/hw-app-btc
+
+@ledgerhq/hw-app-btc unnecessarily imports the entire bitcoinjs-lib, while only its crypto library is used. To reduce
+the scope of the imports, you can patch @ledgerhq/hw-app-btc in a similar fashion to the patch included in `patches`.
+
 ## Development and building the library
 
 To run the demo page use:
