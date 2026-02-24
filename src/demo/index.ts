@@ -921,8 +921,8 @@ window.addEventListener('load', () => {
                         senderType,
                         recipient,
                         recipientType,
-                        value: BigInt(amount),
-                        fee: BigInt(fee),
+                        value: tx.value as any, // can be number or bigint
+                        fee: tx.fee as any, // can be number or bigint
                         validityStartHeight,
                         flags,
                         network,
