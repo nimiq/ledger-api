@@ -212,18 +212,18 @@
   resolved "https://registry.yarnpkg.com/@ledgerhq/logs/-/logs-6.11.0.tgz#0d28e7edcf71548506f4304686cba480ba91bbcf"
   integrity sha512-HHK9y4GGe4X7CXbRUCh7z8Mp+WggpJn1dmUjmuk1rNugESF6o8nAOnXA+BxwtRRNV3CgNJR3Wxdos4J9qV0Zsg==
 
-"@nimiq/albatross-wasm@npm:@nimiq/core@^2.0.0":
-  version "2.0.0"
-  resolved "https://registry.yarnpkg.com/@nimiq/core/-/core-2.0.0.tgz#ed1509f7914b52ee4ba42eddb0eb596f867dd76f"
-  integrity sha512-cr388Q3NiSBpIDA7zAlLwlyMf/+qp+p6ytCNah3fzXluC2l8JGrpDqNT1ezzchjZTbj1hjJE7gcyUSzzpPDvnQ==
-  dependencies:
-    comlink "^4.4.1"
-    websocket "^1.0.34"
-
 "@nimiq/core-web@^1.6.2":
   version "1.6.2"
   resolved "https://registry.yarnpkg.com/@nimiq/core-web/-/core-web-1.6.2.tgz#3455021822b036578693cf112378b8fc69e5b856"
   integrity sha512-b12CcwKgRy5YzSD1oDp3TU7JNm4vv3ua0OKFhxyFBW8JqbPGGqzU7GsRY9/nKtF77zMfE/dVayWweS0ecHPzVA==
+
+"@nimiq/core@^2.1.1":
+  version "2.2.1"
+  resolved "https://registry.yarnpkg.com/@nimiq/core/-/core-2.2.1.tgz#d027dea5a5db78eb08ca228cf9014ae6571064bb"
+  integrity sha512-RrjZrSxR/1fBVhBddXABiQ2L/9QT7hRTBFpLYURcm2LX4mTgRIyz5YLpNEnzFrShNR2kITaa51KAl5X3JLfIZQ==
+  dependencies:
+    comlink "^4.4.1"
+    websocket "^1.0.34"
 
 "@nodelib/fs.scandir@2.1.4":
   version "2.1.4"
