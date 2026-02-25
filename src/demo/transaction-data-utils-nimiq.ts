@@ -623,7 +623,7 @@ type TransactionBuilderDataParameters<B extends TransactionBuilderType> =
         NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, // sender or recipient
         ...infer P,
         ...(B extends TransactionBuilderExpectingAmount ? [bigint] : []), // amount
-        bigint | undefined, // fee
+        bigint | null | undefined, // fee
         number, // validity start height
         number, // network id
     ] ? P : never;

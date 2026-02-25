@@ -1,17 +1,21 @@
 import { NimiqVersion } from './constants';
 
-// Note: @nimiq/albatross-wasm is mapped to @nimiq/core@next in package.json. @nimiq/albatross-wasm is the name that the
-// Nimiq Hub uses, which is why we use it here, too.
 export type Nimiq<Version extends NimiqVersion> = Version extends NimiqVersion.ALBATROSS
-    ? typeof import('@nimiq/albatross-wasm')
+    ? typeof import('@nimiq/core')
     : typeof import('@nimiq/core-web');
 
 // Accessor for primitives that exist in Nimiq Legacy and Nimiq Albatross under the same name.
-type CommonPrimitives = Extract<keyof typeof import('@nimiq/albatross-wasm'), keyof typeof import('@nimiq/core-web')>;
+type CommonPrimitives = Extract<keyof typeof import('@nimiq/core'), keyof typeof import('@nimiq/core-web')>;
+// Provide an alternative implementation of InstanceType<T> which is compatible with classes with private constructors,
+// because the constructor of @nimiq/core's class Client is private which leads to error "Type 'typeof Client' is not
+// assignable to type 'abstract new (...args: any) => any'. Cannot assign a 'private' constructor type to a 'public'
+// constructor type." when using the built-in InstanceType<T> utility. Inspired by https://stackoverflow.com/a/52350147.
+type InstanceTypeIgnoringPrivateConstructor<T extends { prototype: any }> = T extends new (...args: any) => infer R ? R
+    : T extends { prototype: infer R } ? R : never;
 export type NimiqPrimitive<
     Primitive extends CommonPrimitives,
     Version extends NimiqVersion,
-> = InstanceType<Nimiq<Version>[Primitive]>;
+> = InstanceTypeIgnoringPrivateConstructor<Nimiq<Version>[Primitive]>;
 
 export function isNimiqLegacy(core: Nimiq<NimiqVersion>): core is Nimiq<NimiqVersion.LEGACY> {
     // Note that checking for core.Version.CORE_JS_VERSION would be nicer, but it's unfortunately not available in the
@@ -62,10 +66,9 @@ const isNimiqAlbatrossHub = typeof loadAlbatross !== 'undefined' && (
     || /^(?:localhost|bs-local\.com):8080$/.test(window.location.host)
 );
 const nimiqCoreBasePath = isNimiqAlbatrossHub
-    // On a Nimiq Hub with Albatross support, use the Hub's copy of the core (copied from @nimiq/albatross-wasm in the
-    // Hub's vue.config.js, which is an alias for @nimiq/core@next), same as the Hub itself is doing, to avoid using and
-    // loading an additional version.
-    ? '/albatross-client/web/'
+    // On a Nimiq Hub with Albatross support, use the Hub's copy of the core (copied from @nimiq/core in the Hub's
+    // vue.config.js), same as the Hub itself is doing, to avoid using and loading an additional version.
+    ? '/nimiq/web/'
     // In other cases load @nimiq/core-web@next from jsdelivr. Load from cdn to avoid bundling a copy of core if it's
     // not needed. This way, we also don't need to handle the wasm file in the rollup config.
     : 'https://cdn.jsdelivr.net/npm/@nimiq/core@next/web/';
