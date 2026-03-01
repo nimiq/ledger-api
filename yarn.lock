@@ -212,15 +212,15 @@
   resolved "https://registry.yarnpkg.com/@ledgerhq/logs/-/logs-6.11.0.tgz#0d28e7edcf71548506f4304686cba480ba91bbcf"
   integrity sha512-HHK9y4GGe4X7CXbRUCh7z8Mp+WggpJn1dmUjmuk1rNugESF6o8nAOnXA+BxwtRRNV3CgNJR3Wxdos4J9qV0Zsg==
 
-"@nimiq/core-web@^1.6.2":
-  version "1.6.2"
-  resolved "https://registry.yarnpkg.com/@nimiq/core-web/-/core-web-1.6.2.tgz#3455021822b036578693cf112378b8fc69e5b856"
-  integrity sha512-b12CcwKgRy5YzSD1oDp3TU7JNm4vv3ua0OKFhxyFBW8JqbPGGqzU7GsRY9/nKtF77zMfE/dVayWweS0ecHPzVA==
+"@nimiq/core-web@^1.6.4":
+  version "1.6.4"
+  resolved "https://registry.yarnpkg.com/@nimiq/core-web/-/core-web-1.6.4.tgz#2ab36ab6f7d4062c3d534e6da831c2ccaae959de"
+  integrity sha512-D0jVukuL+zsUXicS4cCZEPlBzlzBe0D1sNWecEhaSjTR1iMa9f+fA9l08wlQtRVw96Z6yHRgQokWVnO1GcWI7Q==
 
-"@nimiq/core@^2.1.1":
-  version "2.2.1"
-  resolved "https://registry.yarnpkg.com/@nimiq/core/-/core-2.2.1.tgz#d027dea5a5db78eb08ca228cf9014ae6571064bb"
-  integrity sha512-RrjZrSxR/1fBVhBddXABiQ2L/9QT7hRTBFpLYURcm2LX4mTgRIyz5YLpNEnzFrShNR2kITaa51KAl5X3JLfIZQ==
+"@nimiq/core@^2.2.2":
+  version "2.2.2"
+  resolved "https://registry.yarnpkg.com/@nimiq/core/-/core-2.2.2.tgz#eaa4f6f97dea7382c68bff5b9c834ae0a7ccb9cc"
+  integrity sha512-fujsUnuWh8FIuZDeQR5s8wvPBpE3Adm0XH7ycpFcaixCti6z5YwG4ef5AXKAJD7RBHYyVzF9bkoqCWMN+bA8PA==
   dependencies:
     comlink "^4.4.1"
     websocket "^1.0.34"
