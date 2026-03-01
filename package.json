@@ -14,8 +14,8 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "rollup --config --configProduction",
-    "serve": "rollup --config --watch --configServe",
+    "build": "rm -rf dist/ && rollup --config --configProduction",
+    "serve": "rm -rf dist/ && rollup --config --watch --configServe",
     "speculos-bridge": "node speculos-bridge/speculos-bridge.js",
     "postinstall": "patch-package"
   },
