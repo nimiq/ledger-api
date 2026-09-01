@@ -1,6 +1,6 @@
 {
   "name": "@nimiq/ledger-api",
-  "version": "4.0.0",
+  "version": "4.0.0-experimental",
   "description": "Api for communicating with Ledger Hardware Wallets",
   "main": "dist/high-level-api/ledger-api.es.js",
   "type": "module",
@@ -17,7 +17,7 @@
     "build": "rm -rf dist/ && rollup --config --configProduction",
     "serve": "rm -rf dist/ && rollup --config --watch --configServe",
     "speculos-bridge": "node speculos-bridge/speculos-bridge.js",
-    "postinstall": "patch-package"
+    "prepare": "patch-package"
   },
   "repository": {
     "type": "git",
@@ -54,6 +54,7 @@
     "eslint": "^8.54.0",
     "eslint-config-airbnb-typescript": "^17.1.0",
     "eslint-plugin-import": "^2.29.0",
+    "patch-package": "^8.0.1",
     "readable-stream": "^4.4.2",
     "rollup": "^4.5.1",
     "rollup-plugin-copy": "^3.5.0",
@@ -77,9 +78,7 @@
     "@types/ledgerhq__hw-transport-u2f": "^4.21.4",
     "@types/w3c-web-usb": "^1.0.6",
     "bip32": "^2.0.6",
-    "bitcoinjs-lib": "^5.2.0",
-    "patch-package": "^8.0.1",
-    "postinstall-postinstall": "^2.1.0"
+    "bitcoinjs-lib": "^5.2.0"
   },
   "resolutions": {
     "rollup-plugin-sourcemaps/@rollup/pluginutils": "^5.0.5"
