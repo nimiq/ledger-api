@@ -67,13 +67,10 @@
     "@ledgerhq/hw-app-btc": "^10.0.9",
     "@ledgerhq/hw-transport": "^6.29.0",
     "@ledgerhq/hw-transport-http": "^6.28.4",
-    "@ledgerhq/hw-transport-u2f": "^5.36.0-deprecated",
     "@ledgerhq/hw-transport-web-ble": "^6.27.20",
-    "@ledgerhq/hw-transport-webauthn": "^5.36.0-deprecated",
     "@ledgerhq/hw-transport-webhid": "^6.27.20",
     "@ledgerhq/hw-transport-webusb": "^6.27.20",
     "@nimiq/core": "^2.2.2",
-    "@types/ledgerhq__hw-transport-u2f": "^4.21.4",
     "@types/w3c-web-usb": "^1.0.6",
     "bip32": "^2.0.6",
     "bitcoinjs-lib": "^5.2.0"

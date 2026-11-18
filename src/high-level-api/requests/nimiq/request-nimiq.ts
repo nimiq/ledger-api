@@ -33,9 +33,7 @@ export default abstract class RequestNimiq<T> extends Request<T> {
 
         const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
 
-        // Set validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger app,
-        // see transport-comparison.md. However, not sure whether this is still true today and as it's less relevant now
-        // with WebUsb being used by default, we ignore this side effect for !this._isWalletIdDerivationRequired case.
+        // Set validate to false as otherwise the call is much slower.
         const { publicKey: firstAddressPubKeyBytes } = await api.getPublicKey(
             getBip32Path({ coin: Coin.NIMIQ, addressIndex: 0 }),
             false, // validate

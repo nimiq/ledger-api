@@ -1,9 +1,3 @@
-import TransportWebHid from '@ledgerhq/hw-transport-webhid';
-import TransportWebUsb from '@ledgerhq/hw-transport-webusb';
-import TransportWebBle from '@ledgerhq/hw-transport-web-ble';
-import TransportWebAuthn from '@ledgerhq/hw-transport-webauthn';
-import TransportU2F from '@ledgerhq/hw-transport-u2f';
-import NetworkTransportForUrls from '@ledgerhq/hw-transport-http';
 // dev dependencies for the demo page
 /* eslint-disable import/no-extraneous-dependencies */
 // Note: we installed @ledgerhq/logs and bitcoinjs-message only as dev dependencies, as they're only used in the demo.
@@ -95,14 +89,6 @@ window.addEventListener('load', () => {
                 <label>
                     <input type="radio" name="transport-selector" value="${TransportType.WEB_BLE}">
                     WebBle
-                </label>
-                <label>
-                    <input type="radio" name="transport-selector" value="${TransportType.WEB_AUTHN}">
-                    WebAuthn
-                </label>
-                <label>
-                    <input type="radio" name="transport-selector" value="${TransportType.U2F}">
-                    U2F
                 </label>
                 <label>
                     <input type="radio" name="transport-selector" value="${TransportType.NETWORK}">
@@ -678,24 +664,23 @@ window.addEventListener('load', () => {
                 onLog((logEntry: any) => console.log('%cLog:', 'color: teal', logEntry));
                 switch (transportType) {
                     case TransportType.WEB_HID:
-                        window._transport = await TransportWebHid.create();
+                        window._transport = await (await import('@ledgerhq/hw-transport-webhid')).default.create();
                         break;
                     case TransportType.WEB_USB:
                         // Automatically creates a transport with a connected known device or opens a browser popup to
                         // select a device if no known device is connected.
-                        window._transport = await TransportWebUsb.create();
+                        window._transport = await (await import('@ledgerhq/hw-transport-webusb')).default.create();
                         break;
                     case TransportType.WEB_BLE:
-                        window._transport = await TransportWebBle.create();
+                        window._transport = await (await import('@ledgerhq/hw-transport-web-ble')).default.create();
                         break;
-                    case TransportType.WEB_AUTHN:
-                        window._transport = await TransportWebAuthn.create();
+                    case TransportType.NETWORK: {
+                        const { default: NetworkTransportForUrls } = await import('@ledgerhq/hw-transport-http');
+                        window._transport = await NetworkTransportForUrls([$networkEndpointInput.value]).create();
                         break;
-                    case TransportType.NETWORK:
-                        window._transport = await (NetworkTransportForUrls([$networkEndpointInput.value])).create();
-                        break;
+                    }
                     default:
-                        window._transport = await TransportU2F.create();
+                        throw new Error(`Unsupported transport type ${transportType}`);
                 }
                 window._transport.on('disconnect', () => displayStatus('Disconnected.'));
                 window._api = new LowLevelApi(window._transport);

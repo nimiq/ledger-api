@@ -78,11 +78,6 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
                     path: this.keyPath,
                     xpubVersion: ledgerXpubVersion,
                 });
-                // TODO Requesting the public key causes a confirmation screen to be displayed on the Ledger for u2f and
-                //  WebAuthn for every request if the user has this privacy feature enabled in the Bitcoin app.
-                //  Subsequent requests can provide a permission token in _getLowLevelApi to avoid this screen (see
-                //  https://github.com/LedgerHQ/app-bitcoin/blob/master/doc/btc.asc#get-wallet-public-key). This token
-                //  is however not supported in @ledgerhq/hw-app-btc and therefore has to be implemented by ourselves.
                 const {
                     publicKey: verificationPubKeyHex,
                     chainCode: verificationChainCodeHex,

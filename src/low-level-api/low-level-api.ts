@@ -40,6 +40,8 @@ const SW_OK = 0x9000;
 const SW_CANCEL = 0x6985;
 const SW_KEEP_ALIVE = 0x6e02;
 
+// Scramble key of the Nimiq app. Only relevant for the U2F and WebAuthn transports, which are not supported anymore by
+// the high-level-api, but can still be used with the low-level-api.
 const U2F_SCRAMBLE_KEY = 'w0w';
 
 /**

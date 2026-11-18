@@ -46,9 +46,6 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
 
         const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
 
-        // TODO For u2f and WebAuthn, the Ledger displays a confirmation screen to get the public key if the user has
-        //  this privacy setting enabled. The get public key functionality also supports setting a permission token
-        //  which however is not implemented in @ledgerhq/hw-app-btc and therefore would need to be implemented manually
         const { publicKey } = await api.getWalletPublicKey(getBip32Path({
             coin: Coin.BITCOIN,
             addressType: AddressTypeBitcoin.LEGACY,
