@@ -12,9 +12,8 @@ import {
     getTransactionData,
 } from './transaction-data-utils-nimiq';
 
-// Our built library.
-// Typescript needs the import as specified to find the .d.ts file, see rollup.config.js
-import LowLevelApi from '../../dist/low-level-api/low-level-api';
+// Our library.
+import LowLevelApi from '../low-level-api/low-level-api';
 import HighLevelApi, {
     Coin,
     CoinAppConnection,
@@ -26,7 +25,7 @@ import HighLevelApi, {
     AccountTypeNimiq,
     TransactionFlagsNimiq,
     NetworkIdNimiq,
-} from '../../dist/high-level-api/ledger-api';
+} from '../high-level-api/ledger-api';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 

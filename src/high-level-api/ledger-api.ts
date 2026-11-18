@@ -69,9 +69,10 @@ export { isSupported, TransportType };
 export { getBip32Path, parseBip32Path };
 export { ErrorType, ErrorState };
 export { Coin, Network, NimiqVersion, NetworkIdNimiq, AccountTypeNimiq, TransactionFlagsNimiq, AddressTypeBitcoin };
-export { CoinAppConnection, RequestTypeNimiq, RequestTypeBitcoin, RequestType, Request };
-export { TransactionInfoNimiq, TransactionInfoBitcoin };
-export { MessageSignatureInfoNimiq };
+export { RequestTypeNimiq, RequestTypeBitcoin };
+export type { CoinAppConnection, RequestType, Request };
+export type { TransactionInfoNimiq, TransactionInfoBitcoin };
+export type { MessageSignatureInfoNimiq };
 
 export enum StateType {
     IDLE = 'idle',

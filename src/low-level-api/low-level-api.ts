@@ -11,6 +11,7 @@ import {
 } from '../shared/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
+type TransportData = Parameters<Transport['send']>[4];
 
 const CLA = 0xe0;
 const INS_GET_PK = 0x02;
@@ -156,7 +157,7 @@ export default class LowLevelApi {
             INS_GET_PK,
             boolValidate ? P1_VALIDATE : P1_NO_VALIDATE,
             boolDisplay ? P2_CONFIRM : P2_NO_CONFIRM,
-            data as Buffer, // send currently expects a Buffer, while a Uint8Array suffices
+            data as TransportData, // send currently expects a Buffer, while a Uint8Array suffices
             [SW_OK, SW_KEEP_ALIVE],
         );
         // handle heartbeat
@@ -227,7 +228,7 @@ export default class LowLevelApi {
                 isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_TX,
                 chunkIndex === 0 ? P1_FIRST_APDU : P1_MORE_APDU, // note that for heartbeat p1, p2 and data are ignored
                 chunkIndex === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                data as Buffer, // send currently expects a Buffer, while a Uint8Array suffices
+                data as TransportData, // send currently expects a Buffer, while a Uint8Array suffices
                 [SW_OK, SW_CANCEL, SW_KEEP_ALIVE],
             );
             status = bufferToUint16(response.slice(response.length - 2));
@@ -307,7 +308,7 @@ export default class LowLevelApi {
                 isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_MESSAGE,
                 chunkIndex === 0 ? P1_FIRST_APDU : P1_MORE_APDU, // note that for heartbeat p1, p2 and data are ignored
                 chunkIndex === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                data as Buffer, // send currently expects a Buffer, while a Uint8Array suffices
+                data as TransportData, // send currently expects a Buffer, while a Uint8Array suffices
                 [SW_OK, SW_CANCEL, SW_KEEP_ALIVE],
             );
             status = bufferToUint16(response.slice(response.length - 2));

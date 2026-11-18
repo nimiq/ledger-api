@@ -1,14 +1,16 @@
 {
   "compilerOptions": {
+    "target": "es2022",
     "module": "esnext",
-    "target": "esnext",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": ["w3c-web-usb"],
     "strict": true,
-    "moduleResolution": "node",
-    "importHelpers": true,
-    "esModuleInterop": true,
-    "noImplicitAny": true,
     "noImplicitReturns": true,
-    "noImplicitThis": true
-  }
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src"]
 }
-

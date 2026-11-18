@@ -41,7 +41,7 @@ export function getNetworkInfo(
                 private: 0x045f18bc, // vprv
             },
         },
-    }[addressType][network]; // TODO should be using optional chaining here once we update rollup
+    }[addressType]?.[network];
     if (!versionBytes) throw new Error(`Unknown version bytes for network ${network}, address type ${addressType}`);
 
     return {

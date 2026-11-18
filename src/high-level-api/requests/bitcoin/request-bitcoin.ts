@@ -54,7 +54,7 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         }));
 
         // Compute base64 wallet id.
-        const publicKeyBytes = bufferFromHex(publicKey);
+        const publicKeyBytes = bufferFromHex(publicKey) as Uint8Array<ArrayBuffer>;
         const walletIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', publicKeyBytes));
         const walletId = bufferToBase64(walletIdHash);
         coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection

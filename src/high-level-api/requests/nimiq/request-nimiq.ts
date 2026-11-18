@@ -42,7 +42,9 @@ export default abstract class RequestNimiq<T> extends Request<T> {
         );
 
         // Compute base64 wallet id. Use sha256 as blake2b yields the nimiq address
-        const walletIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', firstAddressPubKeyBytes));
+        const walletIdHash = new Uint8Array(
+            await crypto.subtle.digest('SHA-256', firstAddressPubKeyBytes as Uint8Array<ArrayBuffer>),
+        );
         const walletId = bufferToBase64(walletIdHash);
         coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection
         this._checkExpectedWalletId(walletId);

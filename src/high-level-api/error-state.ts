@@ -32,7 +32,7 @@ export default class ErrorState<T extends ErrorType = ErrorType> extends Error {
 
         if (messageOrError instanceof Error && messageOrError.stack) {
             this.stack = messageOrError.stack;
-        } else if (Error.captureStackTrace) {
+        } else if ('captureStackTrace' in Error && typeof Error.captureStackTrace === 'function') {
             // Maintains proper stack trace for where our error was thrown (only available on V8), see
             // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error#Custom_Error_Types
             Error.captureStackTrace(this, ErrorState);
