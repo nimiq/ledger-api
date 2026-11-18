@@ -2,8 +2,6 @@
 // As a separate file to be able to use these constants in the main chunk without the need to import the entire lazy
 // chunks and to avoid circular dependencies between main entry and other files.
 
-import { NimiqVersion } from '../shared/constants';
-
 export enum Coin {
     NIMIQ = 'Nimiq',
     BITCOIN = 'Bitcoin',
@@ -20,11 +18,6 @@ export const NetworkIdNimiq = {
     [Network.MAINNET]: 24,
     [Network.TESTNET]: 5,
     [Network.DEVNET]: 6,
-    [NimiqVersion.LEGACY]: {
-        [Network.MAINNET]: 42,
-        [Network.TESTNET]: 1,
-        [Network.DEVNET]: 2,
-    },
 } as const;
 
 // See https://github.com/nimiq/core-rs-albatross/blob/albatross/primitives/src/account.rs
@@ -50,9 +43,9 @@ export enum AddressTypeBitcoin {
 }
 
 export const LedgerAddressFormatMapBitcoin = {
-    [AddressTypeBitcoin.LEGACY]: 'legacy' as 'legacy',
-    [AddressTypeBitcoin.P2SH_SEGWIT]: 'p2sh' as 'p2sh',
-    [AddressTypeBitcoin.NATIVE_SEGWIT]: 'bech32' as 'bech32',
+    [AddressTypeBitcoin.LEGACY]: 'legacy' as const,
+    [AddressTypeBitcoin.P2SH_SEGWIT]: 'p2sh' as const,
+    [AddressTypeBitcoin.NATIVE_SEGWIT]: 'bech32' as const,
 };
 
 export const REQUEST_EVENT_CANCEL = 'cancel';

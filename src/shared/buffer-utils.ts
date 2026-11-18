@@ -7,15 +7,15 @@ export function bufferFromUtf8(utf8: string): Uint8Array {
 }
 
 export function bufferFromHex(hex: string): Uint8Array {
-    return new Uint8Array((hex.match(/.{2}/g) || []).map(byte => parseInt(byte, 16)));
+    return new Uint8Array((hex.match(/.{2}/g) || []).map((byte) => parseInt(byte, 16)));
 }
 
 export function bufferToHex(buffer: Uint8Array): string {
-    return [...buffer].map(byte => byte.toString(16).padStart(2, '0')).join('');
+    return [...buffer].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export function bufferFromBase64(base64: string): Uint8Array {
-    return new Uint8Array(atob(base64).split('').map(c => c.charCodeAt(0)));
+    return new Uint8Array(atob(base64).split('').map((c) => c.charCodeAt(0)));
 }
 
 export function bufferToBase64(buffer: Uint8Array): string {

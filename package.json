@@ -1,23 +1,37 @@
 {
   "name": "@nimiq/ledger-api",
-  "version": "4.0.1",
+  "version": "5.0.0",
   "description": "Api for communicating with Ledger Hardware Wallets",
-  "main": "dist/high-level-api/ledger-api.es.js",
   "type": "module",
+  "main": "dist/high-level-api/ledger-api.es.js",
   "types": "dist/high-level-api/ledger-api.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/high-level-api/ledger-api.d.ts",
+      "default": "./dist/high-level-api/ledger-api.es.js"
+    },
+    "./low-level-api": {
+      "types": "./dist/low-level-api/low-level-api.d.ts",
+      "default": "./dist/low-level-api/low-level-api.es.js"
+    },
+    "./dist/*": "./dist/*",
+    "./package.json": "./package.json"
+  },
   "files": [
     "transport-comparison.md",
-    "src/shared/type-shims.d.ts",
     "dist",
-    "!dist/demo",
-    "patches"
+    "!dist/demo"
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "rm -rf dist/ && rollup --config --configProduction",
-    "serve": "rm -rf dist/ && rollup --config --watch --configServe",
-    "speculos-bridge": "node speculos-bridge/speculos-bridge.js",
-    "prepare": "patch-package"
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "dev": "vite --config vite.demo.config.ts",
+    "serve": "yarn dev",
+    "build:demo": "vite build --config vite.demo.config.ts",
+    "typecheck": "tsc && tsc -p tsconfig.node.json",
+    "lint": "eslint .",
+    "prepublishOnly": "yarn typecheck && yarn lint && yarn build",
+    "speculos-bridge": "node speculos-bridge/speculos-bridge.js"
   },
   "repository": {
     "type": "git",
@@ -35,57 +49,36 @@
     "url": "https://github.com/nimiq/ledger-api/issues"
   },
   "homepage": "https://github.com/nimiq/ledger-api#readme",
+  "engines": {
+    "node": ">=20.19"
+  },
   "devDependencies": {
-    "@ledgerhq/hw-transport-node-speculos": "^6.27.20",
-    "@ledgerhq/logs": "^6.11.0",
-    "@rollup/plugin-alias": "^5.0.1",
-    "@rollup/plugin-commonjs": "^25.0.7",
-    "@rollup/plugin-eslint": "^9.0.5",
-    "@rollup/plugin-inject": "^5.0.5",
-    "@rollup/plugin-json": "^6.0.1",
-    "@rollup/plugin-node-resolve": "^15.2.3",
-    "@rollup/plugin-replace": "^5.0.5",
-    "@rollup/plugin-typescript": "^11.1.5",
-    "@rollup/plugin-virtual": "^3.0.2",
-    "@typescript-eslint/eslint-plugin": "^6.12.0",
-    "@typescript-eslint/parser": "^6.12.0",
+    "@eslint/js": "^10.0.1",
+    "@ledgerhq/hw-transport-node-speculos": "^6.34.7",
+    "@ledgerhq/logs": "^6.20.0",
+    "@stylistic/eslint-plugin": "^6.0.1",
+    "@types/node": "^26.6.6",
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
     "bitcoinjs-message": "^2.2.0",
-    "buffer": "^6.0.3",
-    "eslint": "^8.54.0",
-    "eslint-config-airbnb-typescript": "^17.1.0",
-    "eslint-plugin-import": "^2.29.0",
-    "patch-package": "^8.0.1",
-    "readable-stream": "^4.4.2",
-    "rollup": "^4.5.1",
-    "rollup-plugin-copy": "^3.5.0",
-    "rollup-plugin-livereload": "^2.0.5",
-    "rollup-plugin-serve": "^2.0.2",
-    "rollup-plugin-sourcemaps": "^0.6.3",
-    "tslib": "^2.6.2",
-    "typescript": "^5.2.2"
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "magic-string": "^1.4.5",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8",
+    "vite-plugin-node-polyfills": "^0.28.0",
+    "ws": "^8.23.0"
   },
   "dependencies": {
-    "@ledgerhq/hw-app-btc": "^10.0.9",
-    "@ledgerhq/hw-transport": "^6.29.0",
-    "@ledgerhq/hw-transport-http": "^6.28.4",
-    "@ledgerhq/hw-transport-u2f": "^5.36.0-deprecated",
-    "@ledgerhq/hw-transport-web-ble": "^6.27.20",
-    "@ledgerhq/hw-transport-webauthn": "^5.36.0-deprecated",
-    "@ledgerhq/hw-transport-webhid": "^6.27.20",
-    "@ledgerhq/hw-transport-webusb": "^6.27.20",
-    "@nimiq/core": "^2.2.2",
-    "@nimiq/core-web": "^1.6.4",
-    "@types/ledgerhq__hw-transport-u2f": "^4.21.4",
-    "@types/w3c-web-usb": "^1.0.6",
-    "bip32": "^2.0.6",
-    "bitcoinjs-lib": "^5.2.0"
-  },
-  "resolutions": {
-    "rollup-plugin-sourcemaps/@rollup/pluginutils": "^5.0.5"
-  },
-  "overrides": {
-    "rollup-plugin-sourcemaps": {
-      "@rollup/pluginutils": "^5.0.5"
-    }
+    "@ledgerhq/hw-app-btc": "^12.3.0",
+    "@ledgerhq/hw-transport": "^6.37.0",
+    "@ledgerhq/hw-transport-http": "^6.36.5",
+    "@ledgerhq/hw-transport-web-ble": "^6.35.0",
+    "@ledgerhq/hw-transport-webhid": "^6.36.0",
+    "@ledgerhq/hw-transport-webusb": "^6.35.0",
+    "@nimiq/core": "^2.23.0",
+    "@scure/bip32": "^2.4.0",
+    "@types/w3c-web-usb": "^1.0.14",
+    "bitcoinjs-lib": "^7.0.5"
   }
 }

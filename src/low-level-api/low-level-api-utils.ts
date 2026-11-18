@@ -1,5 +1,4 @@
-import { NimiqVersion } from '../shared/constants';
-import { isNimiqLegacy, loadNimiq } from '../shared/load-nimiq';
+import { loadNimiq } from '../shared/load-nimiq';
 
 export function parsePath(path: string): Uint8Array {
     if (!path.startsWith('44\'/242\'')) {
@@ -35,9 +34,8 @@ export function parsePath(path: string): Uint8Array {
     return pathBytes;
 }
 
-export async function publicKeyToAddress(publicKey: Uint8Array, nimiqVersion: NimiqVersion): Promise<string> {
-    // Cryptography is needed for hashing public key to an address.
-    const Nimiq = await loadNimiq(nimiqVersion, /* include cryptography */ true);
+export async function publicKeyToAddress(publicKey: Uint8Array): Promise<string> {
+    const Nimiq = await loadNimiq();
     return new Nimiq.PublicKey(publicKey).toAddress().toUserFriendlyAddress();
 }
 
@@ -45,17 +43,9 @@ export async function verifySignature(
     data: Uint8Array,
     signature: Uint8Array,
     publicKey: Uint8Array,
-    nimiqVersion: NimiqVersion,
 ): Promise<boolean> {
-    // Cryptography is needed for verifying signatures.
-    const Nimiq = await loadNimiq(nimiqVersion, /* include cryptography */ true);
-    if (isNimiqLegacy(Nimiq)) {
-        const nimiqSignature = new Nimiq.Signature(signature);
-        const nimiqPublicKey = new Nimiq.PublicKey(publicKey);
-        return nimiqSignature.verify(nimiqPublicKey, data);
-    } else {
-        const nimiqSignature = Nimiq.Signature.deserialize(signature);
-        const nimiqPublicKey = new Nimiq.PublicKey(publicKey);
-        return nimiqPublicKey.verify(nimiqSignature, data);
-    }
+    const Nimiq = await loadNimiq();
+    const nimiqSignature = Nimiq.Signature.deserialize(signature);
+    const nimiqPublicKey = new Nimiq.PublicKey(publicKey);
+    return nimiqPublicKey.verify(nimiqSignature, data);
 }

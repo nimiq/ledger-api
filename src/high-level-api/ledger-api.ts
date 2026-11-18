@@ -8,6 +8,7 @@ import {
     setNetworkEndpoint,
     loadTransportLibrary,
     TransportType,
+    type TransportLibrary,
 } from './transport-utils';
 import { isAppSupported } from './app-utils';
 import { getBip32Path, parseBip32Path } from './bip32-utils';
@@ -24,9 +25,7 @@ import {
     TransactionFlagsNimiq,
 } from './constants';
 
-type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
-type TransportWebUsbConstructor = typeof import('@ledgerhq/hw-transport-webusb').default;
-type Transport = InstanceType<TransportConstructor | TransportWebUsbConstructor>;
+type Transport = import('@ledgerhq/hw-transport').default;
 
 type CoinAppConnection = import('./requests/request').CoinAppConnection;
 
@@ -40,29 +39,27 @@ type RequestSignTransactionNimiqConstructor = typeof import('./requests/nimiq/re
 type RequestSignMessageNimiqConstructor = typeof import('./requests/nimiq/request-sign-message-nimiq').default;
 
 type RequestGetWalletIdBitcoinConstructor = typeof import('./requests/bitcoin/request-get-wallet-id-bitcoin').default;
-type RequestGetAddressAndPublicKeyBitcoinConstructor =
-    typeof import('./requests/bitcoin/request-get-address-and-public-key-bitcoin').default;
-type RequestGetExtendedPublicKeyBitcoinConstructor =
-    typeof import('./requests/bitcoin/request-get-extended-public-key-bitcoin').default;
-type RequestSignTransactionBitcoinConstructor =
-    typeof import('./requests/bitcoin/request-sign-transaction-bitcoin').default;
+type RequestGetAddressAndPublicKeyBitcoinConstructor
+    = typeof import('./requests/bitcoin/request-get-address-and-public-key-bitcoin').default;
+type RequestGetExtendedPublicKeyBitcoinConstructor
+    = typeof import('./requests/bitcoin/request-get-extended-public-key-bitcoin').default;
+type RequestSignTransactionBitcoinConstructor
+    = typeof import('./requests/bitcoin/request-sign-transaction-bitcoin').default;
 type RequestSignMessageBitcoinConstructor = typeof import('./requests/bitcoin/request-sign-message-bitcoin').default;
 
 // define Request type as actually defined request classes to be more specific than the abstract parent class
-/* eslint-disable @typescript-eslint/indent */
 type RequestConstructor = RequestGetWalletIdNimiqConstructor | RequestGetPublicKeyNimiqConstructor
     | RequestGetAddressNimiqConstructor | RequestDeriveAddressesNimiqConstructor
     | RequestSignTransactionNimiqConstructor | RequestSignMessageNimiqConstructor
     | RequestGetWalletIdBitcoinConstructor | RequestGetAddressAndPublicKeyBitcoinConstructor
     | RequestGetExtendedPublicKeyBitcoinConstructor | RequestSignTransactionBitcoinConstructor
     | RequestSignMessageBitcoinConstructor;
-/* eslint-enable @typescript-eslint/indent */
 type Request = InstanceType<RequestConstructor>;
 
-type TransactionInfoNimiq<Version extends NimiqVersion> =
-    import('./requests/nimiq/request-sign-transaction-nimiq').TransactionInfoNimiq<Version>;
-type MessageSignatureInfoNimiq<Version extends NimiqVersion> =
-    import('./requests/nimiq/request-sign-message-nimiq').MessageSignatureInfoNimiq<Version>;
+type TransactionInfoNimiq<Version extends NimiqVersion = NimiqVersion>
+    = import('./requests/nimiq/request-sign-transaction-nimiq').TransactionInfoNimiq<Version>;
+type MessageSignatureInfoNimiq<Version extends NimiqVersion = NimiqVersion>
+    = import('./requests/nimiq/request-sign-message-nimiq').MessageSignatureInfoNimiq<Version>;
 
 type TransactionInfoBitcoin = import('./requests/bitcoin/request-sign-transaction-bitcoin').TransactionInfoBitcoin;
 
@@ -70,9 +67,10 @@ export { isSupported, TransportType };
 export { getBip32Path, parseBip32Path };
 export { ErrorType, ErrorState };
 export { Coin, Network, NimiqVersion, NetworkIdNimiq, AccountTypeNimiq, TransactionFlagsNimiq, AddressTypeBitcoin };
-export { CoinAppConnection, RequestTypeNimiq, RequestTypeBitcoin, RequestType, Request };
-export { TransactionInfoNimiq, TransactionInfoBitcoin };
-export { MessageSignatureInfoNimiq };
+export { RequestTypeNimiq, RequestTypeBitcoin };
+export type { CoinAppConnection, RequestType, Request };
+export type { TransactionInfoNimiq, TransactionInfoBitcoin };
+export type { MessageSignatureInfoNimiq };
 
 export enum StateType {
     IDLE = 'idle',
@@ -120,15 +118,15 @@ export default class LedgerApi {
         /**
          * Get the public key for a given bip32 key path. Optionally expect a specific wallet id.
          */
-        async getPublicKey<Version extends NimiqVersion = NimiqVersion.ALBATROSS>(
+        async getPublicKey(
             keyPath: string,
             expectedWalletId?: string,
-            nimiqVersion: Version = NimiqVersion.ALBATROSS as Version,
-        ): Promise<NimiqPrimitive<'PublicKey', Version>> {
+            nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
+        ): Promise<NimiqPrimitive<'PublicKey'>> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetPublicKeyNimiqConstructor>(
                 import('./requests/nimiq/request-get-public-key-nimiq'),
                 nimiqVersion, keyPath, expectedWalletId,
-            )) as Promise<NimiqPrimitive<'PublicKey', Version>>;
+            ));
         },
 
         /**
@@ -179,16 +177,16 @@ export default class LedgerApi {
          * corresponding address does not necessarily need to be the transaction's sender address for example for
          * transactions sent from vesting contracts. Optionally expect a specific wallet id.
          */
-        async signTransaction<Version extends NimiqVersion = NimiqVersion.ALBATROSS>(
-            transaction: TransactionInfoNimiq<Version>,
+        async signTransaction(
+            transaction: TransactionInfoNimiq,
             keyPath: string,
             expectedWalletId?: string,
-            nimiqVersion: Version = NimiqVersion.ALBATROSS as Version,
-        ): Promise<NimiqPrimitive<'Transaction', Version>> {
+            nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
+        ): Promise<NimiqPrimitive<'Transaction'>> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignTransactionNimiqConstructor>(
                 import('./requests/nimiq/request-sign-transaction-nimiq'),
                 nimiqVersion, keyPath, transaction, expectedWalletId,
-            )) as Promise<NimiqPrimitive<'Transaction', Version>>;
+            ));
         },
 
         /**
@@ -197,17 +195,17 @@ export default class LedgerApi {
          * hex or hash instead of as ascii, or expect a specific wallet id. If no preference for the display type is
          * specified, the message is by default tried to be displayed as ascii, hex or hash, in that order.
          */
-        async signMessage<Version extends NimiqVersion = NimiqVersion.ALBATROSS>(
+        async signMessage(
             message: string | Uint8Array,
             keyPath: string,
             flags?: { preferDisplayTypeHex: boolean, preferDisplayTypeHash: boolean } | number,
             expectedWalletId?: string,
-            nimiqVersion: Version = NimiqVersion.ALBATROSS as Version,
-        ): Promise<MessageSignatureInfoNimiq<Version>> {
-            return await LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignMessageNimiqConstructor>(
+            nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
+        ): Promise<MessageSignatureInfoNimiq> {
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignMessageNimiqConstructor>(
                 import('./requests/nimiq/request-sign-message-nimiq'),
                 nimiqVersion, keyPath, message, flags, expectedWalletId,
-            )) as MessageSignatureInfoNimiq<Version>;
+            ));
         },
     };
 
@@ -243,8 +241,10 @@ export default class LedgerApi {
         /**
          * Utility function that directly gets a confirmed address.
          */
-        async getConfirmedAddressAndPublicKey(keyPath: string, expectedWalletId?: string)
-            : Promise<{ publicKey: string, address: string, chainCode: string }> {
+        async getConfirmedAddressAndPublicKey(
+            keyPath: string,
+            expectedWalletId?: string,
+        ): Promise<{ publicKey: string, address: string, chainCode: string }> {
             const { address } = await LedgerApi.Bitcoin.getAddressAndPublicKey(
                 keyPath,
                 false,
@@ -283,8 +283,11 @@ export default class LedgerApi {
          * utf8 string or an Uint8Array of arbitrary data. Optionally expect a specific wallet id. The resulting
          * signature is base64 encoded.
          */
-        async signMessage(message: string | Uint8Array, keyPath: string, expectedWalletId?: string)
-            : Promise<{ signerAddress: string, signature: string }> {
+        async signMessage(
+            message: string | Uint8Array,
+            keyPath: string,
+            expectedWalletId?: string,
+        ): Promise<{ signerAddress: string, signature: string }> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignMessageBitcoinConstructor>(
                 import('./requests/bitcoin/request-sign-message-bitcoin'),
                 keyPath, message, expectedWalletId,
@@ -348,7 +351,8 @@ export default class LedgerApi {
      * However, if that connection fails due to a required user interaction / user gesture, you can manually connect in
      * the context of a user interaction, for example a click.
      * @param coin - Which Ledger coin app to connect to.
-     * @param [nimiqVersion] - Only for Nimiq: which Nimiq library version to use internally. Albatross by default.
+     * @param [nimiqVersion] - Only for Nimiq: kept for backwards compatibility. Only NimiqVersion.ALBATROSS is
+     *  supported.
      * @param [network] - Only for Bitcoin: whether to connect to the mainnet or testnet app. Mainnet by default.
      * @returns Whether connecting to the Ledger succeeded.
      */
@@ -359,9 +363,7 @@ export default class LedgerApi {
         coin: Coin,
         nimiqVersionOrBitcoinNetwork?: NimiqVersion | Exclude<Network, Network.DEVNET>,
     ): Promise<boolean> {
-        const nimiqVersion = nimiqVersionOrBitcoinNetwork === NimiqVersion.LEGACY
-            ? NimiqVersion.LEGACY
-            : NimiqVersion.ALBATROSS;
+        const nimiqVersion = NimiqVersion.ALBATROSS;
         const bitcoinNetwork = nimiqVersionOrBitcoinNetwork === Network.TESTNET
             ? Network.TESTNET
             : Network.MAINNET;
@@ -449,7 +451,7 @@ export default class LedgerApi {
         try {
             const api = await transportPromise;
             await api.close();
-        } catch (e) {
+        } catch {
             // Ignore.
         }
     }
@@ -477,7 +479,7 @@ export default class LedgerApi {
 
     private static async _createRequest<RC extends RequestConstructor>(
         requestConstructor: (new (...params: ConstructorParameters<RC>) => InstanceType<RC>)
-        | Promise<{ default: new (...params: ConstructorParameters<RC>) => InstanceType<RC> }>,
+            | Promise<{ default: new (...params: ConstructorParameters<RC>) => InstanceType<RC> }>,
         ...params: ConstructorParameters<RC>
     ): Promise<InstanceType<RC>> {
         if (LedgerApi.transportType) {
@@ -502,7 +504,7 @@ export default class LedgerApi {
         try {
             // Note that the requestConstructor is typed as is instead of just RC | Promise<{ default: RC }> such that
             // typescript can determine which exact request is being created and returned.
-            return new requestConstructor(...params); // eslint-disable-line new-cap
+            return new requestConstructor(...params);
         } catch (e) {
             if (e instanceof ErrorState) {
                 LedgerApi._setState(e);
@@ -520,9 +522,8 @@ export default class LedgerApi {
         LedgerApi._connectionAborted = false; // user is initiating a new request
         try {
             LedgerApi._currentRequest = request;
-            /* eslint-disable no-await-in-loop, no-async-promise-executor */
+            /* eslint-disable no-async-promise-executor */
             return await new Promise<ReturnType<R['call']>>(async (resolve, reject) => {
-                let lastRequestCallTime = -1;
                 let canCancelDirectly = true;
                 let cancelFired = false;
                 request.on(REQUEST_EVENT_CANCEL, () => {
@@ -548,7 +549,6 @@ export default class LedgerApi {
                         await LedgerApi._connect(transport, request);
                         if (request.cancelled) break;
                         LedgerApi._setState(StateType.REQUEST_PROCESSING);
-                        lastRequestCallTime = Date.now();
                         canCancelDirectly = false; // sending request which has to be resolved / cancelled by the Ledger
                         const result = await request.call(transport);
                         if (request.cancelled) break;
@@ -562,33 +562,19 @@ export default class LedgerApi {
                         }
 
                         const message = (e instanceof Error ? e.message : String(e)).toLowerCase();
-                        // "timeout" used to happen for u2f, it's "device_ineligible" or "other_error" now (see
-                        // transport-comparison.md). "timed out" is for Chrome WebAuthn timeout; "denied permission" for
-                        // Firefox WebAuthn timeout.
-                        const isTimeout = /timeout|timed out|denied permission|u2f device_ineligible|u2f other_error/i
-                            .test(message);
+                        const isTimeout = /timeout|timed out/i.test(message);
                         const isLocked = /locked|0x6804/i.test(message);
                         const isConnectedToDashboard = /incorrect length/i.test(message);
                         canCancelDirectly = canCancelDirectly || isTimeout || isConnectedToDashboard;
-                        if (LedgerApi._transportType === TransportType.U2F
-                            || LedgerApi._transportType === TransportType.WEB_AUTHN
-                            || isLocked) {
-                            // For u2f / webauthn we don't get notified about disconnects therefore clear connection on
-                            // every exception. When locked clear connection for all transport types as user might
-                            // unlock with a different PIN for another wallet.
+                        if (isLocked) {
+                            // When locked clear connection as user might unlock with a different PIN for another
+                            // wallet.
                             LedgerApi._currentConnection = null;
                         }
-                        // Test whether user cancelled call on ledger device or in WebAuthn / U2F browser popup
-                        if (message.indexOf('denied by the user') !== -1 // user rejected confirmAddress on device
-                            || message.indexOf('request was rejected') !== -1 // user rejected signTransaction on device
-                            || (LedgerApi._isWebAuthnOrU2fCancellation(message, lastRequestCallTime)
-                                && !LedgerApi._connectionAborted)
+                        // Test whether user cancelled call on ledger device
+                        if (message.includes('denied by the user') // user rejected confirmAddress on device
+                            || message.includes('request was rejected') // user rejected signTransaction on device
                         ) {
-                            // Note that on _isWebAuthnOrU2fCancellation we can cancel directly and don't need the user
-                            // to cancel the request on the device as Ledger Nano S is now able to clean up old WebAuthn
-                            // and U2F requests and the the Nano X lets the Nimiq App crash anyways after the WebAuthn /
-                            // U2F host was lost. If the web authn / u2f cancellation was during connect and caused
-                            // _connectionAborted, don't cancel the request.
                             canCancelDirectly = true;
                             request.cancel(); // in case the request was not marked as cancelled before
                             break; // continue after loop where the actual cancellation happens
@@ -596,7 +582,7 @@ export default class LedgerApi {
                         // Errors that should end the request
                         if ((LedgerApi.currentState instanceof ErrorState
                             && LedgerApi.currentState.errorType === ErrorType.REQUEST_ASSERTION_FAILED)
-                            || message.indexOf('not supported') !== -1) { // no browser support
+                        || message.includes('not supported')) { // no browser support
                             reject(e);
                             return;
                         }
@@ -606,12 +592,12 @@ export default class LedgerApi {
                             && !isTimeout && !isLocked && !isConnectedToDashboard) {
                             console.warn('Unknown Ledger Error', e);
                         }
-                        // Wait a little when replacing a previous U2F request (see transport-comparison.md).
+                        // Wait a little after a timeout.
                         const waitTime = isTimeout ? LedgerApi.WAIT_TIME_AFTER_TIMEOUT
                             // If the API tells us that the ledger is busy (see transport-comparison.md) use a longer
                             // wait time to reduce the chance that we hit unfortunate 1.5s window after timeout of
                             // cancelled call
-                            : message.indexOf('busy') !== -1 ? 4 * LedgerApi.WAIT_TIME_AFTER_TIMEOUT
+                            : message.includes('busy') ? 4 * LedgerApi.WAIT_TIME_AFTER_TIMEOUT
                                 // For other exceptions wait a little to avoid busy endless loop for some exceptions.
                                 : LedgerApi.WAIT_TIME_AFTER_ERROR;
                         await new Promise((resolve2) => setTimeout(resolve2, waitTime));
@@ -623,13 +609,9 @@ export default class LedgerApi {
                 }
                 reject(new Error('Request cancelled'));
             });
-            /* eslint-enable no-await-in-loop, no-async-promise-executor */
+            /* eslint-enable no-async-promise-executor */
         } finally {
             LedgerApi._currentRequest = null;
-            if (LedgerApi._transportType === TransportType.U2F
-                || LedgerApi._transportType === TransportType.WEB_AUTHN) {
-                LedgerApi._currentConnection = null; // reset as we don't note when Ledger gets disconnected
-            }
             const errorType = LedgerApi._currentState instanceof ErrorState
                 ? LedgerApi._currentState.errorType
                 : null;
@@ -648,9 +630,8 @@ export default class LedgerApi {
         // requests called here do not allow.
 
         // Establish / verify the connection.
-        // This takes <300ms for a pre-authorized device via WebUSB, WebHID or WebBLE and <1s for WebAuthn or U2F.
+        // This takes <300ms for a pre-authorized device via WebUSB, WebHID or WebBLE.
         if (!LedgerApi._currentConnection || !request.canReuseCoinAppConnection(LedgerApi._currentConnection)) {
-            const connectStart = Date.now();
             LedgerApi._setState(StateType.CONNECTING);
             LedgerApi._currentConnection = null;
 
@@ -658,18 +639,11 @@ export default class LedgerApi {
                 LedgerApi._currentConnection = await request.checkCoinAppConnection(transport);
             } catch (e) {
                 const message = (e instanceof Error ? e.message : String(e)).toLowerCase();
-                if (message.indexOf('busy') !== -1) {
+                if (message.includes('busy')) {
                     throw new ErrorState(
                         ErrorType.LEDGER_BUSY,
                         // important to rethrow original message for handling of the 'busy' keyword in _callLedger
                         `Only one call to Ledger at a time allowed: ${e}`,
-                        request,
-                    );
-                } else if (LedgerApi._isWebAuthnOrU2fCancellation(message, connectStart)) {
-                    LedgerApi._connectionAborted = true;
-                    throw new ErrorState(
-                        ErrorType.CONNECTION_ABORTED,
-                        `Connection aborted: ${message}`,
                         request,
                     );
                 }
@@ -704,7 +678,7 @@ export default class LedgerApi {
             }
 
             // Load transport lib.
-            let TransportLib: TransportWebUsbConstructor | TransportConstructor;
+            let TransportLib: TransportLibrary;
             // Only set the loading state if the lib is not already loaded or fails instantly.
             const delayedLoadingStateTimeout = setTimeout(() => LedgerApi._setState(StateType.LOADING), 50);
             try {
@@ -729,8 +703,8 @@ export default class LedgerApi {
                 transport = await TransportLib!.create(
                     undefined, // use default openTimeout
                     // For network transport set a listenTimeout to avoid pinging the network endpoint indefinitely.
-                    // Others can be cancelled by the user when he wants or can not listen to devices getting connected
-                    // (u2f, WebAuthn) such that we don't have to put a timeout in place for other transport types.
+                    // Others can be cancelled by the user when they want, such that we don't have to put a timeout in
+                    // place for other transport types.
                     transportType === TransportType.NETWORK ? 3000 : undefined,
                 );
             } catch (e) {
@@ -743,7 +717,7 @@ export default class LedgerApi {
                             `Connection aborted: ${message}`,
                             request,
                         );
-                    } else if (message.indexOf('user gesture') !== -1) {
+                    } else if (message.includes('user gesture')) {
                         throw new ErrorState(
                             ErrorType.USER_INTERACTION_REQUIRED,
                             e instanceof Error ? e : String(e),
@@ -783,15 +757,6 @@ export default class LedgerApi {
             // Transport type changed while we were connecting; ignore error and rerun
             return LedgerApi._getTransport(request);
         }
-    }
-
-    private static _isWebAuthnOrU2fCancellation(errorMessage: string, requestStart: number) {
-        // Try to detect a WebAuthn or U2F cancellation. In Firefox, we can detect a WebAuthn cancellation for the
-        // Firefox internal popup. However, Firefox U2F cancellations, Firefox WebAuthn cancellations via Window's
-        // native popup and Chrome WebAuthn cancellations are not distinguishable from timeouts, therefore we check
-        // how likely it is a timeout by the passed time since request start.
-        return /operation was aborted/i.test(errorMessage) // WebAuthn cancellation in Firefox internal popup
-            || (/timed out|denied permission|u2f other_error/i.test(errorMessage) && Date.now() - requestStart < 20000);
     }
 
     private static _setState(state: State | Exclude<StateType, StateType.ERROR>): void {

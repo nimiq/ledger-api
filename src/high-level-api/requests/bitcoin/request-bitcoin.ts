@@ -1,5 +1,3 @@
-/// <reference path="../../../shared/type-shims.d.ts" />
-
 import Request, { CoinAppConnection } from '../request';
 import { AddressTypeBitcoin, Coin, Network, RequestTypeBitcoin } from '../../constants';
 import { isAppVersionSupported, isLegacyApp } from '../../app-utils';
@@ -46,9 +44,6 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
 
         const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
 
-        // TODO For u2f and WebAuthn, the Ledger displays a confirmation screen to get the public key if the user has
-        //  this privacy setting enabled. The get public key functionality also supports setting a permission token
-        //  which however is not implemented in @ledgerhq/hw-app-btc and therefore would need to be implemented manually
         const { publicKey } = await api.getWalletPublicKey(getBip32Path({
             coin: Coin.BITCOIN,
             addressType: AddressTypeBitcoin.LEGACY,
@@ -59,7 +54,7 @@ export default abstract class RequestBitcoin<T> extends Request<T> {
         }));
 
         // Compute base64 wallet id.
-        const publicKeyBytes = bufferFromHex(publicKey);
+        const publicKeyBytes = bufferFromHex(publicKey) as Uint8Array<ArrayBuffer>;
         const walletIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', publicKeyBytes));
         const walletId = bufferToBase64(walletIdHash);
         coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection

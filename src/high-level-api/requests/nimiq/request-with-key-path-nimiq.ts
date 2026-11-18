@@ -4,15 +4,14 @@ import { parseBip32Path } from '../../bip32-utils';
 import ErrorState, { ErrorType } from '../../error-state';
 import { NimiqVersion } from '../../../shared/constants';
 
-export default abstract class RequestWithKeyPathNimiq<Version extends NimiqVersion, T>
-    extends RequestNimiq<Version, T> {
+export default abstract class RequestWithKeyPathNimiq<T> extends RequestNimiq<T> {
     public readonly keyPath: string;
 
     protected constructor(
-        nimiqVersion: Version,
+        nimiqVersion: NimiqVersion,
         keyPath: string,
         expectedWalletId?: string,
-        childClassProperties: Object = {},
+        childClassProperties: object = {},
     ) {
         super(nimiqVersion, expectedWalletId);
 

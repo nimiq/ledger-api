@@ -3,8 +3,11 @@ type Transport = import('@ledgerhq/hw-transport').default;
 // Also see developers.ledger.com/docs/transport/open-close-info-on-apps/, github.com/LedgerHQ/ledgerjs/issues/365 and
 // github.com/LedgerHQ/ledger-secure-sdk/blob/master/src/os_io_seproxyhal.c for other interesting requests.
 
-export default async function getAppNameAndVersion(transport: Transport, scrambleKey: string, withApiLock = true)
-    : Promise<{ name: string, version: string }> {
+export default async function getAppNameAndVersion(
+    transport: Transport,
+    scrambleKey: string,
+    withApiLock = true,
+): Promise<{ name: string, version: string }> {
     // Taken from @ledgerhq/hw-app-btc/getAppAndVersion.js. We don't import it directly from there to avoid loading its
     // unnecessary dependencies. Note that this request is common to all apps and the dashboard and is no Bitcoin app
     // specific request (it's not on https://github.com/LedgerHQ/app-bitcoin-new/blob/master/doc/bitcoin.md but in the
@@ -23,7 +26,7 @@ export default async function getAppNameAndVersion(transport: Transport, scrambl
         const nameLength = response[offset++];
         const name = response.slice(offset, (offset += nameLength)).toString('ascii');
         const versionLength = response[offset++];
-        const version = response.slice(offset, (offset += versionLength)).toString('ascii');
+        const version = response.slice(offset, offset + versionLength).toString('ascii');
         return { name, version };
     };
     // Set the scramble key and enable the api lock (for ledger busy errors) if requested. Note that the lock is a

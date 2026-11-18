@@ -11,19 +11,18 @@ type LowLevelApi = InstanceType<LowLevelApiConstructor>;
 
 export { RequestTypeNimiq };
 
-export default abstract class RequestNimiq<Version extends NimiqVersion, T>
-    extends Request<T> {
+export default abstract class RequestNimiq<T> extends Request<T> {
     private static _lowLevelApiPromise: Promise<LowLevelApi> | null = null;
 
     public readonly coin: Coin.NIMIQ = Coin.NIMIQ;
     public readonly requiredApp: string = 'Nimiq';
-    public readonly nimiqVersion: Version;
+    public readonly nimiqVersion: NimiqVersion; // kept for backwards compatibility; always NimiqVersion.ALBATROSS
 
     public get minRequiredAppVersion(): string {
         return '1.4.2'; // first version supporting web usb
     }
 
-    protected constructor(nimiqVersion: Version, expectedWalletId?: string) {
+    protected constructor(nimiqVersion: NimiqVersion, expectedWalletId?: string) {
         super(expectedWalletId);
         this.nimiqVersion = nimiqVersion;
     }
@@ -34,9 +33,7 @@ export default abstract class RequestNimiq<Version extends NimiqVersion, T>
 
         const api = await this._getLowLevelApi(transport); // throws LOADING_DEPENDENCIES_FAILED on failure
 
-        // Set validate to false as otherwise the call is much slower. For U2F this can also unfreeze the ledger app,
-        // see transport-comparison.md. However, not sure whether this is still true today and as it's less relevant now
-        // with WebUsb being used by default, we ignore this side effect for !this._isWalletIdDerivationRequired case.
+        // Set validate to false as otherwise the call is much slower.
         const { publicKey: firstAddressPubKeyBytes } = await api.getPublicKey(
             getBip32Path({ coin: Coin.NIMIQ, addressIndex: 0 }),
             false, // validate
@@ -45,7 +42,9 @@ export default abstract class RequestNimiq<Version extends NimiqVersion, T>
         );
 
         // Compute base64 wallet id. Use sha256 as blake2b yields the nimiq address
-        const walletIdHash = new Uint8Array(await crypto.subtle.digest('SHA-256', firstAddressPubKeyBytes));
+        const walletIdHash = new Uint8Array(
+            await crypto.subtle.digest('SHA-256', firstAddressPubKeyBytes as Uint8Array<ArrayBuffer>),
+        );
         const walletId = bufferToBase64(walletIdHash);
         coinAppConnection.walletId = walletId; // change the original object which equals _coinAppConnection
         this._checkExpectedWalletId(walletId);

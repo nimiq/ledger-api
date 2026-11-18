@@ -5,7 +5,7 @@ import { NimiqVersion } from '../../../shared/constants';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
-export default class RequestGetWalletIdNimiq extends RequestNimiq<NimiqVersion, string> {
+export default class RequestGetWalletIdNimiq extends RequestNimiq<string> {
     public readonly type: RequestTypeNimiq.GET_WALLET_ID = RequestTypeNimiq.GET_WALLET_ID;
 
     public constructor(nimiqVersion: NimiqVersion) {

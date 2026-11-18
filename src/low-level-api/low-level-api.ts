@@ -11,6 +11,7 @@ import {
 } from '../shared/buffer-utils';
 
 type Transport = import('@ledgerhq/hw-transport').default;
+type TransportData = Parameters<Transport['send']>[4];
 
 const CLA = 0xe0;
 const INS_GET_PK = 0x02;
@@ -28,8 +29,8 @@ const P2_MORE_APDU = 0x80;
 const P2_NO_CONFIRM = 0x00;
 const P2_CONFIRM = 0x01;
 
-const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HEX = 1 << 0; // eslint-disable-line no-bitwise
-const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH = 1 << 1; // eslint-disable-line no-bitwise
+const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HEX = 1 << 0;
+const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH = 1 << 1;
 
 // Definition of common status words:
 // - https://github.com/LedgerHQ/ledger-secure-sdk/blob/master/include/errors.h
@@ -40,6 +41,8 @@ const SW_OK = 0x9000;
 const SW_CANCEL = 0x6985;
 const SW_KEEP_ALIVE = 0x6e02;
 
+// Scramble key of the Nimiq app. Only relevant for the U2F and WebAuthn transports, which are not supported anymore by
+// the high-level-api, but can still be used with the low-level-api.
 const U2F_SCRAMBLE_KEY = 'w0w';
 
 /**
@@ -81,7 +84,7 @@ export default class LowLevelApi {
     public async close() {
         try {
             await this._transport.close();
-        } catch (e) {
+        } catch {
             // Ignore. Transport might already be closed.
         }
     }
@@ -101,7 +104,7 @@ export default class LowLevelApi {
      * @param path - A path in BIP 32 format.
      * @param [boolValidate] - Optionally enable key pair validation.
      * @param [boolDisplay] - Optionally display the address on the ledger.
-     * @param [nimiqVersion] - Optionally choose which Nimiq library version to use for internal computations.
+     * @param [nimiqVersion] - Kept for backwards compatibility. Only NimiqVersion.ALBATROSS is supported.
      * @returns An object with the address.
      * @example
      * nim.getAddress("44'/242'/0'/0'").then(o => o.address)
@@ -113,10 +116,10 @@ export default class LowLevelApi {
         nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
     ): Promise<{ address: string }> {
         // Start loading Nimiq core later needed for hashing public key to address and optional validation.
-        loadNimiq(nimiqVersion, /* include cryptography */ true).catch(() => {});
+        loadNimiq().catch(() => {});
 
         const { publicKey } = await this.getPublicKey(path, boolValidate, boolDisplay, nimiqVersion);
-        const address = await publicKeyToAddress(publicKey, nimiqVersion);
+        const address = await publicKeyToAddress(publicKey);
         return { address };
     }
 
@@ -125,7 +128,7 @@ export default class LowLevelApi {
      * @param path - A path in BIP 32 format.
      * @param [boolValidate] - Optionally enable key pair validation.
      * @param [boolDisplay] - Optionally display the corresponding address on the ledger.
-     * @param [nimiqVersion] - Optionally choose which Nimiq library version to use for internal computations.
+     * @param [nimiqVersion] - Kept for backwards compatibility. Only NimiqVersion.ALBATROSS is supported.
      * @returns An object with the publicKey.
      * @example
      * nim.getPublicKey("44'/242'/0'/0'").then(o => o.publicKey)
@@ -134,11 +137,12 @@ export default class LowLevelApi {
         path: string,
         boolValidate: boolean = true,
         boolDisplay: boolean = false,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
     ): Promise<{ publicKey: Uint8Array }> {
         if (boolValidate) {
             // Start loading Nimiq core later needed for validation.
-            loadNimiq(nimiqVersion, /* include cryptography */ true).catch(() => {});
+            loadNimiq().catch(() => {});
         }
 
         const pathBytes = parsePath(path);
@@ -153,12 +157,11 @@ export default class LowLevelApi {
             INS_GET_PK,
             boolValidate ? P1_VALIDATE : P1_NO_VALIDATE,
             boolDisplay ? P2_CONFIRM : P2_NO_CONFIRM,
-            data as Buffer, // send currently expects a Buffer, while a Uint8Array suffices
+            data as TransportData, // send currently expects a Buffer, while a Uint8Array suffices
             [SW_OK, SW_KEEP_ALIVE],
         );
         // handle heartbeat
         while (bufferToUint16(response.slice(response.length - 2)) === SW_KEEP_ALIVE) {
-            // eslint-disable-next-line no-await-in-loop
             response = await this._transport.send(CLA, INS_KEEP_ALIVE, 0, 0, undefined, [SW_OK, SW_KEEP_ALIVE]);
         }
 
@@ -167,7 +170,7 @@ export default class LowLevelApi {
         offset += 32;
         if (boolValidate) {
             const signature = response.slice(offset, offset + 64);
-            if (!await verifySignature(validationMessage, signature, publicKey, nimiqVersion)) {
+            if (!await verifySignature(validationMessage, signature, publicKey)) {
                 throw new Error(
                     'Bad signature. Keypair is invalid. Please report this.',
                 );
@@ -176,54 +179,28 @@ export default class LowLevelApi {
         return { publicKey };
     }
 
-    /* eslint-disable lines-between-class-members */
     /**
      * Sign a Nimiq transaction.
      * @param path - A path in BIP 32 format.
      * @param transaction - Transaction content in serialized form.
-     * @param [nimiqVersion] - Of which format / version the serialized transaction is. By default Albatross.
-     * @param [appVersion] - For legacy transactions used to determine whether to transmit a version byte. If the
-     *  connected app version is already known, you can pass it to avoid the overhead of querying it again.
-     * @returns An object with the signature.
+     * @param [nimiqVersion] - Kept for backwards compatibility. Only NimiqVersion.ALBATROSS is supported.
+     * @returns An object with the signature and, for staking transactions which include an empty default staker
+     *  signature proof in their recipient data, the staker signature generated by the Ledger.
      * @example
      * nim.signTransaction("44'/242'/0'/0'", transaction).then(o => o.signature)
      */
     public async signTransaction(
         path: string,
         transaction: Uint8Array,
-        nimiqVersion: NimiqVersion.LEGACY,
-        appVersion?: string,
-    ): Promise<{ signature: Uint8Array, stakerSignature?: undefined }>;
-    public async signTransaction(
-        path: string,
-        transaction: Uint8Array,
-        nimiqVersion?: NimiqVersion,
-    ): Promise<{ signature: Uint8Array, stakerSignature?: Uint8Array }>;
-    public async signTransaction(
-        path: string,
-        transaction: Uint8Array,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
-        appVersion?: string,
     ): Promise<{ signature: Uint8Array, stakerSignature?: Uint8Array }> {
-        // The Nimiq version byte was added in app version 2. It supports both, legacy and Albatross transactions, and
-        // is the first app version to support Albatross. Note that wrongly sending a legacy transaction without version
-        // byte to the 2.0 app does no harm, as the app will reject it. Neither does sending an Albatross transaction,
-        // with version byte, to a legacy app before 2.0 as the app will interpret the version byte of value 1 as the
-        // first byte of the uint16 data length, resulting in a data length longer than the allowed max which will be
-        // rejected.
-        if (nimiqVersion === NimiqVersion.LEGACY && !appVersion) {
-            ({ version: appVersion } = await getAppNameAndVersion(
-                this._transport,
-                U2F_SCRAMBLE_KEY,
-                /* withApiLock */ false, // Don't lock the api, as we already locked it for signTransaction.
-            ));
-        }
-        const includeVersionByte = nimiqVersion === NimiqVersion.ALBATROSS || parseInt(appVersion || '') >= 2;
-
         const pathBytes = parsePath(path);
-        const versionByte = includeVersionByte
-            ? new Uint8Array([nimiqVersion === NimiqVersion.ALBATROSS ? 1 : 0])
-            : new Uint8Array();
+        // The Nimiq version byte was added in app version 2.0, which is the first app version to support Albatross.
+        // Note that sending an Albatross transaction, with version byte, to a legacy app before 2.0 does no harm, as
+        // the app will interpret the version byte of value 1 as the first byte of the uint16 data length, resulting in
+        // a data length longer than the allowed max which will be rejected.
+        const versionByte = new Uint8Array([/* Albatross */ 1]);
 
         const apdus: Array<Uint8Array> = [];
         let transactionChunkSize = Math.min(transaction.length, APDU_MAX_SIZE - pathBytes.length - versionByte.length);
@@ -244,13 +221,12 @@ export default class LowLevelApi {
         let response: Uint8Array;
         do {
             const data = apdus[chunkIndex];
-            // eslint-disable-next-line no-await-in-loop
             response = await this._transport.send(
                 CLA,
                 isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_TX,
                 chunkIndex === 0 ? P1_FIRST_APDU : P1_MORE_APDU, // note that for heartbeat p1, p2 and data are ignored
                 chunkIndex === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                data as Buffer, // send currently expects a Buffer, while a Uint8Array suffices
+                data as TransportData, // send currently expects a Buffer, while a Uint8Array suffices
                 [SW_OK, SW_CANCEL, SW_KEEP_ALIVE],
             );
             status = bufferToUint16(response.slice(response.length - 2));
@@ -267,16 +243,9 @@ export default class LowLevelApi {
             throw new Error('Unexpected response length');
         }
         const signature = response.slice(0, 64);
-        let stakerSignature: Uint8Array | undefined;
-        if (signatureCount === 2) {
-            if (nimiqVersion === NimiqVersion.LEGACY) {
-                throw new Error('Unexpected staker signature on legacy transaction');
-            }
-            stakerSignature = response.slice(64, 128);
-        }
+        const stakerSignature = signatureCount === 2 ? response.slice(64, 128) : undefined;
         return { signature, stakerSignature };
     }
-    /* eslint-enable lines-between-class-members */
 
     /**
      * Sign a message with a Nimiq key.
@@ -298,9 +267,8 @@ export default class LowLevelApi {
         const pathBytes = parsePath(path);
         const messageBytes = typeof message === 'string' ? bufferFromUtf8(message) : message;
         flags = typeof flags === 'object'
-            // eslint-disable-next-line no-bitwise
             ? (flags.preferDisplayTypeHex ? MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HEX : 0)
-                | (flags.preferDisplayTypeHash ? MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH : 0)
+            | (flags.preferDisplayTypeHash ? MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH : 0)
             : flags || 0;
         const flagsByte = new Uint8Array([flags]);
         if (messageBytes.length >= 2 ** 32) {
@@ -331,13 +299,12 @@ export default class LowLevelApi {
         let response: Uint8Array;
         do {
             const data = apdus[chunkIndex];
-            // eslint-disable-next-line no-await-in-loop
             response = await this._transport.send(
                 CLA,
                 isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_MESSAGE,
                 chunkIndex === 0 ? P1_FIRST_APDU : P1_MORE_APDU, // note that for heartbeat p1, p2 and data are ignored
                 chunkIndex === apdus.length - 1 ? P2_LAST_APDU : P2_MORE_APDU,
-                data as Buffer, // send currently expects a Buffer, while a Uint8Array suffices
+                data as TransportData, // send currently expects a Buffer, while a Uint8Array suffices
                 [SW_OK, SW_CANCEL, SW_KEEP_ALIVE],
             );
             status = bufferToUint16(response.slice(response.length - 2));

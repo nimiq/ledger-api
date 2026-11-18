@@ -1,5 +1,9 @@
 # Transport comparison
 
+> **Note:** Since version 5 of this library, the high-level api does not support the WebAuthn and U2F transports
+> anymore, as U2F has been removed from browsers and both were generally less reliable than WebHID and WebUSB. The notes
+> on these transports are kept for reference, and they can still be used with the low-level api.
+
 Note: the behavior of the low level api tends to vary greatly with:
 - used transport type: WebHID, WebUSB, WebBluetooth, WebAuthn, U2F
 - used device: Ledger Nano X or Ledger Nano S

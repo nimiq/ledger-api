@@ -1,14 +1,13 @@
-/// <reference path="../shared/type-shims.d.ts" />
+type Transport = import('@ledgerhq/hw-transport').default;
 
-type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
-type TransportWebUsbConstructor = typeof import('@ledgerhq/hw-transport-webusb').default;
+export type TransportLibrary = {
+    create(openTimeout?: number, listenTimeout?: number): Promise<Transport>,
+};
 
 export enum TransportType {
     WEB_HID = 'web-hid',
     WEB_USB = 'web-usb',
     WEB_BLE = 'web-ble',
-    WEB_AUTHN = 'web-authn',
-    U2F = 'u2f',
     NETWORK = 'network',
 }
 
@@ -20,20 +19,9 @@ export function isSupported(transportType?: TransportType): boolean {
         case TransportType.WEB_HID:
             return 'hid' in window.navigator;
         case TransportType.WEB_USB:
-            // @ts-ignore
             return 'usb' in window.navigator && typeof window.navigator.usb.getDevices === 'function';
         case TransportType.WEB_BLE:
             return 'bluetooth' in window.navigator;
-        case TransportType.WEB_AUTHN:
-            return !!navigator.credentials;
-        case TransportType.U2F:
-            // Note that Chrome, Opera and Edge use an internal, hidden cryptotoken extension to handle u2f
-            // (https://github.com/google/u2f-ref-code/blob/master/u2f-gae-demo/war/js/u2f-api.js) which does not
-            // expose the u2f api on window. Support via that extension is not detected by this check. However, as
-            // these browsers support WebUSB, this is acceptable and we don't use a more elaborate check like the one
-            // in the 'u2f-api' package to avoid bundling it and also because it's async, complicating the code.
-            // @ts-ignore
-            return 'u2f' in window && typeof window.u2f.sign === 'function';
         case TransportType.NETWORK:
             return 'fetch' in window && 'WebSocket' in window;
         default:
@@ -51,13 +39,6 @@ export function autoDetectTransportTypeToUse(): TransportType | null {
         TransportType.WEB_HID,
         // If WebHID is not available, WebUSB generally also works well.
         TransportType.WEB_USB,
-        // WebAuthn and U2F as fallbacks which are generally less stable though and can time out. They also cause native
-        // Windows security prompts in Windows and additionally Firefox internal popups in Firefox on all platforms.
-        // WebAuthn preferred over U2F, as compared to U2F better browser support and less quirky / not deprecated
-        // and works better with Nano X. But causes a popup in Chrome which U2F does not.
-        TransportType.WEB_AUTHN,
-        // U2F as last resort.
-        TransportType.U2F,
     ];
     return transportTypesByPreference.find(isSupported) || null;
 }
@@ -80,8 +61,7 @@ export function getNetworkEndpoint(): string {
  * Lazy load the library for a transport type.
  * @param transportType
  */
-export async function loadTransportLibrary(transportType: TransportType)
-    : Promise<TransportWebUsbConstructor | TransportConstructor> {
+export async function loadTransportLibrary(transportType: TransportType): Promise<TransportLibrary> {
     switch (transportType) {
         case TransportType.WEB_HID:
             return (await import('@ledgerhq/hw-transport-webhid')).default;
@@ -89,10 +69,6 @@ export async function loadTransportLibrary(transportType: TransportType)
             return (await import('@ledgerhq/hw-transport-webusb')).default;
         case TransportType.WEB_BLE:
             return (await import('@ledgerhq/hw-transport-web-ble')).default;
-        case TransportType.WEB_AUTHN:
-            return (await import('@ledgerhq/hw-transport-webauthn')).default;
-        case TransportType.U2F:
-            return (await import('@ledgerhq/hw-transport-u2f')).default;
         case TransportType.NETWORK:
             return (await import('@ledgerhq/hw-transport-http')).default([networkEndpoint]);
         default:
