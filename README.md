@@ -22,12 +22,32 @@ The apis are documented as jsdoc comments in
 [low-level-api.ts](https://github.com/nimiq/ledger-api/blob/master/src/low-level-api/low-level-api.ts) and
 [ledger-api.ts](https://github.com/nimiq/ledger-api/blob/master/src/high-level-api/ledger-api.ts).
 
-For a comparison of the available transport libraries, see
+Supported transports in the high level api are WebHID, WebUSB, WebBLE and a network transport (e.g. for the Ledger Live
+bridge or [Speculos](https://github.com/LedgerHQ/speculos)). For a comparison of the transport libraries, see
 [`transport-comparison.md`](https://github.com/nimiq/ledger-api/blob/master/transport-comparison.md).
+
+The low level api is also exported via `@nimiq/ledger-api/low-level-api`.
+
+## Nimiq version support
+
+Only Nimiq Albatross (Nimiq 2.0, Proof-of-Stake) is supported. Support for Nimiq Legacy (Nimiq 1.0, Proof-of-Work) has
+been removed in version 5. The `NimiqVersion` enum, which now only contains `NimiqVersion.ALBATROSS`, and the optional
+`nimiqVersion` parameters of the api methods are kept for backwards compatibility. The Nimiq core is loaded lazily from
+a CDN when needed, or taken from the global `Nimiq` if it was already loaded by the app.
+
+### Migrating from version 4
+
+- Nimiq Legacy support has been removed, see above. `NimiqVersion.LEGACY`, the legacy network ids in `NetworkIdNimiq`
+  and the legacy transaction format (`number` values, `extraData`) in `TransactionInfoNimiq` are gone.
+- The deprecated `TransportType.WEB_AUTHN` and `TransportType.U2F` have been removed from the high level api.
+- `bitcoinjs-lib` has been updated to version 7. Its `Transaction` type is accepted as input transaction format in
+  `TransactionInfoBitcoin`.
+- The package now defines an `exports` map. Files in `dist` remain importable via `@nimiq/ledger-api/dist/*`.
 
 ## Prerequisites
 
-Several of the used libraries like [bitcoinjs-lib](https://github.com/bitcoinjs/bitcoinjs-lib) and
+Several of the used libraries like
+[@ledgerhq/hw-app-btc](https://github.com/LedgerHQ/ledger-live/tree/develop/libs/ledgerjs/packages/hw-app-btc) and
 [@ledgerhq/hw-transport](https://github.com/LedgerHQ/ledger-live/tree/develop/libs/ledgerjs/packages/hw-transport) make
 use of built-in modules and globals native to NodeJS. For use in browsers, they must be polyfilled as part of the build
 process.
@@ -54,15 +74,13 @@ browserify -r @nimiq/ledger-api -s LedgerApi | terser --compress --mangle > ledg
 Note that bundling to a separate file can lead to duplicate bundling of the dependencies and the polyfills between the
 standalone file and the rest of your app. Therefore, using a different bundler is recommended.
 
-### rollup with plugin `rollup-plugin-polyfill-node`
+### Vite with plugin `vite-plugin-node-polyfills`
 
-The [rollup](https://rollupjs.org/) plugin
-[`rollup-plugin-polyfill-node`](https://github.com/FredKSchott/rollup-plugin-polyfill-node)
-can be used to automatically handle polyfills of NodeJS features. An example configuration can be found
-[here](https://github.com/nimiq/ledger-api/blob/639d7dc35c1cd121d48a9bc7a6ec814939881147/rollup.config.js).
-
-Note that `rollup-plugin-polyfill-node` has not been updated much recently, and provided polyfills might not be the most
-up-to-date. You might want to look for a more modern fork or manually provide the polyfills yourself.
+For [Vite](https://vite.dev/), the plugin
+[`vite-plugin-node-polyfills`](https://github.com/davidmyersdev/vite-plugin-node-polyfills) can be used to
+automatically provide polyfills of NodeJS features. For an example configuration, see the
+[config of the demo page](https://github.com/nimiq/ledger-api/blob/master/vite.demo.config.ts) included in this
+repository.
 
 ### Manually providing polyfills
 
@@ -72,37 +90,56 @@ ability to keep them up-to-date manually.
 Notable features built into NodeJS and suggested polyfills are:
 - NodeJS module `buffer` can be polyfilled by npm package
   [`buffer`](https://www.npmjs.com/package/buffer).
-- NodeJS module `stream` can be polyfilled by npm package
-  [`readable-stream`](https://www.npmjs.com/package/readable-stream).
+- NodeJS module `events` can be polyfilled by npm package
+  [`events`](https://www.npmjs.com/package/events).
 - NodeJS global variable `global` can be polyfilled as
   [`globalThis`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis).
 - NodeJS global variable `Buffer` can be polyfilled by injecting `import { Buffer } from 'buffer'` wherever `Buffer` is
   used, as part of your build task.
 
-Basically, npm packages `buffer` and `readable-stream` need to be added as dependencies, `stream` has to be aliased as
-`readable-stream`, imports of `buffer` should be injected whenever `Buffer` is used, and `global` should be replaced
-with `globalThis`.
+Basically, npm packages `buffer` and `events` need to be added as dependencies, imports of `buffer` should be injected
+whenever `Buffer` is used, and `global` should be replaced with `globalThis`.
 
-For an example setup with [rollup](https://rollupjs.org/) check out the `demoConfig` in the build task of the [demo app
-included in this repository](https://github.com/nimiq/ledger-api/blob/master/rollup.config.js).
+For an example setup with [rollup](https://rollupjs.org/) check out the `demoConfig` in the
+[rollup config of version 4.0.1 of this library](https://github.com/nimiq/ledger-api/blob/d7e6c168c0da8eed977c3999083b96aa12965586/rollup.config.js).
 
 For an example setup with [webpack](https://webpack.js.org/) checkout out the
 [vue.config.js of the Nimiq Hub](https://github.com/nimiq/hub/blob/master/vue.config.js).
 
-## Bonus: reducing imports of bitcoinjs-lib in @ledgerhq/hw-app-btc
+### Optional: shimming `axios` and `ws` for the network transport
 
-@ledgerhq/hw-app-btc unnecessarily imports the entire bitcoinjs-lib, while only its crypto library is used. To reduce
-the scope of the imports, you can patch @ledgerhq/hw-app-btc in a similar fashion to the patch included in `patches`.
+`@ledgerhq/hw-transport-http`, which is only loaded when using `TransportType.NETWORK`, depends on `axios` and `ws`. In
+browsers, these can be replaced by lightweight shims based on `fetch` and the native `WebSocket`, see
+[`axios-shim.ts`](https://github.com/nimiq/ledger-api/blob/master/src/demo/axios-shim.ts),
+[`ws-shim.ts`](https://github.com/nimiq/ledger-api/blob/master/src/demo/ws-shim.ts) and their usage in the
+[demo page config](https://github.com/nimiq/ledger-api/blob/master/vite.demo.config.ts).
 
 ## Development and building the library
 
-To run the demo page use:
-```batch
-yarn serve
-```
-Note that this serves the demo via https which is required for communicating with the Ledger.
+Requires NodeJS 20.19 or newer.
 
-To build the library:
-```batch
+To run the demo page use:
+```bash
+yarn dev
+```
+Note that this serves the demo via https with a self-signed certificate, which is required for communicating with the
+Ledger. The demo uses the library directly from source.
+
+To build the library (bundled via Vite, type declarations via `tsc`):
+```bash
 yarn build
 ```
+
+To build the demo page to `dist/demo`:
+```bash
+yarn build:demo
+```
+
+To type check and lint:
+```bash
+yarn typecheck
+yarn lint
+```
+
+For testing with [Speculos](https://github.com/LedgerHQ/speculos), run `yarn speculos-bridge` and select the network
+transport with the Speculos endpoint on the demo page.
