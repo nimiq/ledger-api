@@ -66,7 +66,7 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
         // error states. Other errors are converted to REQUEST_ASSERTION_FAILED errors which stop the execution of the
         // request.
         const [
-            { bip32FromBase58, bitcoinJsNetworks },
+            { HDKey, bitcoinJsNetworks },
             [ledgerXpub, verificationPubKey, verificationChainCode],
         ] = await Promise.all([
             this._loadDependencies(), // throws LOADING_DEPENDENCIES_FAILED on failure
@@ -100,17 +100,17 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
         try {
             const networkInfo = getNetworkInfo(this.network, this._addressType, bitcoinJsNetworks);
 
-            const extendedPubKey = bip32FromBase58(ledgerXpub, {
-                ...networkInfo,
-                bip32: { ...networkInfo.bip32, public: ledgerXpubVersion },
+            const extendedPubKey = HDKey.fromExtendedKey(ledgerXpub, {
+                ...networkInfo.bip32,
+                public: ledgerXpubVersion,
             });
 
             // Verify that the generated xpub is correct by deriving an example child and comparing it to the result
             // calculated by the Ledger device. No need to verify the Ledger generated address as it is derived from the
             // pub key anyway.
-            const verificationDerivation = extendedPubKey.derivePath(verificationPath);
-            if (!areBuffersEqual(verificationDerivation.publicKey, verificationPubKey)
-                || !areBuffersEqual(verificationDerivation.chainCode, verificationChainCode)) {
+            const verificationDerivation = extendedPubKey.derive(`m/${verificationPath}`);
+            if (!areBuffersEqual(verificationDerivation.publicKey!, verificationPubKey)
+                || !areBuffersEqual(verificationDerivation.chainCode!, verificationChainCode)) {
                 throw new Error('Failed to verify the constructed xpub.');
             }
 
@@ -118,23 +118,29 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
             // and address type. We do this for compatibility with previous versions of our api and the Nimiq Keyguard
             // and because it's still common practice. However, encoding as versions other than xpub and tpub is
             // a somewhat deprecated standard nowadays. They're for example not used in PSBTs or descriptor wallets.
-            extendedPubKey.network = networkInfo;
-            return extendedPubKey.toBase58();
+            return new HDKey({
+                versions: networkInfo.bip32,
+                depth: extendedPubKey.depth,
+                index: extendedPubKey.index,
+                parentFingerprint: extendedPubKey.parentFingerprint,
+                chainCode: extendedPubKey.chainCode!,
+                publicKey: extendedPubKey.publicKey!,
+            }).publicExtendedKey;
         } catch (e) {
             throw new ErrorState(ErrorType.REQUEST_ASSERTION_FAILED, e instanceof Error ? e : String(e), this);
         }
     }
 
     protected async _loadDependencies(): Promise<{
-        bip32FromBase58: typeof import('bip32').fromBase58,
+        HDKey: typeof import('@scure/bip32').HDKey,
         bitcoinJsNetworks: typeof import('bitcoinjs-lib').networks,
     } & Awaited<ReturnType<RequestBitcoin<string>['_loadDependencies']>>> {
-        const [parentDependencies, bip32FromBase58, bitcoinJsNetworks] = await Promise.all([
+        const [parentDependencies, HDKey, bitcoinJsNetworks] = await Promise.all([
             super._loadDependencies(),
             // These throw LOADING_DEPENDENCIES_FAILED on failure.
-            this._loadDependency(import('bip32').then(({ fromBase58 }) => fromBase58)),
+            this._loadDependency(import('@scure/bip32').then((module) => module.HDKey)),
             this._loadDependency(import('bitcoinjs-lib/src/networks')),
         ]);
-        return { ...parentDependencies, bip32FromBase58, bitcoinJsNetworks };
+        return { ...parentDependencies, HDKey, bitcoinJsNetworks };
     }
 }

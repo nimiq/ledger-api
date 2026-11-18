@@ -7,17 +7,14 @@
   "types": "dist/high-level-api/ledger-api.d.ts",
   "files": [
     "transport-comparison.md",
-    "src/shared/type-shims.d.ts",
     "dist",
-    "!dist/demo",
-    "patches"
+    "!dist/demo"
   ],
   "sideEffects": false,
   "scripts": {
     "build": "rm -rf dist/ && rollup --config --configProduction",
     "serve": "rm -rf dist/ && rollup --config --watch --configServe",
-    "speculos-bridge": "node speculos-bridge/speculos-bridge.js",
-    "prepare": "patch-package"
+    "speculos-bridge": "node speculos-bridge/speculos-bridge.js"
   },
   "repository": {
     "type": "git",
@@ -36,8 +33,8 @@
   },
   "homepage": "https://github.com/nimiq/ledger-api#readme",
   "devDependencies": {
-    "@ledgerhq/hw-transport-node-speculos": "^6.27.20",
-    "@ledgerhq/logs": "^6.11.0",
+    "@ledgerhq/hw-transport-node-speculos": "^6.34.7",
+    "@ledgerhq/logs": "^6.20.0",
     "@rollup/plugin-alias": "^5.0.1",
     "@rollup/plugin-commonjs": "^25.0.7",
     "@rollup/plugin-eslint": "^9.0.5",
@@ -53,7 +50,6 @@
     "eslint": "^8.54.0",
     "eslint-config-airbnb-typescript": "^17.1.0",
     "eslint-plugin-import": "^2.29.0",
-    "patch-package": "^8.0.1",
     "readable-stream": "^4.4.2",
     "rollup": "^4.5.1",
     "rollup-plugin-copy": "^3.5.0",
@@ -61,19 +57,20 @@
     "rollup-plugin-serve": "^2.0.2",
     "rollup-plugin-sourcemaps": "^0.6.3",
     "tslib": "^2.6.2",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "ws": "^8.23.0"
   },
   "dependencies": {
-    "@ledgerhq/hw-app-btc": "^10.0.9",
-    "@ledgerhq/hw-transport": "^6.29.0",
-    "@ledgerhq/hw-transport-http": "^6.28.4",
-    "@ledgerhq/hw-transport-web-ble": "^6.27.20",
-    "@ledgerhq/hw-transport-webhid": "^6.27.20",
-    "@ledgerhq/hw-transport-webusb": "^6.27.20",
-    "@nimiq/core": "^2.2.2",
-    "@types/w3c-web-usb": "^1.0.6",
-    "bip32": "^2.0.6",
-    "bitcoinjs-lib": "^5.2.0"
+    "@ledgerhq/hw-app-btc": "^12.3.0",
+    "@ledgerhq/hw-transport": "^6.37.0",
+    "@ledgerhq/hw-transport-http": "^6.36.5",
+    "@ledgerhq/hw-transport-web-ble": "^6.35.0",
+    "@ledgerhq/hw-transport-webhid": "^6.36.0",
+    "@ledgerhq/hw-transport-webusb": "^6.35.0",
+    "@nimiq/core": "^2.23.0",
+    "@scure/bip32": "^2.4.0",
+    "@types/w3c-web-usb": "^1.0.14",
+    "bitcoinjs-lib": "^7.0.5"
   },
   "resolutions": {
     "rollup-plugin-sourcemaps/@rollup/pluginutils": "^5.0.5"

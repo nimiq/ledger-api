@@ -1,7 +1,10 @@
-/* eslint-disable import/no-extraneous-dependencies -- these are only used for dev purposes */
-const { default: { default: SpeculosTransport } } = await import('@ledgerhq/hw-transport-node-speculos');
-const { default: { Server: WebSocketServer } } = await import('ws');
-/* eslint-enable import/no-extraneous-dependencies */
+import { createRequire } from 'node:module';
+import { WebSocketServer } from 'ws';
+
+// Load the CommonJS build, as the ES module build of @ledgerhq/hw-transport-node-speculos can not be loaded by NodeJS
+// directly due to its extensionless imports.
+const require = createRequire(import.meta.url);
+const { default: SpeculosTransport } = require('@ledgerhq/hw-transport-node-speculos');
 
 const WEBSOCKET_PORT = 9999;
 const SPECULOS_PORT = 40000;
@@ -41,7 +44,8 @@ webSocketServer.on('connection', (webSocket) => {
         () => webSocket.close(),
     );
 
-    webSocket.on('message', async (message) => {
+    webSocket.on('message', async (data) => {
+        const message = data.toString();
         // See @ledgerhq/hw-transport-http/WebSocketTransport for expected response format
         if (message === 'open') {
             webSocket.send(JSON.stringify({ type: 'opened' }));

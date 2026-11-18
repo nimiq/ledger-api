@@ -1,7 +1,8 @@
-/// <reference path="../shared/type-shims.d.ts" />
+type Transport = import('@ledgerhq/hw-transport').default;
 
-type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
-type TransportWebUsbConstructor = typeof import('@ledgerhq/hw-transport-webusb').default;
+export type TransportLibrary = {
+    create(openTimeout?: number, listenTimeout?: number): Promise<Transport>,
+};
 
 export enum TransportType {
     WEB_HID = 'web-hid',
@@ -18,7 +19,6 @@ export function isSupported(transportType?: TransportType): boolean {
         case TransportType.WEB_HID:
             return 'hid' in window.navigator;
         case TransportType.WEB_USB:
-            // @ts-ignore
             return 'usb' in window.navigator && typeof window.navigator.usb.getDevices === 'function';
         case TransportType.WEB_BLE:
             return 'bluetooth' in window.navigator;
@@ -61,8 +61,7 @@ export function getNetworkEndpoint(): string {
  * Lazy load the library for a transport type.
  * @param transportType
  */
-export async function loadTransportLibrary(transportType: TransportType)
-    : Promise<TransportWebUsbConstructor | TransportConstructor> {
+export async function loadTransportLibrary(transportType: TransportType): Promise<TransportLibrary> {
     switch (transportType) {
         case TransportType.WEB_HID:
             return (await import('@ledgerhq/hw-transport-webhid')).default;

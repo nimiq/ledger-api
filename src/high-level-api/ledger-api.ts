@@ -8,6 +8,7 @@ import {
     setNetworkEndpoint,
     loadTransportLibrary,
     TransportType,
+    type TransportLibrary,
 } from './transport-utils';
 import { isAppSupported } from './app-utils';
 import { getBip32Path, parseBip32Path } from './bip32-utils';
@@ -24,9 +25,7 @@ import {
     TransactionFlagsNimiq,
 } from './constants';
 
-type TransportConstructor = typeof import('@ledgerhq/hw-transport').default;
-type TransportWebUsbConstructor = typeof import('@ledgerhq/hw-transport-webusb').default;
-type Transport = InstanceType<TransportConstructor | TransportWebUsbConstructor>;
+type Transport = import('@ledgerhq/hw-transport').default;
 
 type CoinAppConnection = import('./requests/request').CoinAppConnection;
 
@@ -675,7 +674,7 @@ export default class LedgerApi {
             }
 
             // Load transport lib.
-            let TransportLib: TransportWebUsbConstructor | TransportConstructor;
+            let TransportLib: TransportLibrary;
             // Only set the loading state if the lib is not already loaded or fails instantly.
             const delayedLoadingStateTimeout = setTimeout(() => LedgerApi._setState(StateType.LOADING), 50);
             try {
