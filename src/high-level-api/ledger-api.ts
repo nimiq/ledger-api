@@ -59,10 +59,10 @@ type RequestConstructor = RequestGetWalletIdNimiqConstructor | RequestGetPublicK
 /* eslint-enable @typescript-eslint/indent */
 type Request = InstanceType<RequestConstructor>;
 
-type TransactionInfoNimiq<Version extends NimiqVersion> =
-    import('./requests/nimiq/request-sign-transaction-nimiq').TransactionInfoNimiq<Version>;
-type MessageSignatureInfoNimiq<Version extends NimiqVersion> =
-    import('./requests/nimiq/request-sign-message-nimiq').MessageSignatureInfoNimiq<Version>;
+type TransactionInfoNimiq<Version extends NimiqVersion = NimiqVersion>
+    = import('./requests/nimiq/request-sign-transaction-nimiq').TransactionInfoNimiq<Version>;
+type MessageSignatureInfoNimiq<Version extends NimiqVersion = NimiqVersion>
+    = import('./requests/nimiq/request-sign-message-nimiq').MessageSignatureInfoNimiq<Version>;
 
 type TransactionInfoBitcoin = import('./requests/bitcoin/request-sign-transaction-bitcoin').TransactionInfoBitcoin;
 
@@ -120,15 +120,15 @@ export default class LedgerApi {
         /**
          * Get the public key for a given bip32 key path. Optionally expect a specific wallet id.
          */
-        async getPublicKey<Version extends NimiqVersion = NimiqVersion.ALBATROSS>(
+        async getPublicKey(
             keyPath: string,
             expectedWalletId?: string,
-            nimiqVersion: Version = NimiqVersion.ALBATROSS as Version,
-        ): Promise<NimiqPrimitive<'PublicKey', Version>> {
+            nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
+        ): Promise<NimiqPrimitive<'PublicKey'>> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestGetPublicKeyNimiqConstructor>(
                 import('./requests/nimiq/request-get-public-key-nimiq'),
                 nimiqVersion, keyPath, expectedWalletId,
-            )) as Promise<NimiqPrimitive<'PublicKey', Version>>;
+            ));
         },
 
         /**
@@ -179,16 +179,16 @@ export default class LedgerApi {
          * corresponding address does not necessarily need to be the transaction's sender address for example for
          * transactions sent from vesting contracts. Optionally expect a specific wallet id.
          */
-        async signTransaction<Version extends NimiqVersion = NimiqVersion.ALBATROSS>(
-            transaction: TransactionInfoNimiq<Version>,
+        async signTransaction(
+            transaction: TransactionInfoNimiq,
             keyPath: string,
             expectedWalletId?: string,
-            nimiqVersion: Version = NimiqVersion.ALBATROSS as Version,
-        ): Promise<NimiqPrimitive<'Transaction', Version>> {
+            nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
+        ): Promise<NimiqPrimitive<'Transaction'>> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignTransactionNimiqConstructor>(
                 import('./requests/nimiq/request-sign-transaction-nimiq'),
                 nimiqVersion, keyPath, transaction, expectedWalletId,
-            )) as Promise<NimiqPrimitive<'Transaction', Version>>;
+            ));
         },
 
         /**
@@ -197,17 +197,17 @@ export default class LedgerApi {
          * hex or hash instead of as ascii, or expect a specific wallet id. If no preference for the display type is
          * specified, the message is by default tried to be displayed as ascii, hex or hash, in that order.
          */
-        async signMessage<Version extends NimiqVersion = NimiqVersion.ALBATROSS>(
+        async signMessage(
             message: string | Uint8Array,
             keyPath: string,
             flags?: { preferDisplayTypeHex: boolean, preferDisplayTypeHash: boolean } | number,
             expectedWalletId?: string,
-            nimiqVersion: Version = NimiqVersion.ALBATROSS as Version,
-        ): Promise<MessageSignatureInfoNimiq<Version>> {
-            return await LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignMessageNimiqConstructor>(
+            nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
+        ): Promise<MessageSignatureInfoNimiq> {
+            return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignMessageNimiqConstructor>(
                 import('./requests/nimiq/request-sign-message-nimiq'),
                 nimiqVersion, keyPath, message, flags, expectedWalletId,
-            )) as MessageSignatureInfoNimiq<Version>;
+            ));
         },
     };
 
@@ -348,7 +348,8 @@ export default class LedgerApi {
      * However, if that connection fails due to a required user interaction / user gesture, you can manually connect in
      * the context of a user interaction, for example a click.
      * @param coin - Which Ledger coin app to connect to.
-     * @param [nimiqVersion] - Only for Nimiq: which Nimiq library version to use internally. Albatross by default.
+     * @param [nimiqVersion] - Only for Nimiq: kept for backwards compatibility. Only NimiqVersion.ALBATROSS is
+     *  supported.
      * @param [network] - Only for Bitcoin: whether to connect to the mainnet or testnet app. Mainnet by default.
      * @returns Whether connecting to the Ledger succeeded.
      */
@@ -359,9 +360,7 @@ export default class LedgerApi {
         coin: Coin,
         nimiqVersionOrBitcoinNetwork?: NimiqVersion | Exclude<Network, Network.DEVNET>,
     ): Promise<boolean> {
-        const nimiqVersion = nimiqVersionOrBitcoinNetwork === NimiqVersion.LEGACY
-            ? NimiqVersion.LEGACY
-            : NimiqVersion.ALBATROSS;
+        const nimiqVersion = NimiqVersion.ALBATROSS;
         const bitcoinNetwork = nimiqVersionOrBitcoinNetwork === Network.TESTNET
             ? Network.TESTNET
             : Network.MAINNET;

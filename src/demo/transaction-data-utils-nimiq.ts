@@ -1,17 +1,12 @@
-import { isNimiqLegacy, type Nimiq, type NimiqPrimitive } from '../shared/load-nimiq';
+import type { Nimiq, NimiqPrimitive } from '../shared/load-nimiq';
 import {
     bufferFromHex,
     bufferFromUtf8,
-    bufferFromUint32,
     bufferFromUint64,
     bufferToHex,
     areBuffersEqual,
 } from '../shared/buffer-utils';
 import { getInputElement, getSelectorValue, logInputs } from './demo-utils';
-
-// Our built library.
-// Typescript needs the import as specified to find the .d.ts file, see rollup.config.js
-import { NimiqVersion } from '../../dist/high-level-api/ledger-api';
 
 type TransactionData = { senderData?: Uint8Array, recipientData?: Uint8Array };
 
@@ -48,27 +43,27 @@ const UI_TRANSACTION_DATA_TYPE_SELECTOR = `
             <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.CREATE_VESTING}">
             Create Vesting
         </label>
-        <label class="show-${NimiqVersion.ALBATROSS}">
+        <label>
             <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.CREATE_STAKER}">
             Create Staker
         </label>
-        <label class="show-${NimiqVersion.ALBATROSS}">
+        <label>
             <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.ADD_STAKE}">
             Add Stake
         </label>
-        <label class="show-${NimiqVersion.ALBATROSS}">
+        <label>
             <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.UPDATE_STAKER}">
             Update Staker
         </label>
-        <label class="show-${NimiqVersion.ALBATROSS}">
+        <label>
             <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.SET_ACTIVE_STAKE}">
             Set Active Stake
         </label>
-        <label class="show-${NimiqVersion.ALBATROSS}">
+        <label>
             <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.RETIRE_STAKE}">
             Retire Stake
         </label>
-        <label class="show-${NimiqVersion.ALBATROSS}">
+        <label>
             <input type="radio" name="tx-data-ui-selector-nimiq" value="${DataUiType.REMOVE_STAKE}">
             Remove Stake
         </label>
@@ -327,12 +322,7 @@ export const UI_TRANSACTION_DATA = [
     UI_TRANSACTION_DATA_STYLE,
 ].join('').trim();
 
-export function resetTransactionDataUiTypeSelector() {
-    const $uiTypeSelector = document.getElementById('tx-data-ui-selector-nimiq')!;
-    getInputElement(`[value=${DataUiType.HEX}]`, $uiTypeSelector).checked = true;
-}
-
-export function getTransactionData(Nimiq: Nimiq<NimiqVersion>): TransactionData {
+export function getTransactionData(Nimiq: Nimiq): TransactionData {
     const $uiTypeSelector = document.getElementById('tx-data-ui-selector-nimiq')!;
     const $senderDataHexInput = getInputElement('#tx-data-sender-hex-input-nimiq');
     const $recipientDataHexInput = getInputElement('#tx-data-recipient-hex-input-nimiq');
@@ -392,9 +382,8 @@ function getTransactionDataForText(): TransactionData {
     return { senderData, recipientData };
 }
 
-function getTransactionDataForCreateHtlc(Nimiq: Nimiq<NimiqVersion>): TransactionData {
+function getTransactionDataForCreateHtlc(Nimiq: Nimiq): TransactionData {
     // For serialization format see:
-    // - core-js: create or dataToPlain in src/main/generic/consensus/base/account/HashedTimeLockedContract.js
     // - core-rs-albatross: CreationTransactionData in primitives/transaction/src/account/htlc_contract.rs
 
     const $senderInput = getInputElement('#tx-data-htlc-sender-input-nimiq');
@@ -406,13 +395,10 @@ function getTransactionDataForCreateHtlc(Nimiq: Nimiq<NimiqVersion>): Transactio
     logInputs('Transaction Data (Create HTLC)', { $senderInput, $recipientInput, $hashAlgorithmSelector,
         $hashRootInput, $hashCountInput, $timeoutInput });
 
-    const nimiqVersion = isNimiqLegacy(Nimiq) ? NimiqVersion.LEGACY : NimiqVersion.ALBATROSS;
     const htlcSender = Nimiq.Address.fromUserFriendlyAddress($senderInput.value);
     const htlcRecipient = Nimiq.Address.fromUserFriendlyAddress($recipientInput.value);
-    // Note that serialized, numeric values for hashAlgorithms (blake2b: 1, argon2d: 2, sha256: 3, sha512: 4) are
-    // consistent between Nimiq Legacy and Nimiq Albatross, see:
-    // - core-js: Hash.Algorithm in src/main/generic/consensus/base/primitive/Hash.js
-    // - core-rs-albatross: Serialize for AnyHash in primitives/transaction/src/account/htlc_contract.rs
+    // Serialized, numeric values for hashAlgorithms (blake2b: 1, argon2d: 2, sha256: 3, sha512: 4), see Serialize for
+    // AnyHash in core-rs-albatross/primitives/transaction/src/account/htlc_contract.rs
     const hashAlgorithm = getSelectorValue($hashAlgorithmSelector, [1, 2, 3, 4]);
     const hashRoot = bufferFromHex($hashRootInput.value);
     const hashCount = Number.parseInt($hashCountInput.value, 10);
@@ -423,14 +409,13 @@ function getTransactionDataForCreateHtlc(Nimiq: Nimiq<NimiqVersion>): Transactio
         hashAlgorithm,
         ...hashRoot,
         hashCount,
-        ...bufferFromBlockOrTime(nimiqVersion, timeout),
+        ...bufferFromUint64(timeout),
     ]);
     return { recipientData };
 }
 
-function getTransactionDataForCreateVesting(Nimiq: Nimiq<NimiqVersion>): TransactionData {
+function getTransactionDataForCreateVesting(Nimiq: Nimiq): TransactionData {
     // For serialization format see:
-    // - core-js: create or dataToPlain in src/main/generic/consensus/base/account/VestingContract.js
     // - core-rs-albatross: CreationTransactionData in primitives/transaction/src/account/vesting_contract.rs
 
     const $ownerInput = getInputElement('#tx-data-vesting-owner-input-nimiq');
@@ -449,13 +434,12 @@ function getTransactionDataForCreateVesting(Nimiq: Nimiq<NimiqVersion>): Transac
             + 'specified too.');
     }
 
-    const nimiqVersion = isNimiqLegacy(Nimiq) ? NimiqVersion.LEGACY : NimiqVersion.ALBATROSS;
     const vestingOwner = Nimiq.Address.fromUserFriendlyAddress($ownerInput.value);
     const vestingStepTime = Number.parseInt($stepTimeInput.value, 10);
     const recipientData = new Uint8Array([
         ...vestingOwner.serialize(),
-        ...($startInput.value ? bufferFromBlockOrTime(nimiqVersion, Number.parseInt($startInput.value, 10)) : []),
-        ...bufferFromBlockOrTime(nimiqVersion, vestingStepTime),
+        ...($startInput.value ? bufferFromUint64(Number.parseInt($startInput.value, 10)) : []),
+        ...bufferFromUint64(vestingStepTime),
         ...($stepAmountInput.value
             ? bufferFromUint64(Math.round(Number.parseFloat($stepAmountInput.value) * 1e5))
             : []
@@ -508,9 +492,7 @@ const STAKING_DEFAULT_SIGNATURE_PROOF = new Uint8Array([
     // No serialized webauthn fields as the algorithm defaults to ed25519.
 ]);
 
-function getTransactionDataForCreateStaker(Nimiq: Nimiq<NimiqVersion>): TransactionData {
-    if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
-
+function getTransactionDataForCreateStaker(Nimiq: Nimiq): TransactionData {
     const $delegationInput = getInputElement('#tx-data-create-staker-delegation-input-nimiq');
     const $signatureProofInput = getInputElement('#tx-data-create-staker-signature-proof-input-nimiq');
     logInputs('Transaction Data (Create Staker)', { $delegationInput, $signatureProofInput });
@@ -530,9 +512,7 @@ function getTransactionDataForCreateStaker(Nimiq: Nimiq<NimiqVersion>): Transact
     return { recipientData };
 }
 
-function getTransactionDataForAddStake(Nimiq: Nimiq<NimiqVersion>): TransactionData {
-    if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
-
+function getTransactionDataForAddStake(Nimiq: Nimiq): TransactionData {
     const $stakerInput = getInputElement('#tx-data-add-stake-staker-input-nimiq');
     logInputs('Transaction Data (Add Stake)', { $stakerInput });
 
@@ -546,9 +526,7 @@ function getTransactionDataForAddStake(Nimiq: Nimiq<NimiqVersion>): TransactionD
     return { recipientData };
 }
 
-function getTransactionDataForUpdateStaker(Nimiq: Nimiq<NimiqVersion>): TransactionData {
-    if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
-
+function getTransactionDataForUpdateStaker(Nimiq: Nimiq): TransactionData {
     const $newDelegationInput = getInputElement('#tx-data-update-staker-new-delegation-input-nimiq');
     const $reactivateAllStakeSelector = document.getElementById(
         'tx-data-update-staker-reactivate-all-stake-selector-nimiq')!;
@@ -576,10 +554,7 @@ function getTransactionDataForUpdateStaker(Nimiq: Nimiq<NimiqVersion>): Transact
     return { recipientData };
 }
 
-function getTransactionDataForSetActiveStakeOrRetireStake(Nimiq: Nimiq<NimiqVersion>, uiType: DataUiType)
-    : TransactionData {
-    if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
-
+function getTransactionDataForSetActiveStakeOrRetireStake(Nimiq: Nimiq, uiType: DataUiType): TransactionData {
     const $amountInput = getInputElement('#tx-data-set-active-stake-or-retire-stake-amount-input-nimiq');
     const $signatureProofInput = getInputElement(
         '#tx-data-set-active-stake-or-retire-stake-signature-proof-input-nimiq');
@@ -601,9 +576,7 @@ function getTransactionDataForSetActiveStakeOrRetireStake(Nimiq: Nimiq<NimiqVers
     return { recipientData };
 }
 
-function getTransactionDataForRemoveStake(Nimiq: Nimiq<NimiqVersion>): TransactionData {
-    if (isNimiqLegacy(Nimiq)) throw new Error('Staking transactions are only supported for Albatross.');
-
+function getTransactionDataForRemoveStake(Nimiq: Nimiq): TransactionData {
     logInputs('Transaction Data (Remove Stake)', {});
 
     const senderData = new Uint8Array([OutgoingStakingTransactionDataType.REMOVE_STAKE]);
@@ -613,14 +586,14 @@ function getTransactionDataForRemoveStake(Nimiq: Nimiq<NimiqVersion>): Transacti
 }
 
 type TrimTransactionBuilderMethod<M extends string> = M extends `new${infer B}` ? B : never; // trim new in method name
-type TransactionBuilderType = TrimTransactionBuilderMethod<keyof Nimiq<NimiqVersion.ALBATROSS>['TransactionBuilder']>;
+type TransactionBuilderType = TrimTransactionBuilderMethod<keyof Nimiq['TransactionBuilder']>;
 const TRANSACTION_BUILDERS_EXPECTING_AMOUNT = ['Basic', 'BasicWithData', 'CreateStaker', 'AddStake', 'RemoveStake'] as
     const satisfies readonly TransactionBuilderType[];
 type TransactionBuilderExpectingAmount = (typeof TRANSACTION_BUILDERS_EXPECTING_AMOUNT)[number];
-type TransactionBuilderDataParameters<B extends TransactionBuilderType> =
+type TransactionBuilderDataParameters<B extends TransactionBuilderType>
     // Exclude common transaction builder parameters that don't affect sender or recipient data.
-    Parameters<Nimiq<NimiqVersion.ALBATROSS>['TransactionBuilder'][`new${B}`]> extends [
-        NimiqPrimitive<'Address', NimiqVersion.ALBATROSS>, // sender or recipient
+    = Parameters<Nimiq['TransactionBuilder'][`new${B}`]> extends [
+        NimiqPrimitive<'Address'>, // sender or recipient
         ...infer P,
         ...(B extends TransactionBuilderExpectingAmount ? [bigint] : []), // amount
         bigint | null | undefined, // fee
@@ -628,7 +601,7 @@ type TransactionBuilderDataParameters<B extends TransactionBuilderType> =
         number, // network id
     ] ? P : never;
 function checkSerialization<B extends TransactionBuilderType>(
-    Nimiq: Nimiq<NimiqVersion.ALBATROSS>,
+    Nimiq: Nimiq,
     { senderData, recipientData, customSignatureProof }: {
         senderData?: Uint8Array,
         recipientData?: Uint8Array,
@@ -653,10 +626,4 @@ function checkSerialization<B extends TransactionBuilderType>(
         || !areBuffersEqual(referenceTransaction.data, recipientData || new Uint8Array())) {
         throw new Error('Incorrect serialization');
     }
-}
-
-function bufferFromBlockOrTime(nimiqVersion: NimiqVersion, blockOrTime: number): Uint8Array {
-    // In Nimiq Legacy, time in contracts is specified as a uint32 block number, while in Albatross it's an actual
-    // uint64 timestamp.
-    return (nimiqVersion === NimiqVersion.LEGACY ? bufferFromUint32 : bufferFromUint64)(blockOrTime);
 }

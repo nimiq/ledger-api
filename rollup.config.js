@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 import { walk } from 'estree-walker';
 import MagicString from 'magic-string';
 
@@ -13,7 +12,6 @@ import sourcemaps from 'rollup-plugin-sourcemaps';
 import commonjs from '@rollup/plugin-commonjs';
 import json from '@rollup/plugin-json';
 import inject from '@rollup/plugin-inject';
-import replace from '@rollup/plugin-replace';
 
 // demo page specific imports
 import copy from 'rollup-plugin-copy';
@@ -26,12 +24,6 @@ function isExternalDependency(id) {
     return externalDependencies.includes(id)
         // handle importing of individual files from a dependency, e.g. bitcoinjs-lib/src/address
         || externalDependencies.some((externalDependency) => id.startsWith(`${externalDependency}/`));
-}
-
-async function calculateIntegrityHash(filename, algorithm = 'sha256') {
-    const fileContent = await fs.promises.readFile(filename);
-    const hash = crypto.createHash(algorithm).update(fileContent).digest('base64');
-    return `${algorithm}-${hash}`;
 }
 
 // change sourcemap paths to a separate protocol and path such that they appear in a "virtual folder" in dev tools
@@ -129,9 +121,6 @@ export default async (commandLineArgs) => {
     const isProduction = commandLineArgs.configProduction; // called with --configProduction?
     const isServing = commandLineArgs.configServe;
 
-    const nimiqLegacyCoreWasmIntegrityHash = await calculateIntegrityHash(
-        './node_modules/@nimiq/core-web/worker-wasm.js');
-
     const highLevelApiConfig = {
         input: 'src/high-level-api/ledger-api.ts',
         output: {
@@ -168,9 +157,6 @@ export default async (commandLineArgs) => {
             // Plugins for processing dependencies.
             commonjs(),
             // Last steps in output generation.
-            replace({
-                __nimiqLegacyCoreWasmIntegrityHash__: `'${nimiqLegacyCoreWasmIntegrityHash}'`,
-            }),
             hoistDynamicImportDependencies(),
         ],
         watch: {
@@ -204,9 +190,6 @@ export default async (commandLineArgs) => {
             }),
             sourcemaps(),
             commonjs(),
-            replace({
-                __nimiqLegacyCoreWasmIntegrityHash__: `'${nimiqLegacyCoreWasmIntegrityHash}'`,
-            }),
         ],
         watch: {
             clearScreen: false,
@@ -271,9 +254,6 @@ export default async (commandLineArgs) => {
                 Buffer: ['buffer', 'Buffer'], // add "import { Buffer } from 'buffer'" when node's Buffer global is used
                 global: 'global', // add "import global from 'global'" when node's global variable 'global' is used
                 process: 'process', // add "import process from 'process'" when node's global variable 'process' is used
-            }),
-            replace({
-                __nimiqLegacyCoreWasmIntegrityHash__: `'${nimiqLegacyCoreWasmIntegrityHash}'`,
             }),
             copy({
                 targets: [{

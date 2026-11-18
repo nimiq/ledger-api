@@ -5,17 +5,16 @@ import { loadNimiq, type Nimiq, type NimiqPrimitive } from '../../../shared/load
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
-export default class RequestGetPublicKeyNimiq<Version extends NimiqVersion>
-    extends RequestWithKeyPathNimiq<Version, NimiqPrimitive<'PublicKey', Version>> {
+export default class RequestGetPublicKeyNimiq extends RequestWithKeyPathNimiq<NimiqPrimitive<'PublicKey'>> {
     public readonly type: RequestTypeNimiq.GET_PUBLIC_KEY;
 
-    constructor(nimiqVersion: Version, keyPath: string, expectedWalletId?: string) {
+    constructor(nimiqVersion: NimiqVersion, keyPath: string, expectedWalletId?: string) {
         const type = RequestTypeNimiq.GET_PUBLIC_KEY;
         super(nimiqVersion, keyPath, expectedWalletId, { type });
         this.type = type;
     }
 
-    public async call(transport: Transport): Promise<NimiqPrimitive<'PublicKey', Version>> {
+    public async call(transport: Transport): Promise<NimiqPrimitive<'PublicKey'>> {
         // These throw LOADING_DEPENDENCIES_FAILED on failure.
         const [api, { Nimiq }] = await Promise.all([this._getLowLevelApi(transport), this._loadDependencies()]);
         const { publicKey } = await api.getPublicKey(
@@ -25,15 +24,15 @@ export default class RequestGetPublicKeyNimiq<Version extends NimiqVersion>
             this.nimiqVersion,
         );
 
-        return new Nimiq.PublicKey(publicKey) as NimiqPrimitive<'PublicKey', Version>;
+        return new Nimiq.PublicKey(publicKey);
     }
 
     protected async _loadDependencies(): Promise<{
-        Nimiq: Nimiq<Version>,
-    } & Awaited<ReturnType<RequestWithKeyPathNimiq<any, any>['_loadDependencies']>>> {
+        Nimiq: Nimiq,
+    } & Awaited<ReturnType<RequestWithKeyPathNimiq<unknown>['_loadDependencies']>>> {
         const [parentDependencies, Nimiq] = await Promise.all([
             super._loadDependencies(),
-            this._loadDependency(loadNimiq(this.nimiqVersion, /* include cryptography */ false)),
+            this._loadDependency(loadNimiq()),
         ]);
         return { ...parentDependencies, Nimiq };
     }

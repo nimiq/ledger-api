@@ -6,8 +6,7 @@ import { NimiqVersion } from '../../../shared/constants';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
-export default class RequestDeriveAddressesNimiq
-    extends RequestNimiq<NimiqVersion, Array<{ address: string, keyPath: string }>> {
+export default class RequestDeriveAddressesNimiq extends RequestNimiq<Array<{ address: string, keyPath: string }>> {
     public readonly type: RequestTypeNimiq.DERIVE_ADDRESSES = RequestTypeNimiq.DERIVE_ADDRESSES;
     public readonly pathsToDerive: Iterable<string>;
 

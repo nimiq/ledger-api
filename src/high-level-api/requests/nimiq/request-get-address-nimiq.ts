@@ -5,7 +5,7 @@ import { NimiqVersion } from '../../../shared/constants';
 
 type Transport = import('@ledgerhq/hw-transport').default;
 
-export default class RequestGetAddressNimiq extends RequestWithKeyPathNimiq<NimiqVersion, string> {
+export default class RequestGetAddressNimiq extends RequestWithKeyPathNimiq<string> {
     public readonly type: RequestTypeNimiq.GET_ADDRESS;
     public readonly display?: boolean;
     public readonly expectedAddress?: string;

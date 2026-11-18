@@ -11,19 +11,18 @@ type LowLevelApi = InstanceType<LowLevelApiConstructor>;
 
 export { RequestTypeNimiq };
 
-export default abstract class RequestNimiq<Version extends NimiqVersion, T>
-    extends Request<T> {
+export default abstract class RequestNimiq<T> extends Request<T> {
     private static _lowLevelApiPromise: Promise<LowLevelApi> | null = null;
 
     public readonly coin: Coin.NIMIQ = Coin.NIMIQ;
     public readonly requiredApp: string = 'Nimiq';
-    public readonly nimiqVersion: Version;
+    public readonly nimiqVersion: NimiqVersion; // kept for backwards compatibility; always NimiqVersion.ALBATROSS
 
     public get minRequiredAppVersion(): string {
         return '1.4.2'; // first version supporting web usb
     }
 
-    protected constructor(nimiqVersion: Version, expectedWalletId?: string) {
+    protected constructor(nimiqVersion: NimiqVersion, expectedWalletId?: string) {
         super(expectedWalletId);
         this.nimiqVersion = nimiqVersion;
     }
