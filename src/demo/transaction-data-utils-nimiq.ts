@@ -261,7 +261,6 @@ const UI_TRANSACTION_DATA_REMOVE_STAKE = `
     (There are no additional data parameters to set for Remove Stake data.)
 </div>`;
 
-/* eslint-disable @typescript-eslint/indent */
 const UI_TRANSACTION_DATA_STYLE = `
 <style>
     #tx-ui-nimiq .selector,
@@ -305,7 +304,6 @@ const UI_TRANSACTION_DATA_STYLE = `
         display: none;
     }
 </style>`;
-/* eslint-enable @typescript-eslint/indent */
 
 export const UI_TRANSACTION_DATA = [
     UI_TRANSACTION_DATA_TYPE_SELECTOR,

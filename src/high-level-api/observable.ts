@@ -20,10 +20,10 @@ export default class Observable {
     }
 
     public once(eventType: string, listener: EventListener): void {
-        const onceListener: EventListener = ((...args: any[]) => {
+        const onceListener: EventListener = (...args: any[]) => {
             this.off(eventType, onceListener);
             listener(...args);
-        });
+        };
         this.on(eventType, onceListener);
     }
 

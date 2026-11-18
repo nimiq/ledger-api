@@ -32,7 +32,6 @@ export default class RequestDeriveAddressesNimiq extends RequestNimiq<Array<{ ad
         const addressRecords = [];
         for (const keyPath of this.pathsToDerive) {
             if (this.cancelled) return addressRecords;
-            // eslint-disable-next-line no-await-in-loop
             const { address } = await api.getAddress(
                 keyPath,
                 true, // validate

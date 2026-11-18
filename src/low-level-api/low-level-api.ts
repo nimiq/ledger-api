@@ -29,8 +29,8 @@ const P2_MORE_APDU = 0x80;
 const P2_NO_CONFIRM = 0x00;
 const P2_CONFIRM = 0x01;
 
-const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HEX = 1 << 0; // eslint-disable-line no-bitwise
-const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH = 1 << 1; // eslint-disable-line no-bitwise
+const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HEX = 1 << 0;
+const MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH = 1 << 1;
 
 // Definition of common status words:
 // - https://github.com/LedgerHQ/ledger-secure-sdk/blob/master/include/errors.h
@@ -84,7 +84,7 @@ export default class LowLevelApi {
     public async close() {
         try {
             await this._transport.close();
-        } catch (e) {
+        } catch {
             // Ignore. Transport might already be closed.
         }
     }
@@ -162,7 +162,6 @@ export default class LowLevelApi {
         );
         // handle heartbeat
         while (bufferToUint16(response.slice(response.length - 2)) === SW_KEEP_ALIVE) {
-            // eslint-disable-next-line no-await-in-loop
             response = await this._transport.send(CLA, INS_KEEP_ALIVE, 0, 0, undefined, [SW_OK, SW_KEEP_ALIVE]);
         }
 
@@ -222,7 +221,6 @@ export default class LowLevelApi {
         let response: Uint8Array;
         do {
             const data = apdus[chunkIndex];
-            // eslint-disable-next-line no-await-in-loop
             response = await this._transport.send(
                 CLA,
                 isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_TX,
@@ -269,9 +267,8 @@ export default class LowLevelApi {
         const pathBytes = parsePath(path);
         const messageBytes = typeof message === 'string' ? bufferFromUtf8(message) : message;
         flags = typeof flags === 'object'
-            // eslint-disable-next-line no-bitwise
             ? (flags.preferDisplayTypeHex ? MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HEX : 0)
-                | (flags.preferDisplayTypeHash ? MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH : 0)
+            | (flags.preferDisplayTypeHash ? MESSAGE_FLAG_PREFER_DISPLAY_TYPE_HASH : 0)
             : flags || 0;
         const flagsByte = new Uint8Array([flags]);
         if (messageBytes.length >= 2 ** 32) {
@@ -302,7 +299,6 @@ export default class LowLevelApi {
         let response: Uint8Array;
         do {
             const data = apdus[chunkIndex];
-            // eslint-disable-next-line no-await-in-loop
             response = await this._transport.send(
                 CLA,
                 isHeartbeat ? INS_KEEP_ALIVE : INS_SIGN_MESSAGE,

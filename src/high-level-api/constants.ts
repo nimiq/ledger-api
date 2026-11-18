@@ -43,9 +43,9 @@ export enum AddressTypeBitcoin {
 }
 
 export const LedgerAddressFormatMapBitcoin = {
-    [AddressTypeBitcoin.LEGACY]: 'legacy' as 'legacy',
-    [AddressTypeBitcoin.P2SH_SEGWIT]: 'p2sh' as 'p2sh',
-    [AddressTypeBitcoin.NATIVE_SEGWIT]: 'bech32' as 'bech32',
+    [AddressTypeBitcoin.LEGACY]: 'legacy' as const,
+    [AddressTypeBitcoin.P2SH_SEGWIT]: 'p2sh' as const,
+    [AddressTypeBitcoin.NATIVE_SEGWIT]: 'bech32' as const,
 };
 
 export const REQUEST_EVENT_CANCEL = 'cancel';

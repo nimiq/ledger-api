@@ -39,23 +39,21 @@ type RequestSignTransactionNimiqConstructor = typeof import('./requests/nimiq/re
 type RequestSignMessageNimiqConstructor = typeof import('./requests/nimiq/request-sign-message-nimiq').default;
 
 type RequestGetWalletIdBitcoinConstructor = typeof import('./requests/bitcoin/request-get-wallet-id-bitcoin').default;
-type RequestGetAddressAndPublicKeyBitcoinConstructor =
-    typeof import('./requests/bitcoin/request-get-address-and-public-key-bitcoin').default;
-type RequestGetExtendedPublicKeyBitcoinConstructor =
-    typeof import('./requests/bitcoin/request-get-extended-public-key-bitcoin').default;
-type RequestSignTransactionBitcoinConstructor =
-    typeof import('./requests/bitcoin/request-sign-transaction-bitcoin').default;
+type RequestGetAddressAndPublicKeyBitcoinConstructor
+    = typeof import('./requests/bitcoin/request-get-address-and-public-key-bitcoin').default;
+type RequestGetExtendedPublicKeyBitcoinConstructor
+    = typeof import('./requests/bitcoin/request-get-extended-public-key-bitcoin').default;
+type RequestSignTransactionBitcoinConstructor
+    = typeof import('./requests/bitcoin/request-sign-transaction-bitcoin').default;
 type RequestSignMessageBitcoinConstructor = typeof import('./requests/bitcoin/request-sign-message-bitcoin').default;
 
 // define Request type as actually defined request classes to be more specific than the abstract parent class
-/* eslint-disable @typescript-eslint/indent */
 type RequestConstructor = RequestGetWalletIdNimiqConstructor | RequestGetPublicKeyNimiqConstructor
     | RequestGetAddressNimiqConstructor | RequestDeriveAddressesNimiqConstructor
     | RequestSignTransactionNimiqConstructor | RequestSignMessageNimiqConstructor
     | RequestGetWalletIdBitcoinConstructor | RequestGetAddressAndPublicKeyBitcoinConstructor
     | RequestGetExtendedPublicKeyBitcoinConstructor | RequestSignTransactionBitcoinConstructor
     | RequestSignMessageBitcoinConstructor;
-/* eslint-enable @typescript-eslint/indent */
 type Request = InstanceType<RequestConstructor>;
 
 type TransactionInfoNimiq<Version extends NimiqVersion = NimiqVersion>
@@ -243,8 +241,10 @@ export default class LedgerApi {
         /**
          * Utility function that directly gets a confirmed address.
          */
-        async getConfirmedAddressAndPublicKey(keyPath: string, expectedWalletId?: string)
-            : Promise<{ publicKey: string, address: string, chainCode: string }> {
+        async getConfirmedAddressAndPublicKey(
+            keyPath: string,
+            expectedWalletId?: string,
+        ): Promise<{ publicKey: string, address: string, chainCode: string }> {
             const { address } = await LedgerApi.Bitcoin.getAddressAndPublicKey(
                 keyPath,
                 false,
@@ -283,8 +283,11 @@ export default class LedgerApi {
          * utf8 string or an Uint8Array of arbitrary data. Optionally expect a specific wallet id. The resulting
          * signature is base64 encoded.
          */
-        async signMessage(message: string | Uint8Array, keyPath: string, expectedWalletId?: string)
-            : Promise<{ signerAddress: string, signature: string }> {
+        async signMessage(
+            message: string | Uint8Array,
+            keyPath: string,
+            expectedWalletId?: string,
+        ): Promise<{ signerAddress: string, signature: string }> {
             return LedgerApi._callLedger(await LedgerApi._createRequest<RequestSignMessageBitcoinConstructor>(
                 import('./requests/bitcoin/request-sign-message-bitcoin'),
                 keyPath, message, expectedWalletId,
@@ -448,7 +451,7 @@ export default class LedgerApi {
         try {
             const api = await transportPromise;
             await api.close();
-        } catch (e) {
+        } catch {
             // Ignore.
         }
     }
@@ -476,7 +479,7 @@ export default class LedgerApi {
 
     private static async _createRequest<RC extends RequestConstructor>(
         requestConstructor: (new (...params: ConstructorParameters<RC>) => InstanceType<RC>)
-        | Promise<{ default: new (...params: ConstructorParameters<RC>) => InstanceType<RC> }>,
+            | Promise<{ default: new (...params: ConstructorParameters<RC>) => InstanceType<RC> }>,
         ...params: ConstructorParameters<RC>
     ): Promise<InstanceType<RC>> {
         if (LedgerApi.transportType) {
@@ -501,7 +504,7 @@ export default class LedgerApi {
         try {
             // Note that the requestConstructor is typed as is instead of just RC | Promise<{ default: RC }> such that
             // typescript can determine which exact request is being created and returned.
-            return new requestConstructor(...params); // eslint-disable-line new-cap
+            return new requestConstructor(...params);
         } catch (e) {
             if (e instanceof ErrorState) {
                 LedgerApi._setState(e);
@@ -519,7 +522,7 @@ export default class LedgerApi {
         LedgerApi._connectionAborted = false; // user is initiating a new request
         try {
             LedgerApi._currentRequest = request;
-            /* eslint-disable no-await-in-loop, no-async-promise-executor */
+            /* eslint-disable no-async-promise-executor */
             return await new Promise<ReturnType<R['call']>>(async (resolve, reject) => {
                 let canCancelDirectly = true;
                 let cancelFired = false;
@@ -606,7 +609,7 @@ export default class LedgerApi {
                 }
                 reject(new Error('Request cancelled'));
             });
-            /* eslint-enable no-await-in-loop, no-async-promise-executor */
+            /* eslint-enable no-async-promise-executor */
         } finally {
             LedgerApi._currentRequest = null;
             const errorType = LedgerApi._currentState instanceof ErrorState

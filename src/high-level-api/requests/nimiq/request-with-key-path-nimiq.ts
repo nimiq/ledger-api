@@ -11,7 +11,7 @@ export default abstract class RequestWithKeyPathNimiq<T> extends RequestNimiq<T>
         nimiqVersion: NimiqVersion,
         keyPath: string,
         expectedWalletId?: string,
-        childClassProperties: Object = {},
+        childClassProperties: object = {},
     ) {
         super(nimiqVersion, expectedWalletId);
 

@@ -98,7 +98,7 @@ export function parseBip32Path(path: string): Required<Bip32PathParams> & { acco
             if (changeType === undefined) throw new Error('Specifying a change type is required for Bitcoin');
             if (changeType !== '0' && changeType !== '1') throw new Error('Invalid change type for Bitcoin');
             if (isAddressIndexHardened) throw new Error('Address index must not be hardened for Bitcoin');
-            const addressType = [...PURPOSE_ID_MAP_BITCOIN.entries()].find(([,pId]) => pId === purposeId)![0];
+            const addressType = [...PURPOSE_ID_MAP_BITCOIN.entries()].find(([, pId]) => pId === purposeId)![0];
             const network = coinType === 0 ? Network.MAINNET : Network.TESTNET;
             const isInternal = changeType === '1';
             return {

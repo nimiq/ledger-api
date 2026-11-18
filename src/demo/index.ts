@@ -1,5 +1,4 @@
 // dev dependencies for the demo page
-/* eslint-disable import/no-extraneous-dependencies */
 // Note: we installed @ledgerhq/logs and bitcoinjs-message only as dev dependencies, as they're only used in the demo.
 import { listen as onLog } from '@ledgerhq/logs';
 import { verify as verifySignedMessageBitcoin } from 'bitcoinjs-message';
@@ -359,7 +358,7 @@ window.addEventListener('load', () => {
                 <h2 class="nq-card-header nq-h2">Sign Transaction</h2>
                 <div class="nq-card-body">
                     <textarea required class="nq-input" id="tx-info-textarea-bitcoin">`
-                        /* eslint-disable no-multi-spaces */
+                        /* eslint-disable @stylistic/no-multi-spaces, @stylistic/indent-binary-ops */
                         + '{\n'
                         + '    "inputs": [{\n'
                         + '        "transaction": "020000000001015fd6b1d5315141cf77edbc06d8da1d2a0b164c0f9f5d4ea08edc35'
@@ -381,8 +380,8 @@ window.addEventListener('load', () => {
                         + '    }],\n'
                         + '    "changePath": "84\'/1\'/0\'/1/0"\n'
                         + '}'
-                        /* eslint-enable no-multi-spaces */
-                    + `</textarea>
+                        /* eslint-enable @stylistic/no-multi-spaces, @stylistic/indent-binary-ops */
+                        + `</textarea>
                     <div class="nq-text">
                         <button class="nq-button-s" id="sign-tx-button-bitcoin">Sign Transaction</button>
                     </div>
@@ -722,8 +721,7 @@ window.addEventListener('load', () => {
         if (api instanceof LowLevelApi) {
             const { name, version } = await api.getAppNameAndVersion();
             if (name !== 'Nimiq' && /* for speculos */ name !== 'app') throw new Error(`Wrong app connected: ${name}`);
-            // @ts-ignore: deviceModel does not exist on all transport types
-            const deviceModel = (window._transport.deviceModel || {}).productName || 'device type unknown';
+            const deviceModel = window._transport!.deviceModel?.productName || 'device type unknown';
             displayStatus(`Connected (app version ${version}, ${deviceModel})`);
         } else {
             const coin = getSelectorValue($coinSelector, Coin);
@@ -819,7 +817,7 @@ window.addEventListener('load', () => {
             const fee = BigInt(Math.round(Number.parseFloat($txFeeInputNimiq.value) * 1e5));
             const validityStartHeight = Number.parseInt($txValidityStartHeightInputNimiq.value, 10);
             const network = getSelectorValue($txNetworkSelectorNimiq, Network);
-            const flags = TransactionFlagsNimiq.NONE // eslint-disable-line no-bitwise
+            const flags = TransactionFlagsNimiq.NONE
                 | ($txFlagContractCreationCheckboxNimiq.checked ? TransactionFlagsNimiq.CONTRACT_CREATION : 0)
                 | ($txFlagSignalingCheckboxNimiq.checked ? TransactionFlagsNimiq.SIGNALING : 0);
             logInputs('Transaction', { $txSenderInputNimiq, $txSenderTypeSelectorNimiq,

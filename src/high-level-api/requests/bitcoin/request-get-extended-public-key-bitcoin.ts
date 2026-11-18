@@ -35,7 +35,7 @@ export default class RequestGetExtendedPublicKeyBitcoin extends RequestBitcoin<s
             throw new ErrorState(
                 ErrorType.REQUEST_ASSERTION_FAILED,
                 `Invalid keyPath ${keyPath}. Paths must follow bip44 and at least specify the purpose id`
-                    + ' (allowed are 44\', 49\', 84\'), coin type (allowed are 0\', 1\') and account index (hardened).',
+                + ' (allowed are 44\', 49\', 84\'), coin type (allowed are 0\', 1\') and account index (hardened).',
                 this,
             );
         }

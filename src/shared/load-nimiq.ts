@@ -55,7 +55,6 @@ let nimiqCorePromise: Promise<Nimiq> | null = null;
 export async function loadNimiq(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     nimiqVersion: NimiqVersion = NimiqVersion.ALBATROSS,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _includeCryptography = true,
     preloadWasm = true,
 ): Promise<Nimiq> {
@@ -93,7 +92,7 @@ function preloadAsset(asset: string, as: string, crossOrigin?: boolean, integrit
     link.rel = 'preload';
     link.as = as;
     link.href = asset;
-    link.onload = link.onerror = () => document.head.removeChild(link); // eslint-disable-line no-multi-assign
+    link.onload = link.onerror = () => document.head.removeChild(link);
     if (crossOrigin) link.crossOrigin = '';
     if (integrity) link.integrity = integrity;
     document.head.appendChild(link);
